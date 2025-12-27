@@ -20,6 +20,13 @@ repositories {
 	// Loom adds the essential maven repositories to download Minecraft and libraries from automatically.
 	// See https://docs.gradle.org/current/userguide/declaring_repositories.html
 	// for more information about repositories.
+	mavenCentral()
+	maven {
+		url = "https://api.modrinth.com/maven/"
+		content {
+			includeGroup "maven.modrinth"
+		}
+	}
 }
 
 loom {
@@ -45,6 +52,9 @@ dependencies {
 
 	implementation "org.tukaani:xz:1.10"
 	include "org.tukaani:xz:1.10"
+
+	modImplementation "maven.modrinth:DistantHorizonsApi:${project.distant_horizons_api_version}"
+	modRuntimeOnly "maven.modrinth:DistantHorizons:${project.distant_horizons_version}"
 	
 }
 

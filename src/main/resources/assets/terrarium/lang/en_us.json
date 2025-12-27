@@ -55,6 +55,7 @@
   "property.terrarium.dripstone.name": "Dripstone Caves",
   "property.terrarium.deep_dark.name": "Deep Dark",
   "property.terrarium.ore_distribution.name": "Ore Distribution",
+  "property.terrarium.geodes.name": "Amethyst Geodes",
   "property.terrarium.lava_pools.name": "Lava Pools",
   "property.terrarium.cave_carvers.tooltip": "Generates standard cave carvers",
   "property.terrarium.large_caves.tooltip": "Generates large cave systems",
@@ -63,6 +64,7 @@
   "property.terrarium.dripstone.tooltip": "Generates dripstone caves",
   "property.terrarium.deep_dark.tooltip": "Generates deep dark biomes and features",
   "property.terrarium.ore_distribution.tooltip": "Enable vanilla ore distribution",
+  "property.terrarium.geodes.tooltip": "Generates amethyst geodes underground",
   "property.terrarium.lava_pools.tooltip": "Generates underground lava pools",
   "property.terrarium.add_strongholds.name": "Add Strongholds",
   "property.terrarium.add_villages.name": "Add Villages",
@@ -98,5 +100,9 @@
   "property.terrarium.add_ancient_cities.tooltip": "If enabled, ancient cities will be generated randomly",
   "property.terrarium.add_trial_chambers.tooltip": "If enabled, trial chambers will be generated randomly",
   "property.terrarium.add_trail_ruins.tooltip": "If enabled, trail ruins will be generated randomly",
+  "property.terrarium.distant_horizons_render_mode.name": "Distant Horizons Render Mode",
+  "property.terrarium.distant_horizons_render_mode.tooltip": "Fast uses Terrarium's LOD generator; detailed uses DH's default chunk generation",
+  "property.terrarium.distant_horizons_render_mode.value.fast": "Fast (Approximate)",
+  "property.terrarium.distant_horizons_render_mode.value.detailed": "Detailed (Slow)",
   "property.terrarium.locked.name": "This feature is not currently available"
 }

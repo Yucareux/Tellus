@@ -384,6 +384,7 @@ public class EarthCustomizeScreen extends Screen {
 		boolean dripstone = cinematicMode ? false : this.findToggleValue("dripstone", true);
 		boolean deepDark = cinematicMode ? false : this.findToggleValue("deep_dark", true);
 		boolean oreDistribution = cinematicMode ? false : this.findToggleValue("ore_distribution", false);
+		boolean geodes = cinematicMode ? false : this.findToggleValue("geodes", false);
 		boolean lavaPools = cinematicMode ? false : this.findToggleValue("lava_pools", false);
 		boolean addStrongholds = false;
 		boolean addVillages = this.findToggleValue("add_villages", true);
@@ -402,6 +403,10 @@ public class EarthCustomizeScreen extends Screen {
 		boolean addAncientCities = false;
 		boolean addTrialChambers = false;
 		boolean addTrailRuins = this.findToggleValue("add_trail_ruins", true);
+		EarthGeneratorSettings.DistantHorizonsRenderMode renderMode = this.findRenderMode(
+				"distant_horizons_render_mode",
+				EarthGeneratorSettings.DEFAULT.distantHorizonsRenderMode()
+		);
 		return new EarthGeneratorSettings(
 				worldScale,
 				terrestrialScale,
@@ -420,6 +425,7 @@ public class EarthCustomizeScreen extends Screen {
 				dripstone,
 				deepDark,
 				oreDistribution,
+				geodes,
 				lavaPools,
 				addStrongholds,
 				addVillages,
@@ -437,7 +443,8 @@ public class EarthCustomizeScreen extends Screen {
 				addWitchHuts,
 				addAncientCities,
 				addTrialChambers,
-				addTrailRuins
+				addTrailRuins,
+				renderMode
 		);
 	}
 
@@ -457,6 +464,20 @@ public class EarthCustomizeScreen extends Screen {
 			for (SettingDefinition setting : category.getSettings()) {
 				if (setting instanceof ToggleDefinition toggle && toggle.key.equals(key)) {
 					return toggle.value;
+				}
+			}
+		}
+		return fallback;
+	}
+
+	private EarthGeneratorSettings.DistantHorizonsRenderMode findRenderMode(
+			String key,
+			EarthGeneratorSettings.DistantHorizonsRenderMode fallback
+	) {
+		for (CategoryDefinition category : this.categories) {
+			for (SettingDefinition setting : category.getSettings()) {
+				if (setting instanceof ModeDefinition mode && mode.key.equals(key)) {
+					return mode.value;
 				}
 			}
 		}
@@ -524,6 +545,7 @@ public class EarthCustomizeScreen extends Screen {
 				toggle("dripstone", false).locked(true),
 				toggle("deep_dark", false).locked(true),
 				toggle("ore_distribution", false),
+				toggle("geodes", false).locked(true),
 				toggle("lava_pools", false)
 		)));
 
@@ -548,6 +570,7 @@ public class EarthCustomizeScreen extends Screen {
 		)));
 
 		categories.add(new CategoryDefinition("compatibility", List.of(
+				mode("distant_horizons_render_mode", EarthGeneratorSettings.DEFAULT.distantHorizonsRenderMode()),
 				comingSoonButton()
 		)));
 
@@ -566,6 +589,13 @@ public class EarthCustomizeScreen extends Screen {
 
 	private static ToggleDefinition toggle(String key, boolean defaultValue) {
 		return new ToggleDefinition(key, defaultValue);
+	}
+
+	private static ModeDefinition mode(
+			String key,
+			EarthGeneratorSettings.DistantHorizonsRenderMode defaultValue
+	) {
+		return new ModeDefinition(key, defaultValue);
 	}
 
 	private static ButtonDefinition comingSoonButton() {
@@ -617,6 +647,13 @@ public class EarthCustomizeScreen extends Screen {
 
 	private static String formatMinAltitude(double value) {
 		return formatAltitude(value, AUTO_MIN_ALTITUDE);
+	}
+
+	private static @NonNull Component formatRenderMode(EarthGeneratorSettings.DistantHorizonsRenderMode mode) {
+		return Objects.requireNonNull(
+				Component.translatable("property.terrarium.distant_horizons_render_mode.value." + mode.id()),
+				"renderModeLabel"
+		);
 	}
 
 	private static String formatAltitude(double value, double autoValue) {
@@ -912,6 +949,51 @@ public class EarthCustomizeScreen extends Screen {
 			if (this.tooltip != null) {
 				button.setTooltip(Tooltip.create(this.tooltip));
 			}
+			return button;
+		}
+	}
+
+	private static final class ModeDefinition implements SettingDefinition {
+		private static final @NonNull List<EarthGeneratorSettings.DistantHorizonsRenderMode> MODES = createModes();
+
+		private final String key;
+		private EarthGeneratorSettings.DistantHorizonsRenderMode value;
+		private boolean locked;
+
+		private static @NonNull List<EarthGeneratorSettings.DistantHorizonsRenderMode> createModes() {
+			List<EarthGeneratorSettings.DistantHorizonsRenderMode> modes = new ArrayList<>(2);
+			modes.add(EarthGeneratorSettings.DistantHorizonsRenderMode.FAST);
+			modes.add(EarthGeneratorSettings.DistantHorizonsRenderMode.DETAILED);
+			return modes;
+		}
+
+		private ModeDefinition(String key, EarthGeneratorSettings.DistantHorizonsRenderMode defaultValue) {
+			this.key = key;
+			this.value = defaultValue;
+		}
+
+		@Override
+		public AbstractWidget createWidget(Runnable onChange) {
+			Component name = settingName(this.key);
+			Component tooltip = this.locked
+					? workInProgressTooltip(this.key)
+					: settingTooltip(this.key);
+			CycleButton.Builder<EarthGeneratorSettings.DistantHorizonsRenderMode> builder = CycleButton.builder(
+					EarthCustomizeScreen::formatRenderMode,
+					this.value
+			).withValues(MODES).withTooltip(value -> Tooltip.create(tooltip));
+			CycleButton<EarthGeneratorSettings.DistantHorizonsRenderMode> button = builder.create(
+					0,
+					0,
+					0,
+					ENTRY_HEIGHT,
+					name,
+					(btn, value) -> {
+						this.value = value;
+						onChange.run();
+					}
+			);
+			button.active = !this.locked;
 			return button;
 		}
 	}

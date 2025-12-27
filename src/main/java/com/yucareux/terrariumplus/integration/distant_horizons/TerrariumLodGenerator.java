@@ -1,0 +1,760 @@
+package com.yucareux.terrariumplus.integration.distant_horizons;
+
+import com.mojang.logging.LogUtils;
+import com.seibel.distanthorizons.api.DhApi;
+import com.seibel.distanthorizons.api.enums.worldGeneration.EDhApiDistantGeneratorMode;
+import com.seibel.distanthorizons.api.enums.worldGeneration.EDhApiWorldGeneratorReturnType;
+import com.seibel.distanthorizons.api.interfaces.block.IDhApiBiomeWrapper;
+import com.seibel.distanthorizons.api.interfaces.block.IDhApiBlockStateWrapper;
+import com.seibel.distanthorizons.api.interfaces.override.worldGenerator.IDhApiWorldGenerator;
+import com.seibel.distanthorizons.api.interfaces.world.IDhApiLevelWrapper;
+import com.seibel.distanthorizons.api.objects.data.DhApiTerrainDataPoint;
+import com.seibel.distanthorizons.api.objects.data.IDhApiFullDataSource;
+import com.yucareux.terrariumplus.worldgen.EarthBiomeSource;
+import com.yucareux.terrariumplus.worldgen.EarthChunkGenerator;
+import com.yucareux.terrariumplus.worldgen.WaterSurfaceResolver;
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.IdentityHashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutorService;
+import java.util.function.Consumer;
+import net.minecraft.core.Holder;
+import net.minecraft.core.SectionPos;
+import net.minecraft.resources.ResourceKey;
+import net.minecraft.tags.BiomeTags;
+import net.minecraft.util.Mth;
+import net.minecraft.world.level.biome.Biome;
+import net.minecraft.world.level.biome.Biomes;
+import net.minecraft.world.level.block.Blocks;
+import net.minecraft.world.level.block.state.BlockState;
+import org.jspecify.annotations.NonNull;
+import org.slf4j.Logger;
+
+public final class TerrariumLodGenerator implements IDhApiWorldGenerator {
+	private static final Logger LOGGER = LogUtils.getLogger();
+	private static final int SKY_LIGHT = 15;
+	private static final int CANOPY_MAX_LIGHT = 15;
+	private static final int CANOPY_GRID_SIZE = 8;
+	private static final int CANOPY_GRID_SCALE_MAX = 8;
+	private static final int CANOPY_DENSITY_NUM = 3;
+	private static final int CANOPY_DENSITY_DEN = 2;
+	private static final int CANOPY_DENSITY_MAX = 100;
+	private static final int CANOPY_SALT = 0x6D2B79F5;
+	private static final int CANOPY_VARIANT_SALT = 0x7F4A7C15;
+	private static final int WATER_VEG_GRID_SIZE = 10;
+	private static final int WATER_VEG_GRID_SCALE_MAX = 10;
+	private static final int WATER_VEG_SALT = 0x3C6EF35F;
+	private static final int WATER_VEG_SURFACE_OFFSET = 0;
+	private final IDhApiLevelWrapper levelWrapper;
+	private final EarthChunkGenerator generator;
+	private final EarthBiomeSource biomeSource;
+	private final ThreadLocal<@NonNull WrapperCache> wrapperCache;
+
+	public TerrariumLodGenerator(final IDhApiLevelWrapper levelWrapper, final EarthChunkGenerator generator) {
+		this.levelWrapper = levelWrapper;
+		this.generator = generator;
+		this.biomeSource = (EarthBiomeSource) generator.getBiomeSource();
+		this.wrapperCache = ThreadLocal.withInitial(() -> new WrapperCache(levelWrapper));
+	}
+
+	@Override
+	public void preGeneratorTaskStart() {
+	}
+
+	@Override
+	public byte getLargestDataDetailLevel() {
+		return 24;
+	}
+
+	@Override
+	public CompletableFuture<Void> generateLod(
+			final int chunkPosMinX,
+			final int chunkPosMinZ,
+			final int lodPosX,
+			final int lodPosZ,
+			final byte detailLevel,
+			final IDhApiFullDataSource pooledFullDataSource,
+			final EDhApiDistantGeneratorMode generatorMode,
+			final ExecutorService worldGeneratorThreadPool,
+			final Consumer<IDhApiFullDataSource> resultConsumer
+	) {
+		return CompletableFuture.runAsync(() -> {
+			buildLod(pooledFullDataSource, chunkPosMinX, chunkPosMinZ, detailLevel);
+			resultConsumer.accept(pooledFullDataSource);
+		}, worldGeneratorThreadPool);
+	}
+
+	private void buildLod(
+			final IDhApiFullDataSource output,
+			final int chunkPosMinX,
+			final int chunkPosMinZ,
+			final byte detailLevel
+	) {
+		final int lodSizePoints = output.getWidthInDataColumns();
+		final int cellSize = 1 << detailLevel;
+		final int cellOffset = cellSize >> 1;
+
+		final int baseX = SectionPos.sectionToBlockCoord(chunkPosMinX);
+		final int baseZ = SectionPos.sectionToBlockCoord(chunkPosMinZ);
+
+		final int minY = levelWrapper.getMinHeight();
+		final int maxY = minY + levelWrapper.getMaxHeight();
+		final int absoluteTop = maxY - minY;
+		final WrapperCache wrappers = wrapperCache.get();
+		final IDhApiBlockStateWrapper waterBlock = wrappers.getBlockState(Blocks.WATER.defaultBlockState());
+		final List<DhApiTerrainDataPoint> columnDataPoints = new ArrayList<>();
+
+		for (int localZ = 0; localZ < lodSizePoints; localZ++) {
+			final int worldZ = baseZ + localZ * cellSize + cellOffset;
+			for (int localX = 0; localX < lodSizePoints; localX++) {
+				final int worldX = baseX + localX * cellSize + cellOffset;
+				final WaterSurfaceResolver.WaterColumnData waterColumn = generator.resolveLodWaterColumn(worldX, worldZ);
+				final int surfaceY = Mth.clamp(waterColumn.terrainSurface(), minY, maxY - 1);
+				final int waterSurface = Mth.clamp(waterColumn.waterSurface(), minY, maxY - 1);
+				final boolean underwater = waterColumn.hasWater() && waterSurface > surfaceY;
+				final Holder<Biome> biomeHolder = biomeSource.getBiomeAtBlock(worldX, worldZ);
+				final IDhApiBiomeWrapper biome = wrappers.getBiome(biomeHolder);
+				final IDhApiBlockStateWrapper fillerBlock = wrappers.getBlockState(
+						generator.resolveLodFillerBlock(worldX, worldZ)
+				);
+				final IDhApiBlockStateWrapper topBlock = wrappers.getBlockState(
+						generator.resolveLodSurfaceBlock(worldX, worldZ, underwater)
+				);
+
+				int lastLayerTop = 0;
+				final int surfaceTop = toLayerTop(surfaceY, minY, absoluteTop);
+				final int topLayerBase = Math.max(0, surfaceTop - 1);
+				if (topLayerBase > lastLayerTop) {
+					columnDataPoints.add(DhApiTerrainDataPoint.create((byte) 0, 0, SKY_LIGHT, lastLayerTop, topLayerBase, fillerBlock, biome));
+					lastLayerTop = topLayerBase;
+				}
+				if (surfaceTop > lastLayerTop) {
+					columnDataPoints.add(DhApiTerrainDataPoint.create((byte) 0, 0, SKY_LIGHT, lastLayerTop, surfaceTop, topBlock, biome));
+					lastLayerTop = surfaceTop;
+				}
+
+				final CanopyColumn canopyColumn = !underwater
+						? resolveCanopyColumn(biomeHolder, worldX, worldZ, detailLevel)
+						: null;
+				if (canopyColumn != null && lastLayerTop < absoluteTop) {
+					if (canopyColumn.trunkHeight > 0 && canopyColumn.trunkBlock != null) {
+						final int trunkTop = Math.min(absoluteTop, lastLayerTop + canopyColumn.trunkHeight);
+						if (trunkTop > lastLayerTop) {
+							final IDhApiBlockStateWrapper trunkBlock = wrappers.getBlockState(canopyColumn.trunkBlock);
+							columnDataPoints.add(
+									DhApiTerrainDataPoint.create((byte) 0, 0, CANOPY_MAX_LIGHT, lastLayerTop, trunkTop, trunkBlock, biome)
+							);
+							lastLayerTop = trunkTop;
+						}
+					}
+
+					if (canopyColumn.leafLift > 0) {
+						final int liftTop = Math.min(absoluteTop, lastLayerTop + canopyColumn.leafLift);
+						if (liftTop > lastLayerTop) {
+							columnDataPoints.add(
+									DhApiTerrainDataPoint.create((byte) 0, 0, CANOPY_MAX_LIGHT, lastLayerTop, liftTop, wrappers.airBlock(), biome)
+							);
+							lastLayerTop = liftTop;
+						}
+					}
+
+					if (canopyColumn.leavesHeight > 0 && canopyColumn.leavesBlock != null) {
+						final int canopyTop = Math.min(absoluteTop, lastLayerTop + canopyColumn.leavesHeight);
+						if (canopyTop > lastLayerTop) {
+							final IDhApiBlockStateWrapper canopyBlock = wrappers.getBlockState(canopyColumn.leavesBlock);
+							columnDataPoints.add(
+									DhApiTerrainDataPoint.create((byte) 0, 0, CANOPY_MAX_LIGHT, lastLayerTop, canopyTop, canopyBlock, biome)
+							);
+							lastLayerTop = canopyTop;
+						}
+					}
+				}
+
+				if (underwater) {
+					final int waterTop = toLayerTop(waterSurface, minY, absoluteTop);
+					if (waterTop > lastLayerTop) {
+						final int waterDepth = waterSurface - surfaceY;
+						final WaterVegetationColumn vegetation = resolveWaterVegetationColumn(
+								biomeHolder,
+								worldX,
+								worldZ,
+								detailLevel,
+								waterDepth
+						);
+						if (vegetation != null) {
+							final int vegTop = Math.max(lastLayerTop, waterTop - WATER_VEG_SURFACE_OFFSET);
+							final int vegBase = Math.max(lastLayerTop, vegTop - vegetation.height);
+							if (vegBase > lastLayerTop) {
+								columnDataPoints.add(
+										DhApiTerrainDataPoint.create((byte) 0, 0, SKY_LIGHT, lastLayerTop, vegBase, waterBlock, biome)
+								);
+								lastLayerTop = vegBase;
+							}
+							if (vegTop > lastLayerTop) {
+								final IDhApiBlockStateWrapper vegBlock = wrappers.getBlockState(vegetation.blockState);
+								columnDataPoints.add(
+										DhApiTerrainDataPoint.create((byte) 0, 0, CANOPY_MAX_LIGHT, lastLayerTop, vegTop, vegBlock, biome)
+								);
+								lastLayerTop = vegTop;
+							}
+						} else {
+							columnDataPoints.add(
+									DhApiTerrainDataPoint.create((byte) 0, 0, SKY_LIGHT, lastLayerTop, waterTop, waterBlock, biome)
+							);
+							lastLayerTop = waterTop;
+						}
+					}
+				}
+
+				if (lastLayerTop < absoluteTop) {
+					columnDataPoints.add(DhApiTerrainDataPoint.create((byte) 0, 0, SKY_LIGHT, lastLayerTop, absoluteTop, wrappers.airBlock(), biome));
+				}
+
+				output.setApiDataPointColumn(localX, localZ, columnDataPoints);
+				columnDataPoints.clear();
+			}
+		}
+	}
+
+	private static int toLayerTop(final int inclusiveTopY, final int minY, final int absoluteTop) {
+		return Mth.clamp(inclusiveTopY - minY + 1, 0, absoluteTop);
+	}
+
+	private static CanopyColumn resolveCanopyColumn(
+			final Holder<Biome> biome,
+			final int worldX,
+			final int worldZ,
+			final byte detailLevel
+	) {
+		final int baseChance = canopyCenterChancePercent(biome);
+		final int chance = boostCanopyChancePercent(baseChance);
+		if (chance <= 0) {
+			return null;
+		}
+
+		final int gridSize = canopyGridSize(biome, detailLevel);
+		final int cellX = Math.floorDiv(worldX, gridSize);
+		final int cellZ = Math.floorDiv(worldZ, gridSize);
+
+		int bestDist = Integer.MAX_VALUE;
+		int bestRadius = 0;
+		int bestHash = 0;
+		boolean bestCenter = false;
+
+		for (int dz = -1; dz <= 1; dz++) {
+			final int testCellZ = cellZ + dz;
+			for (int dx = -1; dx <= 1; dx++) {
+				final int testCellX = cellX + dx;
+				final int centerHash = mixHash(testCellX, testCellZ, CANOPY_SALT);
+				if (!hasCanopyCenter(centerHash, chance)) {
+					continue;
+				}
+
+				final int offsetX = centerOffset(centerHash, gridSize);
+				final int offsetZ = centerOffset(centerHash >>> 8, gridSize);
+				final int centerX = testCellX * gridSize + offsetX;
+				final int centerZ = testCellZ * gridSize + offsetZ;
+				final int dist = Math.abs(worldX - centerX) + Math.abs(worldZ - centerZ);
+				final int radius = canopyRadius(biome, centerHash, gridSize);
+
+				if (dist <= radius && dist < bestDist) {
+					bestDist = dist;
+					bestRadius = radius;
+					bestHash = centerHash;
+					bestCenter = dist == 0;
+				}
+			}
+		}
+
+		if (bestDist == Integer.MAX_VALUE) {
+			return null;
+		}
+
+		int crownHeight = canopyBaseHeight(biome);
+		final int falloff = bestRadius - bestDist;
+		if (falloff >= 2) {
+			crownHeight++;
+		}
+		if (falloff >= 4) {
+			crownHeight++;
+		}
+		crownHeight += (bestHash >>> 19) & 1;
+		final int maxHeight = canopyMaxHeight(biome);
+		crownHeight = Math.min(crownHeight, maxHeight);
+		if (crownHeight <= 0) {
+			return null;
+		}
+
+		final int centerTrunkHeight = canopyTrunkHeight(biome, bestHash);
+		final int trunkHeight = bestCenter ? centerTrunkHeight : 0;
+		final int leafLift = canopyLeafLift(biome, bestCenter, centerTrunkHeight, bestDist, bestHash);
+
+		final BlockState leavesBlock = selectCanopyBlock(biome, worldX, worldZ);
+		if (leavesBlock == null) {
+			return null;
+		}
+		final BlockState trunkBlock = trunkHeight > 0 ? selectTrunkBlock(biome, worldX, worldZ, bestHash) : null;
+
+		return new CanopyColumn(trunkHeight, leafLift, crownHeight, leavesBlock, trunkBlock);
+	}
+
+	private static int canopyCenterChancePercent(final Holder<Biome> biome) {
+		if (biome.is(Biomes.MANGROVE_SWAMP)) {
+			return 85;
+		}
+		if (biome.is(Biomes.DARK_FOREST)) {
+			return 80;
+		}
+		if (biome.is(BiomeTags.IS_JUNGLE)) {
+			return 75;
+		}
+		if (biome.is(BiomeTags.IS_FOREST)) {
+			return 70;
+		}
+		if (biome.is(BiomeTags.IS_TAIGA)) {
+			return 65;
+		}
+		if (biome.is(Biomes.CHERRY_GROVE)) {
+			return 60;
+		}
+		if (biome.is(Biomes.SWAMP)) {
+			return 55;
+		}
+		if (biome.is(BiomeTags.IS_SAVANNA)) {
+			return 50;
+		}
+		return 0;
+	}
+
+	private static int boostCanopyChancePercent(final int baseChance) {
+		final int boosted = (baseChance * CANOPY_DENSITY_NUM + (CANOPY_DENSITY_DEN - 1)) / CANOPY_DENSITY_DEN;
+		return Math.min(CANOPY_DENSITY_MAX, boosted);
+	}
+
+	private static int canopyGridSize(final Holder<Biome> biome, final byte detailLevel) {
+		final int scale = Math.min(CANOPY_GRID_SCALE_MAX, Math.max(0, detailLevel - 2));
+		return CANOPY_GRID_SIZE + (scale << 1);
+	}
+
+	private static int canopyRadius(final Holder<Biome> biome, final int centerHash, final int gridSize) {
+		int baseRadius;
+		if (biome.is(Biomes.MANGROVE_SWAMP) || biome.is(Biomes.DARK_FOREST) || biome.is(BiomeTags.IS_JUNGLE)) {
+			baseRadius = 4;
+		} else if (biome.is(BiomeTags.IS_FOREST) || biome.is(BiomeTags.IS_TAIGA) || biome.is(Biomes.CHERRY_GROVE)
+				|| biome.is(Biomes.SWAMP)) {
+			baseRadius = 3;
+		} else if (biome.is(BiomeTags.IS_SAVANNA)) {
+			baseRadius = 2;
+		} else {
+			baseRadius = 0;
+		}
+		if (baseRadius == 0) {
+			return 0;
+		}
+		int scaledRadius = Math.max(1, (baseRadius * gridSize) / CANOPY_GRID_SIZE);
+		scaledRadius = Math.min(scaledRadius, gridSize - 1);
+		return scaledRadius + ((centerHash >>> 16) & 1);
+	}
+
+	private static int canopyBaseHeight(final Holder<Biome> biome) {
+		if (isTallCanopyBiome(biome)) {
+			return 2;
+		}
+		if (biome.is(BiomeTags.IS_TAIGA)) {
+			return 2;
+		}
+		return 1;
+	}
+
+	private static int canopyMaxHeight(final Holder<Biome> biome) {
+		if (isTallCanopyBiome(biome) || biome.is(BiomeTags.IS_TAIGA)) {
+			return 3;
+		}
+		return 2;
+	}
+
+	private static boolean hasCanopyCenter(final int centerHash, final int chancePercent) {
+		final int roll = (centerHash >>> 24) & 0xFF;
+		final int threshold = (chancePercent * 255) / 100;
+		return roll < threshold;
+	}
+
+	private static int canopyTrunkHeight(final Holder<Biome> biome, final int centerHash) {
+		int jitter = (centerHash >>> 21) & 0x3;
+		if (jitter == 3) {
+			jitter = 2;
+		}
+		int height = 3 + jitter;
+		if (isTallCanopyBiome(biome)) {
+			height = Math.min(5, height + 1);
+		}
+		return height;
+	}
+
+	private static int canopyLeafLift(
+			final Holder<Biome> biome,
+			final boolean isCenter,
+			final int centerTrunkHeight,
+			final int bestDist,
+			final int centerHash
+	) {
+		if (isCenter) {
+			return 0;
+		}
+
+		int lift = isTallCanopyBiome(biome) ? 2 : 1;
+		final int liftBoost = Math.max(0, centerTrunkHeight - 2 - bestDist);
+		lift += liftBoost;
+		if (((centerHash >>> 20) & 1) == 0) {
+			lift = Math.max(1, lift - 1);
+		}
+		return lift;
+	}
+
+	private static boolean isTallCanopyBiome(final Holder<Biome> biome) {
+		return biome.is(Biomes.MANGROVE_SWAMP)
+				|| biome.is(Biomes.DARK_FOREST)
+				|| biome.is(BiomeTags.IS_JUNGLE);
+	}
+
+	private static WaterVegetationColumn resolveWaterVegetationColumn(
+			final Holder<Biome> biome,
+			final int worldX,
+			final int worldZ,
+			final byte detailLevel,
+			final int waterDepth
+	) {
+		if (waterDepth < 2) {
+			return null;
+		}
+		final int chance = waterVegetationChancePercent(biome);
+		if (chance <= 0) {
+			return null;
+		}
+
+		final int gridSize = waterVegetationGridSize(detailLevel);
+		final int cellX = Math.floorDiv(worldX, gridSize);
+		final int cellZ = Math.floorDiv(worldZ, gridSize);
+
+		int bestDist = Integer.MAX_VALUE;
+		int bestRadius = 0;
+		int bestHash = 0;
+
+		for (int dz = -1; dz <= 1; dz++) {
+			final int testCellZ = cellZ + dz;
+			for (int dx = -1; dx <= 1; dx++) {
+				final int testCellX = cellX + dx;
+				final int centerHash = mixHash(testCellX, testCellZ, WATER_VEG_SALT);
+				if (!hasClusterCenter(centerHash, chance)) {
+					continue;
+				}
+
+				final int offsetX = centerOffset(centerHash, gridSize);
+				final int offsetZ = centerOffset(centerHash >>> 8, gridSize);
+				final int centerX = testCellX * gridSize + offsetX;
+				final int centerZ = testCellZ * gridSize + offsetZ;
+				final int dist = Math.abs(worldX - centerX) + Math.abs(worldZ - centerZ);
+				final int radius = waterVegetationRadius(biome, centerHash, gridSize);
+
+				if (dist <= radius && dist < bestDist) {
+					bestDist = dist;
+					bestRadius = radius;
+					bestHash = centerHash;
+				}
+			}
+		}
+
+		if (bestDist == Integer.MAX_VALUE) {
+			return null;
+		}
+
+		final boolean kelp = shouldUseKelp(biome, waterDepth, bestHash);
+		final BlockState blockState = kelp
+				? Blocks.KELP_PLANT.defaultBlockState()
+				: Blocks.SEAGRASS.defaultBlockState();
+		final int maxHeight = Math.max(1, waterDepth - 1);
+		int height = kelp
+				? waterKelpHeight(waterDepth, bestHash, bestRadius, bestDist)
+				: waterSeagrassHeight(waterDepth, bestHash);
+		height = Math.min(height, maxHeight);
+		if (height <= 0) {
+			return null;
+		}
+		return new WaterVegetationColumn(height, blockState);
+	}
+
+	private static int waterVegetationChancePercent(final Holder<Biome> biome) {
+		if (biome.is(Biomes.WARM_OCEAN) || biome.is(Biomes.LUKEWARM_OCEAN)) {
+			return 70;
+		}
+		if (biome.is(Biomes.DEEP_LUKEWARM_OCEAN)) {
+			return 65;
+		}
+		if (biome.is(Biomes.MANGROVE_SWAMP)) {
+			return 60;
+		}
+		if (biome.is(Biomes.SWAMP)) {
+			return 50;
+		}
+		if (biome.is(BiomeTags.IS_OCEAN)) {
+			return 55;
+		}
+		if (biome.is(BiomeTags.IS_RIVER)) {
+			return 45;
+		}
+		return 0;
+	}
+
+	private static int waterVegetationGridSize(final byte detailLevel) {
+		final int scale = Math.min(WATER_VEG_GRID_SCALE_MAX, Math.max(0, detailLevel - 2));
+		return WATER_VEG_GRID_SIZE + (scale << 1);
+	}
+
+	private static int waterVegetationRadius(final Holder<Biome> biome, final int centerHash, final int gridSize) {
+		int baseRadius;
+		if (biome.is(Biomes.WARM_OCEAN) || biome.is(Biomes.LUKEWARM_OCEAN) || biome.is(Biomes.DEEP_LUKEWARM_OCEAN)) {
+			baseRadius = 4;
+		} else if (biome.is(BiomeTags.IS_OCEAN)) {
+			baseRadius = 3;
+		} else if (biome.is(BiomeTags.IS_RIVER)) {
+			baseRadius = 2;
+		} else {
+			baseRadius = 0;
+		}
+		if (baseRadius == 0) {
+			return 0;
+		}
+		int scaledRadius = Math.max(1, (baseRadius * gridSize) / WATER_VEG_GRID_SIZE);
+		scaledRadius = Math.min(scaledRadius, gridSize - 1);
+		return scaledRadius + ((centerHash >>> 16) & 1);
+	}
+
+	private static boolean shouldUseKelp(final Holder<Biome> biome, final int waterDepth, final int centerHash) {
+		if (biome.is(BiomeTags.IS_RIVER)) {
+			return false;
+		}
+		if (waterDepth < 4) {
+			return false;
+		}
+		final int chance;
+		if (biome.is(Biomes.WARM_OCEAN)) {
+			chance = 20;
+		} else if (biome.is(Biomes.LUKEWARM_OCEAN) || biome.is(Biomes.DEEP_LUKEWARM_OCEAN)) {
+			chance = 35;
+		} else if (biome.is(BiomeTags.IS_OCEAN)) {
+			chance = 50;
+		} else {
+			chance = 0;
+		}
+		final int roll = (centerHash >>> 18) & 0xFF;
+		final int threshold = (chance * 255) / 100;
+		return roll < threshold;
+	}
+
+	private static int waterKelpHeight(
+			final int waterDepth,
+			final int centerHash,
+			final int radius,
+			final int dist
+	) {
+		int height = 2 + ((centerHash >>> 15) & 0x3);
+		if (waterDepth > 6) {
+			height++;
+		}
+		if (dist >= Math.max(1, radius - 1)) {
+			height = Math.max(2, height - 1);
+		}
+		return Math.min(height, waterDepth - 1);
+	}
+
+	private static int waterSeagrassHeight(final int waterDepth, final int centerHash) {
+		int height = ((centerHash >>> 14) & 1) == 0 ? 1 : 2;
+		return Math.min(height, Math.max(1, waterDepth - 1));
+	}
+
+	private static int centerOffset(final int hash, final int gridSize) {
+		return Math.floorMod(hash, gridSize);
+	}
+
+	private static BlockState selectCanopyBlock(final Holder<Biome> biome, final int worldX, final int worldZ) {
+		if (biome.is(Biomes.MANGROVE_SWAMP)) {
+			return Blocks.MANGROVE_LEAVES.defaultBlockState();
+		}
+		if (biome.is(Biomes.DARK_FOREST)) {
+			return Blocks.DARK_OAK_LEAVES.defaultBlockState();
+		}
+		if (biome.is(Biomes.CHERRY_GROVE)) {
+			return Blocks.CHERRY_LEAVES.defaultBlockState();
+		}
+		if (biome.is(BiomeTags.IS_JUNGLE)) {
+			return Blocks.JUNGLE_LEAVES.defaultBlockState();
+		}
+		if (biome.is(BiomeTags.IS_TAIGA)) {
+			return Blocks.SPRUCE_LEAVES.defaultBlockState();
+		}
+		if (biome.is(BiomeTags.IS_SAVANNA)) {
+			return Blocks.ACACIA_LEAVES.defaultBlockState();
+		}
+		if (biome.is(Biomes.SWAMP)) {
+			return Blocks.OAK_LEAVES.defaultBlockState();
+		}
+		if (biome.is(BiomeTags.IS_FOREST)) {
+			final int hash = mixHash(worldX, worldZ, CANOPY_VARIANT_SALT);
+			return ((hash >>> 28) & 0x3) == 0
+					? Blocks.BIRCH_LEAVES.defaultBlockState()
+					: Blocks.OAK_LEAVES.defaultBlockState();
+		}
+		return null;
+	}
+
+	private static BlockState selectTrunkBlock(final Holder<Biome> biome, final int worldX, final int worldZ, final int centerHash) {
+		if (biome.is(Biomes.MANGROVE_SWAMP)) {
+			return Blocks.MANGROVE_LOG.defaultBlockState();
+		}
+		if (biome.is(Biomes.DARK_FOREST)) {
+			return Blocks.DARK_OAK_LOG.defaultBlockState();
+		}
+		if (biome.is(Biomes.CHERRY_GROVE)) {
+			return Blocks.CHERRY_LOG.defaultBlockState();
+		}
+		if (biome.is(BiomeTags.IS_JUNGLE)) {
+			return Blocks.JUNGLE_LOG.defaultBlockState();
+		}
+		if (biome.is(BiomeTags.IS_TAIGA)) {
+			return Blocks.SPRUCE_LOG.defaultBlockState();
+		}
+		if (biome.is(BiomeTags.IS_SAVANNA)) {
+			return Blocks.ACACIA_LOG.defaultBlockState();
+		}
+		if (biome.is(Biomes.SWAMP)) {
+			return Blocks.OAK_LOG.defaultBlockState();
+		}
+		if (biome.is(BiomeTags.IS_FOREST)) {
+			final int hash = mixHash(worldX, worldZ, CANOPY_VARIANT_SALT) ^ centerHash;
+			return ((hash >>> 28) & 0x3) == 0
+					? Blocks.BIRCH_LOG.defaultBlockState()
+					: Blocks.OAK_LOG.defaultBlockState();
+		}
+		return Blocks.OAK_LOG.defaultBlockState();
+	}
+
+	private static int mixHash(final int worldX, final int worldZ, final int seed) {
+		int h = worldX * 0x1F1F1F1F ^ worldZ * 0x9E3779B9 ^ (seed * 0x27D4EB2D);
+		h ^= h >>> 15;
+		h *= 0x85EBCA6B;
+		h ^= h >>> 13;
+		h *= 0xC2B2AE35;
+		h ^= h >>> 16;
+		return h;
+	}
+
+	private static boolean hasClusterCenter(final int centerHash, final int chancePercent) {
+		final int roll = (centerHash >>> 24) & 0xFF;
+		final int threshold = (chancePercent * 255) / 100;
+		return roll < threshold;
+	}
+
+	private static final class CanopyColumn {
+		private final int trunkHeight;
+		private final int leafLift;
+		private final int leavesHeight;
+		private final BlockState leavesBlock;
+		private final BlockState trunkBlock;
+
+		private CanopyColumn(
+				final int trunkHeight,
+				final int leafLift,
+				final int leavesHeight,
+				final BlockState leavesBlock,
+				final BlockState trunkBlock
+		) {
+			this.trunkHeight = trunkHeight;
+			this.leafLift = leafLift;
+			this.leavesHeight = leavesHeight;
+			this.leavesBlock = leavesBlock;
+			this.trunkBlock = trunkBlock;
+		}
+	}
+
+	private static final class WaterVegetationColumn {
+		private final int height;
+		private final BlockState blockState;
+
+		private WaterVegetationColumn(final int height, final BlockState blockState) {
+			this.height = height;
+			this.blockState = blockState;
+		}
+	}
+
+	@Override
+	public EDhApiWorldGeneratorReturnType getReturnType() {
+		return EDhApiWorldGeneratorReturnType.API_DATA_SOURCES;
+	}
+
+	@Override
+	public boolean runApiValidation() {
+		return false;
+	}
+
+	@Override
+	public void close() {
+	}
+
+	private static class WrapperCache {
+		private final IDhApiLevelWrapper levelWrapper;
+
+		private final IDhApiBlockStateWrapper airBlock;
+		private final IDhApiBiomeWrapper defaultBiome;
+
+		private final Map<BlockState, IDhApiBlockStateWrapper> blockStates = new IdentityHashMap<>();
+		private final Map<Holder<Biome>, IDhApiBiomeWrapper> biomes = new HashMap<>();
+
+		private WrapperCache(final IDhApiLevelWrapper levelWrapper) {
+			this.levelWrapper = levelWrapper;
+			airBlock = DhApi.Delayed.wrapperFactory.getAirBlockStateWrapper();
+			defaultBiome = lookupBiomeById(Biomes.PLAINS);
+		}
+
+		public IDhApiBlockStateWrapper airBlock() {
+			return airBlock;
+		}
+
+		public IDhApiBlockStateWrapper getBlockState(final BlockState blockState) {
+			return blockStates.computeIfAbsent(blockState, this::lookupBlockState);
+		}
+
+		private IDhApiBlockStateWrapper lookupBlockState(final BlockState blockState) {
+			try {
+				return DhApi.Delayed.wrapperFactory.getBlockStateWrapper(new BlockState[]{blockState}, levelWrapper);
+			} catch (final ClassCastException e) {
+				throw new IllegalStateException(e);
+			}
+		}
+
+		public IDhApiBiomeWrapper getBiome(final Holder<Biome> biome) {
+			return biomes.computeIfAbsent(biome, this::lookupBiome);
+		}
+
+		private IDhApiBiomeWrapper lookupBiome(final Holder<Biome> biome) {
+			final IDhApiBiomeWrapper result = biome.unwrapKey().map(this::lookupBiomeById).orElse(null);
+			if (result != null) {
+				return result;
+			}
+			return Objects.requireNonNull(defaultBiome, "No default biome available");
+		}
+
+		private IDhApiBiomeWrapper lookupBiomeById(final ResourceKey<Biome> biome) {
+			try {
+				return DhApi.Delayed.wrapperFactory.getBiomeWrapper(biome.identifier().toString(), levelWrapper);
+			} catch (final IOException ignored) {
+				LOGGER.warn("Could not find biome with id {}, will not use for LODs", biome.identifier());
+				return null;
+			}
+		}
+	}
+}

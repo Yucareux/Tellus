@@ -6,12 +6,14 @@ import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.mojang.serialization.DynamicOps;
 import com.mojang.serialization.JsonOps;
+import com.yucareux.terrariumplus.integration.distant_horizons.DistantHorizonsIntegration;
 import com.yucareux.terrariumplus.network.GeoTpOpenMapPayload;
 import com.yucareux.terrariumplus.network.GeoTpTeleportPayload;
 import com.yucareux.terrariumplus.worldgen.EarthBiomeSource;
 import com.yucareux.terrariumplus.worldgen.EarthChunkGenerator;
 import com.yucareux.terrariumplus.worldgen.EarthGeneratorSettings;
 import java.util.Objects;
+import net.fabricmc.loader.api.FabricLoader;
 import net.fabricmc.api.ModInitializer;
 import net.fabricmc.fabric.api.command.v2.CommandRegistrationCallback;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerLifecycleEvents;
@@ -125,6 +127,10 @@ public class Terrarium implements ModInitializer {
 				}
 			});
 		});
+
+		if (FabricLoader.getInstance().isModLoaded("distanthorizons")) {
+			DistantHorizonsIntegration.bootstrap();
+		}
 
 		LOGGER.info("Terrarium worldgen initialized");
 	}

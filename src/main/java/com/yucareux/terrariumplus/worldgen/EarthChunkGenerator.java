@@ -737,6 +737,32 @@ public final class EarthChunkGenerator extends ChunkGenerator {
 		return underwater ? palette.underwaterTop() : palette.top();
 	}
 
+	public @NonNull BlockState resolveLodSurfaceBlock(int worldX, int worldZ, boolean underwater) {
+		if (this.biomeSource instanceof EarthBiomeSource earthBiomeSource) {
+			Holder<Biome> biome = earthBiomeSource.getBiomeAtBlock(worldX, worldZ);
+			SurfacePalette palette = selectSurfacePalette(biome, worldX, worldZ);
+			if (palette != null) {
+				return underwater ? palette.underwaterTop() : palette.top();
+			}
+		}
+		return Blocks.STONE.defaultBlockState();
+	}
+
+	public @NonNull BlockState resolveLodFillerBlock(int worldX, int worldZ) {
+		if (this.biomeSource instanceof EarthBiomeSource earthBiomeSource) {
+			Holder<Biome> biome = earthBiomeSource.getBiomeAtBlock(worldX, worldZ);
+			SurfacePalette palette = selectSurfacePalette(biome, worldX, worldZ);
+			if (palette != null) {
+				return palette.filler();
+			}
+		}
+		return Blocks.STONE.defaultBlockState();
+	}
+
+	public WaterSurfaceResolver.WaterColumnData resolveLodWaterColumn(int worldX, int worldZ) {
+		return this.waterResolver.resolveColumnData(worldX, worldZ);
+	}
+
 	private SurfacePalette selectSurfacePalette(Holder<Biome> biome, int worldX, int worldZ) {
 		if (biome.is(BiomeTags.IS_OCEAN) || biome.is(BiomeTags.IS_RIVER)) {
 			return oceanFloorPalette(worldX, worldZ);
@@ -854,6 +880,9 @@ public final class EarthChunkGenerator extends ChunkGenerator {
 		if (settings.lavaPools()) {
 			flags |= 1 << 7;
 		}
+		if (settings.geodes()) {
+			flags |= 1 << 9;
+		}
 		if (keepTrees) {
 			flags |= 1 << 8;
 		}
@@ -892,6 +921,9 @@ public final class EarthChunkGenerator extends ChunkGenerator {
 			return false;
 		}
 		if (!settings.oreDistribution() && path.startsWith("ore_")) {
+			return false;
+		}
+		if (!settings.geodes() && path.contains("geode")) {
 			return false;
 		}
 		if (!settings.dripstone() && path.contains("dripstone")) {

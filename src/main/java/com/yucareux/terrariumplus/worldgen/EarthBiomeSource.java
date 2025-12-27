@@ -78,6 +78,14 @@ public final class EarthBiomeSource extends BiomeSource {
 	public @NonNull Holder<Biome> getNoiseBiome(int x, int y, int z, Climate.@NonNull Sampler sampler) {
 		int blockX = QuartPos.toBlock(x);
 		int blockZ = QuartPos.toBlock(z);
+		return resolveBiomeAtBlock(blockX, blockZ);
+	}
+
+	public @NonNull Holder<Biome> getBiomeAtBlock(int blockX, int blockZ) {
+		return resolveBiomeAtBlock(blockX, blockZ);
+	}
+
+	private @NonNull Holder<Biome> resolveBiomeAtBlock(int blockX, int blockZ) {
 		int coverClass = LAND_COVER_SOURCE.sampleCoverClass(blockX, blockZ, this.settings.worldScale());
 
 		if (coverClass == ESA_SNOW_ICE) {

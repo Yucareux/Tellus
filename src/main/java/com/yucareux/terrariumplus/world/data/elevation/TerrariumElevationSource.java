@@ -104,9 +104,9 @@ public final class TerrariumElevationSource {
 			return Double.NaN;
 		}
 
-		double localX = (x - tileX) * TILE_SIZE;
-		double localY = (y - tileY) * TILE_SIZE;
-		return sampleBilinear(raster, localX, localY);
+		double globalX = x * TILE_SIZE;
+		double globalY = y * TILE_SIZE;
+		return sampleBilinearAcrossTiles(zoom, globalX, globalY, tileX, tileY, raster);
 	}
 
 	private static int downsampleStep(double worldScale, double resolutionMeters) {
@@ -181,7 +181,63 @@ public final class TerrariumElevationSource {
 		}
 	}
 
-	private static double sampleBilinear(ShortRaster raster, double x, double y) {
+	private double sampleBilinearAcrossTiles(
+			int zoom,
+			double globalX,
+			double globalY,
+			int baseTileX,
+			int baseTileY,
+			ShortRaster baseRaster
+	) {
+		int tilesPerAxis = 1 << zoom;
+		int maxPixel = tilesPerAxis * TILE_SIZE - 1;
+		double clampedX = Mth.clamp(globalX, 0.0, maxPixel);
+		double clampedY = Mth.clamp(globalY, 0.0, maxPixel);
+		int x0 = Mth.floor(clampedX);
+		int y0 = Mth.floor(clampedY);
+		int x1 = Math.min(x0 + 1, maxPixel);
+		int y1 = Math.min(y0 + 1, maxPixel);
+
+		double dx = clampedX - x0;
+		double dy = clampedY - y0;
+
+		double v00 = samplePixel(zoom, x0, y0, baseTileX, baseTileY, baseRaster);
+		double v10 = samplePixel(zoom, x1, y0, baseTileX, baseTileY, baseRaster);
+		double v01 = samplePixel(zoom, x0, y1, baseTileX, baseTileY, baseRaster);
+		double v11 = samplePixel(zoom, x1, y1, baseTileX, baseTileY, baseRaster);
+		if (Double.isNaN(v00) || Double.isNaN(v10) || Double.isNaN(v01) || Double.isNaN(v11)) {
+			double localX = clampedX - baseTileX * TILE_SIZE;
+			double localY = clampedY - baseTileY * TILE_SIZE;
+			return sampleBilinearLocal(baseRaster, localX, localY);
+		}
+
+		double lerpX0 = Mth.lerp(dx, v00, v10);
+		double lerpX1 = Mth.lerp(dx, v01, v11);
+		return Mth.lerp(dy, lerpX0, lerpX1);
+	}
+
+	private double samplePixel(
+			int zoom,
+			int pixelX,
+			int pixelY,
+			int baseTileX,
+			int baseTileY,
+			ShortRaster baseRaster
+	) {
+		int tileX = Math.floorDiv(pixelX, TILE_SIZE);
+		int tileY = Math.floorDiv(pixelY, TILE_SIZE);
+		ShortRaster raster = (tileX == baseTileX && tileY == baseTileY)
+				? baseRaster
+				: getTile(new TileKey(zoom, tileX, tileY));
+		if (raster == null) {
+			return Double.NaN;
+		}
+		int localX = pixelX - tileX * TILE_SIZE;
+		int localY = pixelY - tileY * TILE_SIZE;
+		return raster.get(localX, localY);
+	}
+
+	private static double sampleBilinearLocal(ShortRaster raster, double x, double y) {
 		int maxX = raster.width() - 1;
 		int maxY = raster.height() - 1;
 		int x0 = Mth.clamp(Mth.floor(x), 0, maxX);
