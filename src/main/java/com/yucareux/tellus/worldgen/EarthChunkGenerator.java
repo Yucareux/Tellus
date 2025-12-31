@@ -439,33 +439,34 @@ public final class EarthChunkGenerator extends ChunkGenerator {
 
 		for (int localX = 0; localX < 16; localX++) {
 			int worldX = chunkMinX + localX;
-			for (int localZ = 0; localZ < 16; localZ++) {
-				int worldZ = chunkMinZ + localZ;
-				int index = localZ * 16 + localX;
-				int surface = terrainSurfaces[index];
-				int waterSurface = waterSurfaces[index];
-				boolean hasWater = waterFlags[index];
-				Holder<Biome> biome = biomeCache[index];
+				for (int localZ = 0; localZ < 16; localZ++) {
+					int worldZ = chunkMinZ + localZ;
+					int index = localZ * 16 + localX;
+					int surface = terrainSurfaces[index];
+					int waterSurface = waterSurfaces[index];
+					boolean hasWater = waterFlags[index];
+					int coverClass = coverClasses[index];
+					Holder<Biome> biome = biomeCache[index];
 
 				for (int y = chunkMinY; y <= surface; y++) {
 					cursor.set(worldX, y, worldZ);
 					chunk.setBlockState(cursor, stone);
 				}
-				if (hasWater && surface < waterSurface) {
-					for (int y = surface + 1; y <= waterSurface; y++) {
-						cursor.set(worldX, y, worldZ);
-						chunk.setBlockState(cursor, water);
+					if (hasWater && surface < waterSurface) {
+						for (int y = surface + 1; y <= waterSurface; y++) {
+							cursor.set(worldX, y, worldZ);
+							chunk.setBlockState(cursor, water);
+						}
 					}
-				}
-				boolean underwater = hasWater && waterSurface > surface;
-				int slopeDiff = slopeDiffs[index];
-				applySurface(chunk, cursor, worldX, worldZ, surface, chunkMinY, underwater, biome, slopeDiff);
-				if (surface >= this.seaLevel && coverClasses[index] == ESA_SNOW_ICE) {
-					if (slopeDiff < SNOW_SLOPE_DIFF) {
-						boolean reduceIce = biome.is(Biomes.FROZEN_PEAKS);
-						applySnowCover(chunk, cursor, worldX, worldZ, surface, chunkMinY, false, reduceIce);
+					boolean underwater = hasWater && waterSurface > surface;
+					int slopeDiff = slopeDiffs[index];
+					applySurface(chunk, cursor, worldX, worldZ, surface, chunkMinY, underwater, biome, slopeDiff, coverClass);
+					if (surface >= this.seaLevel && coverClass == ESA_SNOW_ICE) {
+						if (slopeDiff < SNOW_SLOPE_DIFF) {
+							boolean reduceIce = biome.is(Biomes.FROZEN_PEAKS);
+							applySnowCover(chunk, cursor, worldX, worldZ, surface, chunkMinY, false, reduceIce);
+						}
 					}
-				}
 			}
 		}
 
@@ -549,21 +550,22 @@ public final class EarthChunkGenerator extends ChunkGenerator {
 
 		for (int localX = 0; localX < 16; localX++) {
 			int worldX = chunkMinX + localX;
-			for (int localZ = 0; localZ < 16; localZ++) {
-				int worldZ = chunkMinZ + localZ;
-				int index = localZ * 16 + localX;
-				int surface = cinematicSurfaces[index];
-				int waterSurface = waterSurfaces[index];
-				boolean hasWater = waterFlags[index];
-				boolean underwater = hasWater && waterSurface > surface;
-				int slopeDiff = slopeDiffs[index];
-				Holder<Biome> biome = biomeCache[index];
+				for (int localZ = 0; localZ < 16; localZ++) {
+					int worldZ = chunkMinZ + localZ;
+					int index = localZ * 16 + localX;
+					int surface = cinematicSurfaces[index];
+					int waterSurface = waterSurfaces[index];
+					boolean hasWater = waterFlags[index];
+					boolean underwater = hasWater && waterSurface > surface;
+					int slopeDiff = slopeDiffs[index];
+					int coverClass = coverClasses[index];
+					Holder<Biome> biome = biomeCache[index];
 
-				if (surface >= chunkMinY && surface < chunkMaxY) {
-					BlockState top = resolveSurfaceTop(biome, worldX, worldZ, surface, underwater, slopeDiff);
-					cursor.set(worldX, surface, worldZ);
-					chunk.setBlockState(cursor, top);
-				}
+					if (surface >= chunkMinY && surface < chunkMaxY) {
+						BlockState top = resolveSurfaceTop(biome, worldX, worldZ, surface, underwater, slopeDiff, coverClass);
+						cursor.set(worldX, surface, worldZ);
+						chunk.setBlockState(cursor, top);
+					}
 				if (surface - 1 >= chunkMinY && surface - 1 < chunkMaxY) {
 					cursor.set(worldX, surface - 1, worldZ);
 					chunk.setBlockState(cursor, stone);
@@ -581,12 +583,12 @@ public final class EarthChunkGenerator extends ChunkGenerator {
 						chunk.setBlockState(cursor, water);
 					}
 				}
-				if (surface >= this.seaLevel && coverClasses[index] == ESA_SNOW_ICE) {
-					if (slopeDiff < SNOW_SLOPE_DIFF) {
-						boolean reduceIce = biome.is(Biomes.FROZEN_PEAKS);
-						applySnowCover(chunk, cursor, worldX, worldZ, surface, chunkMinY, true, reduceIce);
+					if (surface >= this.seaLevel && coverClass == ESA_SNOW_ICE) {
+						if (slopeDiff < SNOW_SLOPE_DIFF) {
+							boolean reduceIce = biome.is(Biomes.FROZEN_PEAKS);
+							applySnowCover(chunk, cursor, worldX, worldZ, surface, chunkMinY, true, reduceIce);
+						}
 					}
-				}
 			}
 		}
 
@@ -650,12 +652,12 @@ public final class EarthChunkGenerator extends ChunkGenerator {
 			surface = resolveCinematicSurface(surface, column.waterSurface(), column.hasWater());
 		}
 		int surfaceIndex = surface - minY;
-		if (this.settings.cinematicMode()) {
-			boolean underwater = column.hasWater() && column.waterSurface() > surface;
-			if (surfaceIndex >= 0 && surfaceIndex < states.length) {
-				BlockState top = resolveSurfaceTop(random, x, z, surface, underwater);
-				states[surfaceIndex] = top;
-			}
+			if (this.settings.cinematicMode()) {
+				boolean underwater = column.hasWater() && column.waterSurface() > surface;
+				if (surfaceIndex >= 0 && surfaceIndex < states.length) {
+					BlockState top = resolveSurfaceTop(random, x, z, surface, underwater, coverClass);
+					states[surfaceIndex] = top;
+				}
 			if (surfaceIndex - 1 >= 0 && surfaceIndex - 1 < states.length) {
 				states[surfaceIndex - 1] = Blocks.STONE.defaultBlockState();
 			}
@@ -837,12 +839,13 @@ public final class EarthChunkGenerator extends ChunkGenerator {
 			int minY,
 			boolean underwater,
 			Holder<Biome> biome,
-			int slopeDiff
+			int slopeDiff,
+			int coverClass
 	) {
 		if (surface < minY) {
 			return;
 		}
-		SurfacePalette palette = selectSurfacePalette(biome, worldX, worldZ, surface, underwater, slopeDiff);
+		SurfacePalette palette = selectSurfacePalette(biome, worldX, worldZ, surface, underwater, slopeDiff, coverClass);
 		if (palette == null) {
 			return;
 		}
@@ -900,7 +903,8 @@ public final class EarthChunkGenerator extends ChunkGenerator {
 			int worldX,
 			int worldZ,
 			int surface,
-			boolean underwater
+			boolean underwater,
+			int coverClass
 	) {
 		Holder<Biome> biome = this.biomeSource.getNoiseBiome(
 				QuartPos.fromBlock(worldX),
@@ -908,7 +912,7 @@ public final class EarthChunkGenerator extends ChunkGenerator {
 				QuartPos.fromBlock(worldZ),
 				random.sampler()
 		);
-		SurfacePalette palette = selectSurfacePalette(biome, worldX, worldZ, surface, underwater);
+		SurfacePalette palette = selectSurfacePalette(biome, worldX, worldZ, surface, underwater, coverClass);
 		if (palette == null) {
 			return Blocks.STONE.defaultBlockState();
 		}
@@ -921,9 +925,10 @@ public final class EarthChunkGenerator extends ChunkGenerator {
 			int worldZ,
 			int surface,
 			boolean underwater,
-			int slopeDiff
+			int slopeDiff,
+			int coverClass
 	) {
-		SurfacePalette palette = selectSurfacePalette(biome, worldX, worldZ, surface, underwater, slopeDiff);
+		SurfacePalette palette = selectSurfacePalette(biome, worldX, worldZ, surface, underwater, slopeDiff, coverClass);
 		if (palette == null) {
 			return Blocks.STONE.defaultBlockState();
 		}
@@ -947,7 +952,19 @@ public final class EarthChunkGenerator extends ChunkGenerator {
 	}
 
 	public @NonNull LodSurface resolveLodSurface(Holder<Biome> biome, int worldX, int worldZ, int surface, boolean underwater) {
-		SurfacePalette palette = selectSurfacePalette(biome, worldX, worldZ, surface, underwater);
+		int coverClass = sampleCoverClass(worldX, worldZ);
+		return resolveLodSurface(biome, worldX, worldZ, surface, underwater, coverClass);
+	}
+
+	public @NonNull LodSurface resolveLodSurface(
+			Holder<Biome> biome,
+			int worldX,
+			int worldZ,
+			int surface,
+			boolean underwater,
+			int coverClass
+	) {
+		SurfacePalette palette = selectSurfacePalette(biome, worldX, worldZ, surface, underwater, coverClass);
 		if (palette == null) {
 			BlockState stone = Blocks.STONE.defaultBlockState();
 			return new LodSurface(stone, stone);
@@ -960,9 +977,17 @@ public final class EarthChunkGenerator extends ChunkGenerator {
 		TellusWorldgenSources.prefetchForChunk(new ChunkPos(chunkX, chunkZ), this.settings);
 	}
 
+	public int sampleCoverClass(int worldX, int worldZ) {
+		return LAND_COVER_SOURCE.sampleCoverClass(worldX, worldZ, this.settings.worldScale());
+	}
+
 	public WaterSurfaceResolver.WaterColumnData resolveLodWaterColumn(int worldX, int worldZ) {
+		int coverClass = sampleCoverClass(worldX, worldZ);
+		return resolveLodWaterColumn(worldX, worldZ, coverClass);
+	}
+
+	public WaterSurfaceResolver.WaterColumnData resolveLodWaterColumn(int worldX, int worldZ, int coverClass) {
 		// LODs use a lightweight water approximation to avoid the full resolver cost.
-		int coverClass = LAND_COVER_SOURCE.sampleCoverClass(worldX, worldZ, this.settings.worldScale());
 		int surface = sampleSurfaceHeight(worldX, worldZ);
 		boolean hasWater = coverClass == ESA_WATER || coverClass == ESA_NO_DATA || coverClass == ESA_MANGROVES;
 		if (!hasWater) {
@@ -978,12 +1003,19 @@ public final class EarthChunkGenerator extends ChunkGenerator {
 		return badlandsBand(y, offset);
 	}
 
-	private SurfacePalette selectSurfacePalette(Holder<Biome> biome, int worldX, int worldZ, int surface, boolean underwater) {
+	private SurfacePalette selectSurfacePalette(
+			Holder<Biome> biome,
+			int worldX,
+			int worldZ,
+			int surface,
+			boolean underwater,
+			int coverClass
+	) {
 		SurfacePalette palette = selectBaseSurfacePalette(biome, worldX, worldZ);
 		if (palette == null) {
 			return null;
 		}
-		if (underwater || !isSoilPalette(palette)) {
+		if (underwater || !isSoilPalette(palette) || coverClass == ESA_TREE_COVER) {
 			return palette;
 		}
 		int slopeDiff = sampleSlopeDiff(worldX, worldZ, surface);
@@ -999,13 +1031,14 @@ public final class EarthChunkGenerator extends ChunkGenerator {
 			int worldZ,
 			int surface,
 			boolean underwater,
-			int slopeDiff
+			int slopeDiff,
+			int coverClass
 	) {
 		SurfacePalette palette = selectBaseSurfacePalette(biome, worldX, worldZ);
 		if (palette == null) {
 			return null;
 		}
-		if (underwater || !isSoilPalette(palette)) {
+		if (underwater || !isSoilPalette(palette) || coverClass == ESA_TREE_COVER) {
 			return palette;
 		}
 		if (slopeDiff >= STONY_SLOPE_DIFF) {

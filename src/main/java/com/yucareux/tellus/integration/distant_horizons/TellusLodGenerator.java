@@ -117,6 +117,7 @@ public final class TellusLodGenerator implements IDhApiWorldGenerator {
 		final int[] surfaceYs = new int[area];
 		final int[] waterSurfaces = new int[area];
 		final boolean[] underwaterFlags = new boolean[area];
+		final int[] coverClasses = new int[area];
 		@SuppressWarnings("unchecked")
 		final Holder<Biome>[] biomeHolders = (Holder<Biome>[]) new Holder[area];
 
@@ -125,13 +126,16 @@ public final class TellusLodGenerator implements IDhApiWorldGenerator {
 			for (int localX = 0; localX < lodSizePoints; localX++) {
 				final int worldX = baseX + localX * cellSize + cellOffset;
 				final int index = localZ * lodSizePoints + localX;
-				final WaterSurfaceResolver.WaterColumnData waterColumn = generator.resolveLodWaterColumn(worldX, worldZ);
+				final int coverClass = generator.sampleCoverClass(worldX, worldZ);
+				final WaterSurfaceResolver.WaterColumnData waterColumn =
+						generator.resolveLodWaterColumn(worldX, worldZ, coverClass);
 				final int surfaceY = Mth.clamp(waterColumn.terrainSurface(), minY, maxY - 1);
 				final int waterSurface = Mth.clamp(waterColumn.waterSurface(), minY, maxY - 1);
 				final boolean underwater = waterColumn.hasWater() && waterSurface > surfaceY;
 				surfaceYs[index] = surfaceY;
 				waterSurfaces[index] = waterSurface;
 				underwaterFlags[index] = underwater;
+				coverClasses[index] = coverClass;
 				biomeHolders[index] = biomeSource.getBiomeAtBlock(worldX, worldZ);
 			}
 		}
@@ -144,10 +148,11 @@ public final class TellusLodGenerator implements IDhApiWorldGenerator {
 				final int surfaceY = surfaceYs[index];
 				final int waterSurface = waterSurfaces[index];
 				final boolean underwater = underwaterFlags[index];
+				final int coverClass = coverClasses[index];
 				final Holder<Biome> biomeHolder = biomeHolders[index];
 				final IDhApiBiomeWrapper biome = wrappers.getBiome(biomeHolder);
 				final EarthChunkGenerator.LodSurface lodSurface =
-						generator.resolveLodSurface(biomeHolder, worldX, worldZ, surfaceY, underwater);
+						generator.resolveLodSurface(biomeHolder, worldX, worldZ, surfaceY, underwater, coverClass);
 				final IDhApiBlockStateWrapper fillerBlock = wrappers.getBlockState(lodSurface.filler());
 				final IDhApiBlockStateWrapper topBlock = wrappers.getBlockState(lodSurface.top());
 				final int slopeDiff = lodSlopeDiff(surfaceYs, lodSizePoints, localX, localZ, cellSize);
