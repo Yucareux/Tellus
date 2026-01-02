@@ -6,6 +6,7 @@ import com.yucareux.tellus.client.widget.CustomizationList;
 import com.yucareux.tellus.worldgen.EarthChunkGenerator;
 import com.yucareux.tellus.worldgen.EarthGeneratorSettings;
 import com.mojang.serialization.Lifecycle;
+import com.mojang.blaze3d.platform.InputConstants;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
@@ -16,6 +17,8 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.function.DoubleFunction;
 import net.minecraft.ChatFormatting;
+import net.minecraft.client.Minecraft;
+import org.lwjgl.glfw.GLFW;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.components.AbstractSliderButton;
 import net.minecraft.client.gui.components.AbstractWidget;
@@ -1096,6 +1099,12 @@ public class EarthCustomizeScreen extends Screen {
 				return Mth.clamp(value, this.definition.min, this.definition.max);
 			}
 			if ("world_scale".equals(this.definition.key)) {
+				var window = Minecraft.getInstance().getWindow();
+				boolean shift = InputConstants.isKeyDown(window, GLFW.GLFW_KEY_LEFT_SHIFT) 
+						|| InputConstants.isKeyDown(window, GLFW.GLFW_KEY_RIGHT_SHIFT);
+				if (shift) {
+					step = 1.0;
+				}
 				double firstStep = this.definition.min;
 				double cutoff = (firstStep + step) * 0.5;
 				if (value <= cutoff) {
