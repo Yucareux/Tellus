@@ -342,10 +342,6 @@ public final class TerrainPreview implements AutoCloseable {
 		};
 	}
 
-	private static boolean isWaterCover(int coverClass) {
-		return coverClass == ESA_WATER || coverClass == ESA_NO_DATA;
-	}
-
 	private static int waterColorForDepth(double depthBlocks) {
 		if (depthBlocks <= 2.0) {
 			return lerpColor(SHORE_COLOR, SHALLOW_SEA_COLOR, depthBlocks / 2.0);

@@ -1,0 +1,161 @@
+Water System Rework Plan (Draft)
+
+Goals
+- Implement new inland/ocean water behavior per ESA coverage rules.
+- Add shoreline blending controls (block-based) for rivers/lakes and oceans.
+- Preserve LOD performance and avoid extra work on dry chunks.
+- Ensure trees and surface features do not float at shoreline blends.
+
+Scope & Non‑Goals
+- No changes to general terrain generation except where shoreline blending requires it.
+- Distant Horizons LOD uses the new resolver only when the toggle is enabled; otherwise keep the existing fast approximation.
+- Maintain current bathymetry usage for ocean depth.
+
+1) Settings & UI Changes
+1.1 Rename/replace settings
+- Remove: Terrain Smoothing, River Slope, Lake Depth Curve (UI only).
+- Rename: Shoreline Blend -> Ocean Shoreline Blend.
+- Add new: River/Lake Shoreline Blend (block-based integer slider).
+
+1.2 Slider definitions
+- River/Lake Shoreline Blend: range 0..10, step 1, default 5. Display in blocks.
+- Ocean Shoreline Blend: range 0..10, step 1, default 5. Display in blocks.
+
+1.3 Settings storage
+- Add two new fields in EarthGeneratorSettings:
+  - int inlandShoreBlendBlocks
+  - int oceanShoreBlendBlocks
+- Update CODEC in EarthGeneratorSettings to include these fields (with defaults).
+- Update EarthCustomizeScreen buildSettings to read these as integers.
+
+2) Water Resolver Core Data & Control Flow
+2.1 Water categories
+- Inland water (ESA water with surface elevation > sea level): treated as river/lake system.
+- Ocean water (ESA water at/below sea level): ocean with bathymetry + forced min depth.
+- No‑data water (ESA=0, below sea level): ocean “no‑data” bucket.
+
+2.2 Region work avoidance
+- Retain hasWaterNearChunk/prefetch gating.
+- Add early exits:
+  - If no ESA water and no sea‑level flooding possible in the region, build dry region data.
+  - If inland/ocean blending distance is 0, skip blend stage entirely.
+
+2.3 Data required per region
+- Existing arrays: surfaceHeights, waterSurface, terrainSurface, componentIds, waterFlags.
+- Add derived arrays:
+  - waterMask (already used).
+  - waterType (INLAND/OCEAN/NODATA) via waterFlags.
+  - optional: slopeMask for “no blending” cliffs.
+
+
+3) Inland Water Behavior (Above Sea Level)
+3.1 New depth profile (block-based)
+- Within the first N blocks from the shore (N = inlandShoreBlendBlocks):
+  - 0–5 blocks from shore: depth=1
+  - next zone: depth=3
+  - next zone: depth=4
+  - beyond: random depth 3–6, capped to max 30
+- Rule applies to all inland water bodies above sea level.
+
+3.2 Shoreline blending logic
+- Blend inland terrain by default for inlandShoreBlendBlocks.
+- Exception: if adjacent terrain slope is too steep (cliff), skip blending and instead snap water floor to fit terrain.
+
+3.3 Cliff detection & adaptive water floor
+- For each shore cell, calculate slope of nearby land:
+  - Use existing surfaceHeights and slope sampling (neighbor diffs).
+  - If max height delta within 1–2 blocks > threshold, treat as cliff.
+- Adaptive algorithm suggestion:
+  - Keep water surface flat.
+  - Set water floor for cliff cells to min(terrainSurface, waterSurface-1).
+  - Optionally apply local smoothing only within water cells to avoid vertical water walls.
+
+3.4 River vs lake determination
+- Keep river shape classification for narrow, long components.
+- If a component is wide or highly filled, treat as lake for depth profile (current logic can remain, since the new depth profile is uniform and less shape-dependent).
+
+
+4) Ocean Water Behavior (Below Sea Level)
+4.1 ESA ocean (coverage present)
+- Use bathymetry elevation for terrainSurface.
+- Force minimum 1‑block depth: terrainSurface <= waterSurface-1 always.
+  - If bathymetry gives floor above water surface, clamp it to waterSurface-1.
+
+4.2 No‑data ocean
+- If ESA coverage is 0 and terrain below sea level: treat as ocean.
+- Bathymetry might be missing; use terrain surface height (as currently) but ensure water floor <= waterSurface-1.
+
+4.3 Ocean shoreline blending
+- Same logic as inland for blending distance, but depth from bathymetry.
+- If cliff slope is too steep near shore, skip blending and clamp water floor to avoid terrain poking out.
+
+
+5) Shoreline Blending Implementation
+5.1 Blend distances
+- Use new block-based settings directly (no meters conversion).
+
+5.2 Blending method
+- For each land cell within blend distance of shoreline:
+  - Interpolate land surface toward water surface or toward shallow water floor (depending on inland/ocean).
+- Keep blending simple O(N) per region; reuse distance transform already computed.
+
+5.3 Cliff exception
+- If a land cell is adjacent to a steep slope (from 3.3), do not blend it.
+
+5.4 Tree safety
+- Ensure tree placement avoids blended water edge:
+  - In EarthChunkGenerator.placeTrees: if column is within blend distance of water, skip tree placement.
+  - Use WaterSurfaceResolver to query “near shore” or water distance for that block.
+  - This prevents floating trees at the edge after blend adjustments.
+
+
+6) Distant Horizons (LOD) Integration
+6.1 Toggle behavior
+- If “Distant Horizons Water Resolver” = OFF:
+  - Use existing fast approximation (current logic in EarthChunkGenerator.resolveLodWaterColumn).
+- If ON:
+  - Use new resolver with inland/ocean logic and blending; keep performance safeguards.
+
+6.2 Performance safeguards
+- Cap LOD detailed resolver to low detail levels (keep current LOD_WATER_RESOLVER_MAX_DETAIL).
+- Use region prefetch only when ESA water detected within LOD bounds.
+- Reuse existing arrays and avoid additional scans per LOD column.
+
+
+7) Performance Considerations
+- Avoid extra sampling: keep land cover + elevation sampling in existing loops.
+- Use precomputed distance transforms already in resolver to avoid new BFS.
+- Conditional execution:
+  - Skip blending if blend distance = 0.
+  - Skip inland logic for regions with no inland water.
+  - Skip ocean blending when no ocean masks present.
+
+
+8) Scale Awareness (1:1 and Above)
+- Ensure depth bands and blend distances respect user worldScale so shoreline behavior remains consistent across 1:1, 1:5, 1:10, etc.
+- Consider scaling cliff thresholds and inland depth bands proportionally to worldScale (or clamp to sane block ranges) to avoid exaggerated steps at low scales.
+- Keep the UI blend sliders in blocks (as requested), but apply optional scale-aware caps internally to prevent over‑blending on very small scales.
+
+
+9) Testing Plan
+- Visual checks at 1:10 scale coastlines (cliffs vs gradual slopes).
+- Grand Canyon style river tests for cliff skipping.
+- Large lakes for depth distribution and absence of water walls.
+- Ocean ESA coverage near shorelines (force 1‑block minimum depth).
+- LOD comparison: toggle ON/OFF, ensure performance acceptable and visuals consistent.
+
+
+10) Suggested Constants (Initial)
+- Cliff slope threshold: start with max height delta >= 5 blocks within 1‑block neighbor ring.
+- Inland depth profile:
+  - 0–5: depth 1
+  - 6–8: depth 3
+  - 9–10: depth 4
+  - >10: random 3–6, cap 30
+- Ocean forced min depth: 1 block.
+
+
+Implementation Notes
+- Most work lives in WaterSurfaceResolver, with minor adjustments in EarthCustomizeScreen and EarthGeneratorSettings.
+- Tree avoidance uses resolver distance info; consider caching a small per‑chunk “near shore” mask from WaterChunkData if needed.
+- LOD uses existing toggle and should only enable detailed resolver for low detail levels.

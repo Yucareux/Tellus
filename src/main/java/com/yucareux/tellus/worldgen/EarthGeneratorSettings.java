@@ -25,6 +25,9 @@ public record EarthGeneratorSettings(
 		double spawnLongitude,
 		int minAltitude,
 		int maxAltitude,
+		int riverLakeShorelineBlend,
+		int oceanShorelineBlend,
+		boolean shorelineBlendCliffLimit,
 		boolean cinematicMode,
 		boolean caveCarvers,
 		boolean largeCaves,
@@ -79,13 +82,16 @@ public record EarthGeneratorSettings(
 			DEFAULT_SPAWN_LONGITUDE,
 			-64,
 			AUTO_ALTITUDE,
+			5,
+			5,
+			true,
 			false,
-			true,
-			true,
-			true,
-			true,
-			true,
-			true,
+			false,
+			false,
+			false,
+			false,
+			false,
+			false,
 			false,
 			false,
 			false,
@@ -110,6 +116,26 @@ public record EarthGeneratorSettings(
 			DistantHorizonsRenderMode.FAST
 	);
 
+	private static final MapCodec<BaseToggles> BASE_TOGGLES_CODEC = RecordCodecBuilder.mapCodec(instance -> instance.group(
+			Codec.BOOL.fieldOf("cinematic_mode").orElse(DEFAULT.cinematicMode()).forGetter(BaseToggles::cinematicMode),
+			Codec.BOOL.fieldOf("cave_carvers").orElse(DEFAULT.caveCarvers()).forGetter(BaseToggles::caveCarvers),
+			Codec.BOOL.fieldOf("large_caves").orElse(DEFAULT.largeCaves()).forGetter(BaseToggles::largeCaves),
+			Codec.BOOL.fieldOf("canyon_carvers").orElse(DEFAULT.canyonCarvers()).forGetter(BaseToggles::canyonCarvers),
+			Codec.BOOL.fieldOf("aquifers").orElse(DEFAULT.aquifers()).forGetter(BaseToggles::aquifers),
+			Codec.BOOL.fieldOf("dripstone").orElse(DEFAULT.dripstone()).forGetter(BaseToggles::dripstone),
+			Codec.BOOL.fieldOf("deep_dark").orElse(DEFAULT.deepDark()).forGetter(BaseToggles::deepDark),
+			Codec.BOOL.fieldOf("ore_distribution").orElse(DEFAULT.oreDistribution()).forGetter(BaseToggles::oreDistribution)
+	).apply(instance, (cinematicMode, caveCarvers, largeCaves, canyonCarvers, aquifers, dripstone, deepDark, oreDistribution) -> new BaseToggles(
+			Objects.requireNonNull(cinematicMode, "cinematicMode").booleanValue(),
+			Objects.requireNonNull(caveCarvers, "caveCarvers").booleanValue(),
+			Objects.requireNonNull(largeCaves, "largeCaves").booleanValue(),
+			Objects.requireNonNull(canyonCarvers, "canyonCarvers").booleanValue(),
+			Objects.requireNonNull(aquifers, "aquifers").booleanValue(),
+			Objects.requireNonNull(dripstone, "dripstone").booleanValue(),
+			Objects.requireNonNull(deepDark, "deepDark").booleanValue(),
+			Objects.requireNonNull(oreDistribution, "oreDistribution").booleanValue()
+	)));
+
 	private static final MapCodec<SettingsBase> BASE_CODEC = RecordCodecBuilder.mapCodec(instance -> instance.group(
 			Codec.DOUBLE.fieldOf("world_scale").orElse(DEFAULT.worldScale()).forGetter(SettingsBase::worldScale),
 			Codec.DOUBLE.fieldOf("terrestrial_height_scale").orElse(DEFAULT.terrestrialHeightScale())
@@ -121,15 +147,44 @@ public record EarthGeneratorSettings(
 			Codec.DOUBLE.fieldOf("spawn_longitude").orElse(DEFAULT.spawnLongitude()).forGetter(SettingsBase::spawnLongitude),
 			Codec.INT.fieldOf("min_altitude").orElse(DEFAULT.minAltitude()).forGetter(SettingsBase::minAltitude),
 			Codec.INT.fieldOf("max_altitude").orElse(DEFAULT.maxAltitude()).forGetter(SettingsBase::maxAltitude),
-			Codec.BOOL.fieldOf("cinematic_mode").orElse(DEFAULT.cinematicMode()).forGetter(SettingsBase::cinematicMode),
-			Codec.BOOL.fieldOf("cave_carvers").orElse(DEFAULT.caveCarvers()).forGetter(SettingsBase::caveCarvers),
-			Codec.BOOL.fieldOf("large_caves").orElse(DEFAULT.largeCaves()).forGetter(SettingsBase::largeCaves),
-			Codec.BOOL.fieldOf("canyon_carvers").orElse(DEFAULT.canyonCarvers()).forGetter(SettingsBase::canyonCarvers),
-			Codec.BOOL.fieldOf("aquifers").orElse(DEFAULT.aquifers()).forGetter(SettingsBase::aquifers),
-			Codec.BOOL.fieldOf("dripstone").orElse(DEFAULT.dripstone()).forGetter(SettingsBase::dripstone),
-			Codec.BOOL.fieldOf("deep_dark").orElse(DEFAULT.deepDark()).forGetter(SettingsBase::deepDark),
-			Codec.BOOL.fieldOf("ore_distribution").orElse(DEFAULT.oreDistribution()).forGetter(SettingsBase::oreDistribution)
-	).apply(instance, EarthGeneratorSettings::createSettingsBase));
+			Codec.INT.fieldOf("river_lake_shoreline_blend").orElse(DEFAULT.riverLakeShorelineBlend())
+					.forGetter(SettingsBase::riverLakeShorelineBlend),
+			Codec.INT.fieldOf("ocean_shoreline_blend").orElse(DEFAULT.oceanShorelineBlend())
+					.forGetter(SettingsBase::oceanShorelineBlend),
+			Codec.BOOL.fieldOf("shoreline_blend_cliff_limit").orElse(DEFAULT.shorelineBlendCliffLimit())
+					.forGetter(SettingsBase::shorelineBlendCliffLimit),
+			BASE_TOGGLES_CODEC.forGetter(settings -> new BaseToggles(
+					settings.cinematicMode(),
+					settings.caveCarvers(),
+					settings.largeCaves(),
+					settings.canyonCarvers(),
+					settings.aquifers(),
+					settings.dripstone(),
+					settings.deepDark(),
+					settings.oreDistribution()
+			))
+	).apply(instance, (worldScale, terrestrialHeightScale, oceanicHeightScale, heightOffset, spawnLatitude, spawnLongitude,
+			minAltitude, maxAltitude, riverLakeShorelineBlend, oceanShorelineBlend, shorelineBlendCliffLimit, toggles) -> createSettingsBase(
+			worldScale,
+			terrestrialHeightScale,
+			oceanicHeightScale,
+			heightOffset,
+			spawnLatitude,
+			spawnLongitude,
+			minAltitude,
+			maxAltitude,
+			riverLakeShorelineBlend,
+			oceanShorelineBlend,
+			shorelineBlendCliffLimit,
+			toggles.cinematicMode(),
+			toggles.caveCarvers(),
+			toggles.largeCaves(),
+			toggles.canyonCarvers(),
+			toggles.aquifers(),
+			toggles.dripstone(),
+			toggles.deepDark(),
+			toggles.oreDistribution()
+	)));
 
 	private static final MapCodec<Optional<Integer>> SEA_LEVEL_CODEC =
 			Codec.INT.optionalFieldOf("sea_level");
@@ -298,6 +353,9 @@ public record EarthGeneratorSettings(
 			Double spawnLongitude,
 			Integer minAltitude,
 			Integer maxAltitude,
+			Integer riverLakeShorelineBlend,
+			Integer oceanShorelineBlend,
+			Boolean shorelineBlendCliffLimit,
 			Boolean cinematicMode,
 			Boolean caveCarvers,
 			Boolean largeCaves,
@@ -319,6 +377,9 @@ public record EarthGeneratorSettings(
 				Objects.requireNonNull(spawnLongitude, "spawnLongitude").doubleValue(),
 				Objects.requireNonNull(minAltitude, "minAltitude").intValue(),
 				Objects.requireNonNull(maxAltitude, "maxAltitude").intValue(),
+				Objects.requireNonNull(riverLakeShorelineBlend, "riverLakeShorelineBlend").intValue(),
+				Objects.requireNonNull(oceanShorelineBlend, "oceanShorelineBlend").intValue(),
+				Objects.requireNonNull(shorelineBlendCliffLimit, "shorelineBlendCliffLimit").booleanValue(),
 				Objects.requireNonNull(cinematicMode, "cinematicMode").booleanValue(),
 				Objects.requireNonNull(caveCarvers, "caveCarvers").booleanValue(),
 				Objects.requireNonNull(largeCaves, "largeCaves").booleanValue(),
@@ -333,6 +394,18 @@ public record EarthGeneratorSettings(
 		);
 	}
 
+	private record BaseToggles(
+			boolean cinematicMode,
+			boolean caveCarvers,
+			boolean largeCaves,
+			boolean canyonCarvers,
+			boolean aquifers,
+			boolean dripstone,
+			boolean deepDark,
+			boolean oreDistribution
+	) {
+	}
+
 	private record SettingsBase(
 			double worldScale,
 			double terrestrialHeightScale,
@@ -343,6 +416,9 @@ public record EarthGeneratorSettings(
 			double spawnLongitude,
 			int minAltitude,
 			int maxAltitude,
+			int riverLakeShorelineBlend,
+			int oceanShorelineBlend,
+			boolean shorelineBlendCliffLimit,
 			boolean cinematicMode,
 			boolean caveCarvers,
 			boolean largeCaves,
@@ -366,6 +442,9 @@ public record EarthGeneratorSettings(
 					settings.spawnLongitude(),
 					settings.minAltitude(),
 					settings.maxAltitude(),
+					settings.riverLakeShorelineBlend(),
+					settings.oceanShorelineBlend(),
+					settings.shorelineBlendCliffLimit(),
 					settings.cinematicMode(),
 					settings.caveCarvers(),
 					settings.largeCaves(),
@@ -391,6 +470,9 @@ public record EarthGeneratorSettings(
 					this.spawnLongitude,
 					this.minAltitude,
 					this.maxAltitude,
+					this.riverLakeShorelineBlend,
+					this.oceanShorelineBlend,
+					this.shorelineBlendCliffLimit,
 					this.cinematicMode,
 					this.caveCarvers,
 					this.largeCaves,
@@ -416,6 +498,9 @@ public record EarthGeneratorSettings(
 					this.spawnLongitude,
 					this.minAltitude,
 					this.maxAltitude,
+					this.riverLakeShorelineBlend,
+					this.oceanShorelineBlend,
+					this.shorelineBlendCliffLimit,
 					this.cinematicMode,
 					this.caveCarvers,
 					this.largeCaves,
@@ -441,6 +526,9 @@ public record EarthGeneratorSettings(
 					this.spawnLongitude,
 					this.minAltitude,
 					this.maxAltitude,
+					this.riverLakeShorelineBlend,
+					this.oceanShorelineBlend,
+					this.shorelineBlendCliffLimit,
 					this.cinematicMode,
 					this.caveCarvers,
 					this.largeCaves,
@@ -466,6 +554,9 @@ public record EarthGeneratorSettings(
 					this.spawnLongitude,
 					this.minAltitude,
 					this.maxAltitude,
+					this.riverLakeShorelineBlend,
+					this.oceanShorelineBlend,
+					this.shorelineBlendCliffLimit,
 					this.cinematicMode,
 					this.caveCarvers,
 					this.largeCaves,
@@ -491,6 +582,9 @@ public record EarthGeneratorSettings(
 					this.spawnLongitude,
 					this.minAltitude,
 					this.maxAltitude,
+					this.riverLakeShorelineBlend,
+					this.oceanShorelineBlend,
+					this.shorelineBlendCliffLimit,
 					this.cinematicMode,
 					this.caveCarvers,
 					this.largeCaves,
@@ -606,6 +700,9 @@ public record EarthGeneratorSettings(
 				this.spawnLongitude,
 				this.minAltitude,
 				this.maxAltitude,
+				this.riverLakeShorelineBlend,
+				this.oceanShorelineBlend,
+				this.shorelineBlendCliffLimit,
 				this.cinematicMode,
 				this.caveCarvers,
 				this.largeCaves,
@@ -653,6 +750,9 @@ public record EarthGeneratorSettings(
 				this.spawnLongitude,
 				this.minAltitude,
 				this.maxAltitude,
+				this.riverLakeShorelineBlend,
+				this.oceanShorelineBlend,
+				this.shorelineBlendCliffLimit,
 				this.cinematicMode,
 				this.caveCarvers,
 				this.largeCaves,

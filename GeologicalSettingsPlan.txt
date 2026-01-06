@@ -1,0 +1,111 @@
+Geological Settings Implementation Plan (Tellus)
+=================================================
+
+Goals
+- Make all geological toggles functional with a custom cave system (no vanilla carvers).
+- Keep caves survival friendly: no excessive surface holes, predictable water/lava, safe spawn.
+- Keep performance stable (close to current generation times).
+
+Current State (summary)
+- applyCarvers uses vanilla carvers (cave, large cave, canyon) and a custom "noise caves" pass for large caves.
+- Geological toggles mostly gate vanilla features (ore_, dripstone, geodes, deep_dark, springs).
+- Aquifer and fluid logic comes from vanilla NoiseChunk/Aquifer in applyCarvers.
+
+High-Level Approach
+- Replace vanilla carvers with a custom geology pass that runs in applyCarvers.
+- Use Tellus terrain data (surface height + sea level + minY/maxY) to clamp cave depth and roof.
+- Keep vanilla features (ore/geodes/dripstone/deep_dark) but re-seed and re-place based on our custom caves,
+  or provide equivalent custom placement where needed.
+
+Core Cave System (custom, noise-based)
+1) Small Caves (cave_carvers)
+   - 3D noise field with domain warp, threshold-based carving.
+   - Density increases with depth, fades near surface (roof buffer).
+   - Carve only below (surface - minRoof) to avoid breaking terrain.
+   - Optional "worm" paths: random-walk tubes seeded per chunk for variety.
+
+2) Large Caverns (large_caves)
+   - Second 3D noise field at lower frequency.
+   - Use a lower threshold to create bigger voids.
+   - Apply depth window so caverns sit between mid-depth and deep layers.
+
+3) Canyons (canyon_carvers)
+   - 2D noise determines canyon centers; vertical profile carves narrow, tall ravines.
+   - Use a width curve and depth falloff to keep them survivable.
+   - Clamp to avoid surface exposure unless specifically desired (optional parameter).
+
+Water and Aquifers (aquifers)
+- Use sea level from settings; do NOT call WaterSurfaceResolver per block.
+- Compute a local water table per column:
+  - For oceans: water table = sea level.
+  - For inland: water table = min(sea level, surface - shallowDepth).
+- Fill carved air below water table with water (above lava level).
+- Lava rule: below lavaLevel or far from water table -> lava.
+- Ensure no water above surface unless a canyon explicitly breaks through.
+
+Decorations and Biome-Driven Features
+1) Dripstone (dripstone)
+   - After carving, find cave ceilings/floors with enough headroom.
+   - Use a humidity/temperature proxy from Koppen or biome for placement bias.
+   - Place clusters using a simple noise mask.
+
+2) Deep Dark (deep_dark)
+   - Only below deepDarkStart (e.g., minY + 200 or world height dependent).
+   - Use a noise mask to create large sculk patches (avoid small specks).
+   - Optional: use vanilla deep_dark features but re-target placement to carved space.
+
+3) Lava Pools (lava_pools)
+   - Target deep caves (below lavaLevel + buffer).
+   - Avoid water-adjacent cavities.
+   - Use sparse noise or low chance per cave cell for pools.
+
+Ore and Geodes (ore_distribution, geodes)
+- Prefer vanilla feature placement but align to Tellus height limits:
+  - Adjust placement heights based on minY/maxY and heightOffset.
+  - Run after carving so ores/geodes intersect cave walls.
+- If vanilla features are too slow or incompatible, provide a custom ore scatter pass:
+  - Use strata depth bands and noise for distribution.
+
+Order of Operations (when all toggles enabled)
+1) Terrain fill (existing).
+2) Custom cave pass (small caves + large caverns + canyons).
+3) Aquifer fill (water/lava) based on sea level and depth.
+4) Decoration pass (dripstone, deep dark, lava pools).
+5) Ore/geode placement (vanilla or custom, after carving).
+
+Survival-Friendly Rules
+- Minimum roof thickness above caves (minRoof, e.g., 8-12 blocks).
+- Reduce cave density in first 20-30 blocks below surface.
+- Keep lava below a safe threshold (e.g., min(-54, seaLevel - 20)).
+- Avoid opening into oceans/lakes except for canyon-specific cases.
+
+Performance Plan
+- Precompute surface height grid per chunk (reuse existing heightGrid).
+- Sample noise in vertical steps (e.g., 4) and interpolate to reduce calls.
+- Use per-thread scratch buffers (ThreadLocal) to avoid allocations.
+- Early-out on columns that cannot carve (surface too low, no caves by noise).
+- Keep masks in compact arrays: byte mask for carve type per cell.
+
+Integration Details (code touchpoints)
+- EarthChunkGenerator.applyCarvers:
+  - Skip vanilla carvers when cave settings enabled.
+  - Invoke new TellusGeologyGenerator with settings and WaterChunkData.
+- Reuse existing WaterSurfaceResolver.WaterChunkData for terrain surface info.
+- Add a new package: com.yucareux.tellus.worldgen.geology
+  - TellusGeologyGenerator (entry point)
+  - CaveNoiseFields (noise setup, domain warp)
+  - CaveCarver (carve logic)
+  - AquiferFiller (water/lava fill)
+  - CaveDecorators (dripstone, deep dark, lava pools)
+
+Validation and Debugging
+- Add debug flags: -Dtellus.debugGeology=true to log timing and carve counts.
+- In-game toggle to show cave density overlay (optional).
+- Test seeds with ocean-heavy, mountain-heavy, and flat regions.
+
+Incremental Rollout Plan
+1) Implement custom small caves + large caves + canyon carvers with a mask.
+2) Add aquifer fill and lava rule.
+3) Add dripstone and deep dark decorators.
+4) Validate ore/geode placement and adjust heights.
+5) Performance pass (step size tuning, caching, early-outs).

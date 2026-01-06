@@ -373,18 +373,28 @@ public class EarthCustomizeScreen extends Screen {
 		boolean cinematicMode = this.findToggleValue("cinematic_mode", false);
 		int maxAltitude = this.resolveAltitudeSetting("max_altitude", AUTO_MAX_ALTITUDE);
 		int minAltitude = this.resolveAltitudeSetting("min_altitude", AUTO_MIN_ALTITUDE);
+		int riverLakeShorelineBlend = (int) Math.round(
+				this.findSliderValue("river_lake_shoreline_blend", EarthGeneratorSettings.DEFAULT.riverLakeShorelineBlend())
+		);
+		int oceanShorelineBlend = (int) Math.round(
+				this.findSliderValue("ocean_shoreline_blend", EarthGeneratorSettings.DEFAULT.oceanShorelineBlend())
+		);
+		boolean shorelineBlendCliffLimit = this.findToggleValue(
+				"shoreline_blend_cliff_limit",
+				EarthGeneratorSettings.DEFAULT.shorelineBlendCliffLimit()
+		);
 		if (cinematicMode) {
 			maxAltitude = EarthGeneratorSettings.AUTO_ALTITUDE;
 			minAltitude = EarthGeneratorSettings.AUTO_ALTITUDE;
 		}
-		boolean caveCarvers = cinematicMode ? false : this.findToggleValue("cave_carvers", true);
-		boolean largeCaves = cinematicMode ? false : this.findToggleValue("large_caves", true);
-		boolean canyonCarvers = cinematicMode ? false : this.findToggleValue("canyon_carvers", true);
-		boolean aquifers = cinematicMode ? false : this.findToggleValue("aquifers", true);
-		boolean dripstone = cinematicMode ? false : this.findToggleValue("dripstone", true);
-		boolean deepDark = cinematicMode ? false : this.findToggleValue("deep_dark", true);
+		boolean caveCarvers = false;
+		boolean largeCaves = false;
+		boolean canyonCarvers = false;
+		boolean aquifers = false;
+		boolean dripstone = false;
+		boolean deepDark = false;
 		boolean oreDistribution = cinematicMode ? false : this.findToggleValue("ore_distribution", false);
-		boolean geodes = cinematicMode ? false : this.findToggleValue("geodes", false);
+		boolean geodes = false;
 		boolean lavaPools = cinematicMode ? false : this.findToggleValue("lava_pools", false);
 		boolean addStrongholds = false;
 		boolean addVillages = this.findToggleValue("add_villages", true);
@@ -421,6 +431,9 @@ public class EarthCustomizeScreen extends Screen {
 				this.spawnLongitude,
 				minAltitude,
 				maxAltitude,
+				riverLakeShorelineBlend,
+				oceanShorelineBlend,
+				shorelineBlendCliffLimit,
 				cinematicMode,
 				caveCarvers,
 				largeCaves,
@@ -517,18 +530,11 @@ public class EarthCustomizeScreen extends Screen {
 				slider("min_altitude", EarthGeneratorSettings.DEFAULT.minAltitude(),
 						AUTO_MIN_ALTITUDE, EarthGeneratorSettings.MAX_WORLD_Y, 16.0)
 						.withDisplay(EarthCustomizeScreen::formatMinAltitude),
-				slider("terrain_smoothing", 25.0, 0.0, 100.0, 5.0)
-						.withDisplay(EarthCustomizeScreen::formatPercent)
-						.locked(true),
-				slider("river_slope", 100.0, 0.0, 200.0, 5.0)
-						.withDisplay(EarthCustomizeScreen::formatPercent)
-						.locked(true),
-				slider("lake_depth_curve", 100.0, 0.0, 200.0, 5.0)
-						.withDisplay(EarthCustomizeScreen::formatPercent)
-						.locked(true),
-				slider("shoreline_blend", 30.0, 0.0, 200.0, 5.0)
-						.withDisplay(EarthCustomizeScreen::formatMeters)
-						.locked(true)
+				slider("river_lake_shoreline_blend", EarthGeneratorSettings.DEFAULT.riverLakeShorelineBlend(), 0.0, 10.0, 1.0)
+						.withDisplay(EarthCustomizeScreen::formatHeightOffset),
+				slider("ocean_shoreline_blend", EarthGeneratorSettings.DEFAULT.oceanShorelineBlend(), 0.0, 10.0, 1.0)
+						.withDisplay(EarthCustomizeScreen::formatHeightOffset),
+				toggle("shoreline_blend_cliff_limit", EarthGeneratorSettings.DEFAULT.shorelineBlendCliffLimit())
 		)));
 
 		categories.add(new CategoryDefinition("ecological", List.of(
@@ -642,10 +648,6 @@ public class EarthCustomizeScreen extends Screen {
 
 	private static String formatPercent(double value) {
 		return String.format(Locale.ROOT, "%.0f%%", value);
-	}
-
-	private static String formatMeters(double value) {
-		return String.format(Locale.ROOT, "%.0fm", value);
 	}
 
 	private static String formatMaxAltitude(double value) {

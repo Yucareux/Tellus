@@ -103,8 +103,15 @@ public final class TellusLodGenerator implements IDhApiWorldGenerator {
 		final int lodSizePoints = output.getWidthInDataColumns();
 		final int cellSize = 1 << detailLevel;
 		final int cellOffset = cellSize >> 1;
-		final boolean useDetailedWater = generator.settings().distantHorizonsWaterResolver()
+		final boolean baseDetailedWater = generator.settings().distantHorizonsWaterResolver()
 				&& detailLevel <= LOD_WATER_RESOLVER_MAX_DETAIL;
+		final int maxBlendBlocks = Math.max(
+				generator.settings().riverLakeShorelineBlend(),
+				generator.settings().oceanShorelineBlend()
+		);
+		final int blendCells = baseDetailedWater && maxBlendBlocks > 0
+				? (maxBlendBlocks + cellSize - 1) / cellSize
+				: 0;
 
 		final int baseX = SectionPos.sectionToBlockCoord(chunkPosMinX);
 		final int baseZ = SectionPos.sectionToBlockCoord(chunkPosMinZ);
@@ -121,8 +128,11 @@ public final class TellusLodGenerator implements IDhApiWorldGenerator {
 		final int[] waterSurfaces = new int[area];
 		final boolean[] underwaterFlags = new boolean[area];
 		final int[] coverClasses = new int[area];
+		final int[] fastSurfaceYs = new int[area];
+		final boolean[] fastOceanFlags = new boolean[area];
 		@SuppressWarnings("unchecked")
 		final Holder<Biome>[] biomeHolders = (Holder<Biome>[]) new Holder[area];
+		boolean hasWaterInTile = false;
 
 		for (int localZ = 0; localZ < lodSizePoints; localZ++) {
 			final int worldZ = baseZ + localZ * cellSize + cellOffset;
@@ -130,24 +140,52 @@ public final class TellusLodGenerator implements IDhApiWorldGenerator {
 				final int worldX = baseX + localX * cellSize + cellOffset;
 				final int index = localZ * lodSizePoints + localX;
 				final int coverClass = generator.sampleCoverClass(worldX, worldZ);
-				final WaterSurfaceResolver.WaterColumnData waterColumn =
-						generator.resolveLodWaterColumn(worldX, worldZ, coverClass, useDetailedWater);
-				final WaterSurfaceResolver.WaterColumnData fastColumn = useDetailedWater
-						? generator.resolveLodWaterColumn(worldX, worldZ, coverClass)
-						: waterColumn;
-				final int surfaceY = Mth.clamp(waterColumn.terrainSurface(), minY, maxY - 1);
-				final int waterSurface = Mth.clamp(waterColumn.waterSurface(), minY, maxY - 1);
-				final boolean underwater = waterColumn.hasWater() && waterSurface > surfaceY;
-				final boolean isOcean = waterColumn.isOcean() || fastColumn.isOcean();
-				final int vegetationSurface = isOcean
-						? fastColumn.terrainSurface()
-						: surfaceY;
+				final WaterSurfaceResolver.WaterColumnData fastColumn =
+						generator.resolveLodWaterColumn(worldX, worldZ, coverClass);
+				final int surfaceY = Mth.clamp(fastColumn.terrainSurface(), minY, maxY - 1);
+				final int waterSurface = Mth.clamp(fastColumn.waterSurface(), minY, maxY - 1);
+				final boolean underwater = fastColumn.hasWater() && waterSurface > surfaceY;
+				final int vegetationSurface = surfaceY;
+			if (baseDetailedWater) {
+				if (fastColumn.hasWater()) {
+					hasWaterInTile = true;
+				}
+			}
+			fastSurfaceYs[index] = surfaceY;
+			fastOceanFlags[index] = fastColumn.isOcean();
 				surfaceYs[index] = surfaceY;
 				vegetationSurfaceYs[index] = Mth.clamp(vegetationSurface, minY, maxY - 1);
 				waterSurfaces[index] = waterSurface;
 				underwaterFlags[index] = underwater;
 				coverClasses[index] = coverClass;
 				biomeHolders[index] = biomeSource.getBiomeAtBlock(worldX, worldZ);
+			}
+		}
+
+		boolean useDetailedWater = baseDetailedWater && hasWaterInTile;
+		if (baseDetailedWater && !useDetailedWater && blendCells > 0) {
+			useDetailedWater = hasWaterNearLodArea(baseX, baseZ, lodSizePoints, cellSize, cellOffset, blendCells, false);
+		}
+
+		if (useDetailedWater) {
+			for (int localZ = 0; localZ < lodSizePoints; localZ++) {
+				final int worldZ = baseZ + localZ * cellSize + cellOffset;
+				for (int localX = 0; localX < lodSizePoints; localX++) {
+					final int worldX = baseX + localX * cellSize + cellOffset;
+					final int index = localZ * lodSizePoints + localX;
+					final int coverClass = coverClasses[index];
+					final WaterSurfaceResolver.WaterColumnData detailedColumn =
+							generator.resolveLodWaterColumn(worldX, worldZ, coverClass, true);
+					final int surfaceY = Mth.clamp(detailedColumn.terrainSurface(), minY, maxY - 1);
+					final int waterSurface = Mth.clamp(detailedColumn.waterSurface(), minY, maxY - 1);
+					final boolean underwater = detailedColumn.hasWater() && waterSurface > surfaceY;
+					final boolean isOcean = detailedColumn.isOcean() || fastOceanFlags[index];
+					final int vegetationSurface = isOcean ? fastSurfaceYs[index] : surfaceY;
+					surfaceYs[index] = surfaceY;
+					vegetationSurfaceYs[index] = Mth.clamp(vegetationSurface, minY, maxY - 1);
+					waterSurfaces[index] = waterSurface;
+					underwaterFlags[index] = underwater;
+				}
 			}
 		}
 
@@ -330,6 +368,13 @@ public final class TellusLodGenerator implements IDhApiWorldGenerator {
 		final int cellOffset = cellSize >> 1;
 		final boolean useDetailedWater = generator.settings().distantHorizonsWaterResolver()
 				&& detailLevel <= LOD_WATER_RESOLVER_MAX_DETAIL;
+		final int maxBlendBlocks = Math.max(
+				generator.settings().riverLakeShorelineBlend(),
+				generator.settings().oceanShorelineBlend()
+		);
+		final int blendCells = useDetailedWater && maxBlendBlocks > 0
+				? (maxBlendBlocks + cellSize - 1) / cellSize
+				: 0;
 		final int baseX = SectionPos.sectionToBlockCoord(chunkPosMinX);
 		final int baseZ = SectionPos.sectionToBlockCoord(chunkPosMinZ);
 		final int minBlockX = baseX + cellOffset;
@@ -342,9 +387,41 @@ public final class TellusLodGenerator implements IDhApiWorldGenerator {
 		prefetchAtBlock(maxBlockX, minBlockZ);
 		prefetchAtBlock(maxBlockX, maxBlockZ);
 		prefetchAtBlock(Math.floorDiv(minBlockX + maxBlockX, 2), Math.floorDiv(minBlockZ + maxBlockZ, 2));
-		if (useDetailedWater) {
+		if (useDetailedWater
+				&& hasWaterNearLodArea(baseX, baseZ, lodSizePoints, cellSize, cellOffset, blendCells, true)) {
 			generator.prefetchLodWaterRegions(minBlockX, minBlockZ, maxBlockX, maxBlockZ);
 		}
+	}
+
+	private boolean hasWaterNearLodArea(
+			final int baseX,
+			final int baseZ,
+			final int lodSizePoints,
+			final int cellSize,
+			final int cellOffset,
+			final int blendCells,
+			final boolean includeInterior
+	) {
+		final int min = -blendCells;
+		final int max = lodSizePoints - 1 + blendCells;
+		for (int localZ = min; localZ <= max; localZ++) {
+			final boolean zInside = localZ >= 0 && localZ < lodSizePoints;
+			final int worldZ = baseZ + localZ * cellSize + cellOffset;
+			for (int localX = min; localX <= max; localX++) {
+				final boolean xInside = localX >= 0 && localX < lodSizePoints;
+				if (!includeInterior && xInside && zInside) {
+					continue;
+				}
+				final int worldX = baseX + localX * cellSize + cellOffset;
+				final int coverClass = generator.sampleCoverClass(worldX, worldZ);
+				final WaterSurfaceResolver.WaterColumnData column =
+						generator.resolveLodWaterColumn(worldX, worldZ, coverClass);
+				if (column.hasWater()) {
+					return true;
+				}
+			}
+		}
+		return false;
 	}
 
 	private void prefetchAtBlock(final int blockX, final int blockZ) {
@@ -441,6 +518,24 @@ public final class TellusLodGenerator implements IDhApiWorldGenerator {
 		if (biome.is(Biomes.DARK_FOREST)) {
 			return 80;
 		}
+		if (biome.is(Biomes.BAMBOO_JUNGLE)) {
+			return 75;
+		}
+		if (biome.is(Biomes.SPARSE_JUNGLE)) {
+			return 50;
+		}
+		if (biome.is(Biomes.WINDSWEPT_FOREST)) {
+			return 45;
+		}
+		if (biome.is(Biomes.WOODED_BADLANDS)) {
+			return 40;
+		}
+		if (biome.is(Biomes.WINDSWEPT_SAVANNA)) {
+			return 35;
+		}
+		if (biome.is(Biomes.SAVANNA_PLATEAU)) {
+			return 45;
+		}
 		if (biome.is(BiomeTags.IS_JUNGLE)) {
 			return 75;
 		}
@@ -478,8 +573,16 @@ public final class TellusLodGenerator implements IDhApiWorldGenerator {
 
 	private static int canopyRadius(final Holder<Biome> biome, final int centerHash, final int gridSize) {
 		int baseRadius;
-		if (biome.is(Biomes.MANGROVE_SWAMP) || biome.is(Biomes.DARK_FOREST) || biome.is(BiomeTags.IS_JUNGLE)) {
+		if (biome.is(Biomes.SPARSE_JUNGLE)) {
+			baseRadius = 3;
+		} else if (biome.is(Biomes.BAMBOO_JUNGLE)) {
 			baseRadius = 4;
+		} else if (biome.is(Biomes.MANGROVE_SWAMP) || biome.is(Biomes.DARK_FOREST) || biome.is(BiomeTags.IS_JUNGLE)) {
+			baseRadius = 4;
+		} else if (biome.is(Biomes.WINDSWEPT_FOREST) || biome.is(Biomes.WOODED_BADLANDS)) {
+			baseRadius = 2;
+		} else if (biome.is(Biomes.WINDSWEPT_SAVANNA) || biome.is(Biomes.SAVANNA_PLATEAU)) {
+			baseRadius = 2;
 		} else if (biome.is(BiomeTags.IS_FOREST) || biome.is(BiomeTags.IS_TAIGA) || biome.is(Biomes.CHERRY_GROVE)
 				|| biome.is(Biomes.SWAMP)) {
 			baseRadius = 3;
@@ -651,6 +754,18 @@ public final class TellusLodGenerator implements IDhApiWorldGenerator {
 	}
 
 	private static BlockState selectCanopyBlock(final Holder<Biome> biome, final int worldX, final int worldZ) {
+		if (biome.is(Biomes.WINDSWEPT_FOREST)) {
+			return Blocks.SPRUCE_LEAVES.defaultBlockState();
+		}
+		if (biome.is(Biomes.WOODED_BADLANDS)) {
+			return Blocks.OAK_LEAVES.defaultBlockState();
+		}
+		if (biome.is(Biomes.WINDSWEPT_SAVANNA) || biome.is(Biomes.SAVANNA_PLATEAU)) {
+			return Blocks.ACACIA_LEAVES.defaultBlockState();
+		}
+		if (biome.is(Biomes.SPARSE_JUNGLE) || biome.is(Biomes.BAMBOO_JUNGLE)) {
+			return Blocks.JUNGLE_LEAVES.defaultBlockState();
+		}
 		if (biome.is(Biomes.MANGROVE_SWAMP)) {
 			return Blocks.MANGROVE_LEAVES.defaultBlockState();
 		}
@@ -682,6 +797,18 @@ public final class TellusLodGenerator implements IDhApiWorldGenerator {
 	}
 
 	private static BlockState selectTrunkBlock(final Holder<Biome> biome, final int worldX, final int worldZ, final int centerHash) {
+		if (biome.is(Biomes.WINDSWEPT_FOREST)) {
+			return Blocks.SPRUCE_LOG.defaultBlockState();
+		}
+		if (biome.is(Biomes.WOODED_BADLANDS)) {
+			return Blocks.OAK_LOG.defaultBlockState();
+		}
+		if (biome.is(Biomes.WINDSWEPT_SAVANNA) || biome.is(Biomes.SAVANNA_PLATEAU)) {
+			return Blocks.ACACIA_LOG.defaultBlockState();
+		}
+		if (biome.is(Biomes.SPARSE_JUNGLE) || biome.is(Biomes.BAMBOO_JUNGLE)) {
+			return Blocks.JUNGLE_LOG.defaultBlockState();
+		}
 		if (biome.is(Biomes.MANGROVE_SWAMP)) {
 			return Blocks.MANGROVE_LOG.defaultBlockState();
 		}

@@ -5,13 +5,13 @@ import com.mojang.serialization.codecs.RecordCodecBuilder;
 import com.yucareux.tellus.Tellus;
 import com.yucareux.tellus.world.data.cover.TellusLandCoverSource;
 import com.yucareux.tellus.world.data.elevation.TellusElevationSource;
+import com.yucareux.tellus.worldgen.geology.TellusGeologyGenerator;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
-import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.Random;
 import java.util.concurrent.ConcurrentHashMap;
@@ -44,30 +44,17 @@ import net.minecraft.world.level.biome.Biomes;
 import net.minecraft.tags.BiomeTags;
 import net.minecraft.world.level.levelgen.feature.ConfiguredFeature;
 import net.minecraft.world.level.levelgen.feature.Feature;
-import net.minecraft.world.level.levelgen.Aquifer;
-import net.minecraft.world.level.levelgen.Beardifier;
-import net.minecraft.world.level.levelgen.LegacyRandomSource;
-import net.minecraft.world.level.levelgen.NoiseBasedChunkGenerator;
-import net.minecraft.world.level.levelgen.NoiseChunk;
-import net.minecraft.world.level.levelgen.NoiseGeneratorSettings;
-import net.minecraft.world.level.levelgen.NoiseSettings;
-import net.minecraft.world.level.levelgen.DensityFunction;
 import net.minecraft.world.level.levelgen.carver.ConfiguredWorldCarver;
-import net.minecraft.world.level.levelgen.carver.CarvingContext;
 import net.minecraft.world.level.levelgen.placement.PlacedFeature;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.state.BlockState;
-import net.minecraft.world.level.chunk.CarvingMask;
 import net.minecraft.world.level.chunk.ChunkAccess;
 import net.minecraft.world.level.chunk.ChunkGenerator;
 import net.minecraft.world.level.chunk.ChunkGeneratorStructureState;
-import net.minecraft.world.level.chunk.ProtoChunk;
 import net.minecraft.world.level.levelgen.Heightmap;
 import net.minecraft.world.level.levelgen.GenerationStep;
 import net.minecraft.world.level.levelgen.RandomState;
-import net.minecraft.world.level.levelgen.RandomSupport;
-import net.minecraft.world.level.levelgen.WorldgenRandom;
 import net.minecraft.world.level.levelgen.blending.Blender;
 import net.minecraft.world.level.levelgen.structure.BoundingBox;
 import net.minecraft.world.level.levelgen.structure.Structure;
@@ -77,11 +64,9 @@ import net.minecraft.world.level.levelgen.structure.StructureStart;
 import net.minecraft.world.level.levelgen.structure.TerrainAdjustment;
 import net.minecraft.world.level.levelgen.structure.BuiltinStructures;
 import net.minecraft.world.level.levelgen.structure.templatesystem.StructureTemplateManager;
-import net.minecraft.world.level.levelgen.synth.NormalNoise;
 import net.minecraft.server.level.WorldGenRegion;
 import net.minecraft.world.level.WorldGenLevel;
 import net.minecraft.tags.BlockTags;
-import net.minecraft.world.level.dimension.DimensionType;
 import org.jspecify.annotations.NonNull;
 
 public final class EarthChunkGenerator extends ChunkGenerator {
@@ -121,14 +106,7 @@ public final class EarthChunkGenerator extends ChunkGenerator {
 			Blocks.WHITE_TERRACOTTA.defaultBlockState()
 	};
 	private static final int CINEMATIC_MAX_WATER_DEPTH = 16;
-	private static final int LOD_MIN_WATER_DEPTH = 8;
-	private static final int CARVER_RANGE = 8;
-	private static final int NOISE_CAVE_MIN_ROOF = 8;
-	private static final int NOISE_CAVE_MAX_DEPTH = 96;
-	private static final int NOISE_CAVE_STEP_Y = 4;
-	private static final int NOISE_CAVE_DEPTH_FALLOFF = 48;
-	private static final double NOISE_CAVE_THRESHOLD_SHALLOW = -0.9;
-	private static final double NOISE_CAVE_THRESHOLD_DEEP = -0.6;
+	private static final int LOD_MIN_WATER_DEPTH = 25;
 	private static final AtomicBoolean LOGGED_CHUNK_LAYOUT = new AtomicBoolean(false);
 
 	private static final Map<BiomeSettingsKey, BiomeGenerationSettings> FILTERED_SETTINGS = new ConcurrentHashMap<>();
@@ -139,8 +117,8 @@ public final class EarthChunkGenerator extends ChunkGenerator {
 	private final int minY;
 	private final int height;
 	private final WaterSurfaceResolver waterResolver;
-	private volatile CarverGeneratorState carverState;
-	private volatile long carverSeed = Long.MIN_VALUE;
+	private volatile TellusGeologyGenerator geologyGenerator;
+	private volatile long geologySeed = Long.MIN_VALUE;
 
 	public EarthChunkGenerator(BiomeSource biomeSource, EarthGeneratorSettings settings) {
 		super(biomeSource, biome -> generationSettingsForBiome(biome, settings));
@@ -236,60 +214,15 @@ public final class EarthChunkGenerator extends ChunkGenerator {
 		if (SharedConstants.DEBUG_DISABLE_CARVERS) {
 			return;
 		}
-		CarverGeneratorState carver = getCarverState(level, seed);
-		RandomState carverRandom = Objects.requireNonNull(carver.randomState(), "carverRandom");
-		BiomeManager carverBiomeManager = biomeManager.withDifferentSource(
-				(x, y, z) -> this.biomeSource.getNoiseBiome(x, y, z, carverRandom.sampler())
-		);
-		Function<@NonNull BlockPos, Holder<Biome>> biomeGetter =
-				pos -> carverBiomeManager.getBiome(Objects.requireNonNull(pos, "biomePos"));
-		WorldgenRandom worldgenRandom = new WorldgenRandom(new LegacyRandomSource(RandomSupport.generateUniqueSeed()));
 		ChunkPos chunkPos = chunk.getPos();
-		Blender blender = Blender.of(level);
-		NoiseChunk noiseChunk = chunk.getOrCreateNoiseChunk(
-				access -> createNoiseChunk(Objects.requireNonNull(access, "noiseChunk"), structures, blender, carver)
-		);
-		Aquifer aquifer = noiseChunk.aquifer();
-		CarvingContext context = new CarvingContext(
-				carver.generator(),
-				level.registryAccess(),
-				chunk.getHeightAccessorForGeneration(),
-				noiseChunk,
-				carverRandom,
-				carver.settings().surfaceRule()
-		);
-		CarvingMask carvingMask = ((ProtoChunk) chunk).getOrCreateCarvingMask();
-
-		for (int offsetX = -CARVER_RANGE; offsetX <= CARVER_RANGE; offsetX++) {
-			for (int offsetZ = -CARVER_RANGE; offsetZ <= CARVER_RANGE; offsetZ++) {
-				ChunkPos offsetPos = new ChunkPos(chunkPos.x + offsetX, chunkPos.z + offsetZ);
-				BiomeGenerationSettings generationSettings = resolveCarverBiomeSettings(offsetPos, carverRandom);
-				int index = 0;
-				for (Holder<ConfiguredWorldCarver<?>> holder : generationSettings.getCarvers()) {
-					ConfiguredWorldCarver<?> carverConfig = holder.value();
-					worldgenRandom.setLargeFeatureSeed(seed + index, offsetPos.x, offsetPos.z);
-					if (carverConfig.isStartChunk(worldgenRandom)) {
-						carverConfig.carve(
-								context,
-								chunk,
-								biomeGetter,
-								worldgenRandom,
-								aquifer,
-								offsetPos,
-								carvingMask
-						);
-					}
-					index++;
-				}
-			}
+		if (!this.settings.caveCarvers() && !this.settings.largeCaves() && !this.settings.canyonCarvers()) {
+			return;
 		}
-
-		if (this.settings.largeCaves()) {
-			int chunkX = chunkPos.getMinBlockX() >> 4;
-			int chunkZ = chunkPos.getMinBlockZ() >> 4;
-			WaterSurfaceResolver.WaterChunkData waterData = this.waterResolver.resolveChunkWaterData(chunkX, chunkZ);
-			applyNoiseCaves(chunk, aquifer, waterData, carverRandom);
-		}
+		TellusGeologyGenerator geology = getGeologyGenerator(seed);
+		int chunkX = chunkPos.getMinBlockX() >> 4;
+		int chunkZ = chunkPos.getMinBlockZ() >> 4;
+		WaterSurfaceResolver.WaterChunkData waterData = this.waterResolver.resolveChunkWaterData(chunkX, chunkZ);
+		geology.carveChunk(chunk, waterData);
 	}
 
 	@Override
@@ -404,11 +337,13 @@ public final class EarthChunkGenerator extends ChunkGenerator {
 
 		int chunkMinX = pos.getMinBlockX();
 		int chunkMinZ = pos.getMinBlockZ();
+		int bedrockY = this.minY;
+		boolean bedrockInChunk = bedrockY >= chunkMinY && bedrockY < chunkMaxY;
 		for (int localX = 0; localX < 16; localX++) {
 			int worldX = chunkMinX + localX;
-			for (int localZ = 0; localZ < 16; localZ++) {
-				int worldZ = chunkMinZ + localZ;
-				int index = localZ * 16 + localX;
+				for (int localZ = 0; localZ < 16; localZ++) {
+					int worldZ = chunkMinZ + localZ;
+					int index = localZ * 16 + localX;
 				int coverClass = LAND_COVER_SOURCE.sampleCoverClass(worldX, worldZ, this.settings.worldScale());
 				int gridIndex = (localZ + step) * gridSize + (localX + step);
 				int cachedSurface = heightGrid[gridIndex];
@@ -483,6 +418,10 @@ public final class EarthChunkGenerator extends ChunkGenerator {
 					cursor.set(worldX, y, worldZ);
 					chunk.setBlockState(cursor, stone);
 				}
+					if (bedrockInChunk) {
+						cursor.set(worldX, bedrockY, worldZ);
+						chunk.setBlockState(cursor, Blocks.BEDROCK.defaultBlockState());
+					}
 					if (hasWater && surface < waterSurface) {
 						for (int y = surface + 1; y <= waterSurface; y++) {
 							cursor.set(worldX, y, worldZ);
@@ -538,6 +477,8 @@ public final class EarthChunkGenerator extends ChunkGenerator {
 
 		int chunkMinX = pos.getMinBlockX();
 		int chunkMinZ = pos.getMinBlockZ();
+		int bedrockY = this.minY;
+		boolean bedrockInChunk = bedrockY >= chunkMinY && bedrockY < chunkMaxY;
 		for (int localX = 0; localX < 16; localX++) {
 			int worldX = chunkMinX + localX;
 			for (int localZ = 0; localZ < 16; localZ++) {
@@ -630,6 +571,10 @@ public final class EarthChunkGenerator extends ChunkGenerator {
 				}
 				if (surface - 2 >= chunkMinY && surface - 2 < chunkMaxY) {
 					cursor.set(worldX, surface - 2, worldZ);
+					chunk.setBlockState(cursor, bedrock);
+				}
+				if (bedrockInChunk) {
+					cursor.set(worldX, bedrockY, worldZ);
 					chunk.setBlockState(cursor, bedrock);
 				}
 
@@ -787,6 +732,10 @@ public final class EarthChunkGenerator extends ChunkGenerator {
 				states[i] = Blocks.WATER.defaultBlockState();
 			}
 		}
+		int bedrockIndex = this.minY - minY;
+		if (bedrockIndex >= 0 && bedrockIndex < states.length) {
+			states[bedrockIndex] = Blocks.BEDROCK.defaultBlockState();
+		}
 
 		return Objects.requireNonNull(new NoiseColumn(minY, states), "noiseColumn");
 	}
@@ -802,6 +751,10 @@ public final class EarthChunkGenerator extends ChunkGenerator {
 		int chunkMinZ = pos.getMinBlockZ();
 		int chunkMaxX = chunkMinX + 15;
 		int chunkMaxZ = chunkMinZ + 15;
+		int shorelineBlendRadius = Math.max(
+				this.settings.riverLakeShorelineBlend(),
+				this.settings.oceanShorelineBlend()
+		);
 		int cellMinX = Math.floorDiv(chunkMinX, TREE_CELL_SIZE);
 		int cellMaxX = Math.floorDiv(chunkMaxX, TREE_CELL_SIZE);
 		int cellMinZ = Math.floorDiv(chunkMinZ, TREE_CELL_SIZE);
@@ -819,6 +772,9 @@ public final class EarthChunkGenerator extends ChunkGenerator {
 				}
 				int coverClass = LAND_COVER_SOURCE.sampleCoverClass(worldX, worldZ, this.settings.worldScale());
 				if (coverClass != ESA_TREE_COVER) {
+					continue;
+				}
+				if (shorelineBlendRadius > 0 && isNearWater(worldX, worldZ, shorelineBlendRadius)) {
 					continue;
 				}
 				int surface = this.sampleSurfaceHeight(worldX, worldZ);
@@ -843,6 +799,21 @@ public final class EarthChunkGenerator extends ChunkGenerator {
 				feature.place(level, this, random, position);
 			}
 		}
+	}
+
+	private boolean isNearWater(int worldX, int worldZ, int radius) {
+		for (int dz = -radius; dz <= radius; dz++) {
+			int z = worldZ + dz;
+			for (int dx = -radius; dx <= radius; dx++) {
+				int x = worldX + dx;
+				int coverClass = LAND_COVER_SOURCE.sampleCoverClass(x, z, this.settings.worldScale());
+				WaterSurfaceResolver.WaterInfo info = this.waterResolver.resolveWaterInfo(x, z, coverClass);
+				if (info.isWater()) {
+					return true;
+				}
+			}
+		}
+		return false;
 	}
 
 	private int sampleSurfaceHeight(int blockX, int blockZ) {
@@ -1099,12 +1070,15 @@ public final class EarthChunkGenerator extends ChunkGenerator {
 	public WaterSurfaceResolver.WaterColumnData resolveLodWaterColumn(int worldX, int worldZ, int coverClass) {
 		// LODs use a lightweight water approximation to avoid the full resolver cost.
 		int surface = sampleSurfaceHeight(worldX, worldZ);
-		boolean hasWater = coverClass == ESA_WATER || coverClass == ESA_NO_DATA || coverClass == ESA_MANGROVES;
+		boolean noData = coverClass == ESA_NO_DATA;
+		boolean hasWater = coverClass == ESA_WATER
+				|| coverClass == ESA_MANGROVES
+				|| (noData && surface <= this.seaLevel);
 		if (!hasWater) {
 			return new WaterSurfaceResolver.WaterColumnData(false, false, surface, surface);
 		}
 		int waterSurface = Math.max(surface + 1, this.seaLevel);
-		boolean isOcean = coverClass == ESA_NO_DATA;
+		boolean isOcean = noData && surface <= this.seaLevel;
 		if (!isOcean) {
 			int targetSurface = waterSurface - Math.max(1, LOD_MIN_WATER_DEPTH);
 			if (surface > targetSurface) {
@@ -1559,167 +1533,20 @@ public final class EarthChunkGenerator extends ChunkGenerator {
 		}
 	}
 
-	private record CarverGeneratorState(
-			@NonNull NoiseBasedChunkGenerator generator,
-			NoiseGeneratorSettings settings,
-			Aquifer.FluidPicker fluidPicker,
-			RandomState randomState
-	) {
-	}
-
-	private CarverGeneratorState getCarverState(WorldGenRegion level, long seed) {
-		CarverGeneratorState cached = this.carverState;
-		if (cached != null && this.carverSeed == seed) {
+	private TellusGeologyGenerator getGeologyGenerator(long seed) {
+		TellusGeologyGenerator cached = this.geologyGenerator;
+		if (cached != null && this.geologySeed == seed) {
 			return cached;
 		}
 		synchronized (this) {
-			cached = this.carverState;
-			if (cached == null || this.carverSeed != seed) {
-				cached = buildCarverState(level, seed);
-				this.carverState = cached;
-				this.carverSeed = seed;
+			cached = this.geologyGenerator;
+			if (cached == null || this.geologySeed != seed) {
+				cached = new TellusGeologyGenerator(this.settings, this.minY, this.height, this.seaLevel, seed);
+				this.geologyGenerator = cached;
+				this.geologySeed = seed;
 			}
 		}
 		return cached;
-	}
-
-	private CarverGeneratorState buildCarverState(WorldGenRegion level, long seed) {
-		Registry<NoiseGeneratorSettings> registry = level.registryAccess().lookupOrThrow(Registries.NOISE_SETTINGS);
-		NoiseGeneratorSettings base = registry.getValueOrThrow(NoiseGeneratorSettings.OVERWORLD);
-		NoiseSettings baseNoise = base.noiseSettings();
-		NoiseSettings noise = NoiseSettings.create(this.minY, this.height, baseNoise.noiseSizeHorizontal(), baseNoise.noiseSizeVertical());
-			NoiseGeneratorSettings carverSettings = new NoiseGeneratorSettings(
-					noise,
-					base.defaultBlock(),
-					base.defaultFluid(),
-					base.noiseRouter(),
-					base.surfaceRule(),
-					base.spawnTarget(),
-					this.seaLevel,
-					false,
-					this.settings.aquifers(),
-					base.oreVeinsEnabled(),
-					base.useLegacyRandomSource()
-			);
-		Registry<NormalNoise.NoiseParameters> noiseRegistry = level.registryAccess().lookupOrThrow(Registries.NOISE);
-		RandomState carverRandom = RandomState.create(carverSettings, noiseRegistry, seed);
-		NoiseBasedChunkGenerator generator = new NoiseBasedChunkGenerator(this.biomeSource, Holder.direct(carverSettings));
-		return new CarverGeneratorState(generator, carverSettings, createFluidPicker(carverSettings), carverRandom);
-	}
-
-	private BiomeGenerationSettings resolveCarverBiomeSettings(ChunkPos chunkPos, RandomState random) {
-		Holder<Biome> biome = this.biomeSource.getNoiseBiome(
-				QuartPos.fromBlock(chunkPos.getMinBlockX()),
-				0,
-				QuartPos.fromBlock(chunkPos.getMinBlockZ()),
-				random.sampler()
-		);
-		return generationSettingsForBiome(biome, this.settings);
-	}
-
-	private NoiseChunk createNoiseChunk(
-			@NonNull ChunkAccess chunk,
-			@NonNull StructureManager structures,
-			@NonNull Blender blender,
-			@NonNull CarverGeneratorState carver
-	) {
-		return NoiseChunk.forChunk(
-				Objects.requireNonNull(chunk, "chunk"),
-				Objects.requireNonNull(carver.randomState(), "carverRandom"),
-				Beardifier.forStructuresInChunk(Objects.requireNonNull(structures, "structures"), chunk.getPos()),
-				Objects.requireNonNull(carver.settings(), "carverSettings"),
-				Objects.requireNonNull(carver.fluidPicker(), "fluidPicker"),
-				Objects.requireNonNull(blender, "blender")
-		);
-	}
-
-	private void applyNoiseCaves(
-			ChunkAccess chunk,
-			Aquifer aquifer,
-			WaterSurfaceResolver.WaterChunkData waterData,
-			RandomState random
-	) {
-		DensityFunction density = random.router().finalDensity();
-		ChunkPos pos = chunk.getPos();
-		int minY = chunk.getMinY();
-		int maxY = minY + chunk.getHeight() - 1;
-		MutableDensityContext context = new MutableDensityContext();
-		BlockPos.MutableBlockPos cursor = new BlockPos.MutableBlockPos();
-
-		for (int localX = 0; localX < 16; localX++) {
-			int worldX = pos.getMinBlockX() + localX;
-			for (int localZ = 0; localZ < 16; localZ++) {
-				int worldZ = pos.getMinBlockZ() + localZ;
-				int surface = Mth.clamp(waterData.terrainSurface(localX, localZ), minY, maxY);
-				int carveTop = Math.min(surface - NOISE_CAVE_MIN_ROOF, maxY);
-				int carveBottom = Math.max(minY, surface - NOISE_CAVE_MAX_DEPTH);
-				if (carveTop <= carveBottom) {
-					continue;
-				}
-				for (int y = carveBottom; y <= carveTop; y += NOISE_CAVE_STEP_Y) {
-					int sampleY = Math.min(y + (NOISE_CAVE_STEP_Y / 2), carveTop);
-					int depth = surface - sampleY;
-					double depthT = Mth.clamp(depth / (double) NOISE_CAVE_DEPTH_FALLOFF, 0.0, 1.0);
-					double threshold = Mth.lerp(depthT, NOISE_CAVE_THRESHOLD_SHALLOW, NOISE_CAVE_THRESHOLD_DEEP);
-					context.set(worldX, sampleY, worldZ);
-					double value = density.compute(context);
-					if (value >= threshold) {
-						continue;
-					}
-					for (int dy = 0; dy < NOISE_CAVE_STEP_Y && (y + dy) <= carveTop; dy++) {
-						int carveY = y + dy;
-						cursor.set(worldX, carveY, worldZ);
-						BlockState state = chunk.getBlockState(cursor);
-						if (state.isAir()) {
-							continue;
-						}
-						context.set(worldX, carveY, worldZ);
-						BlockState fluid = aquifer.computeSubstance(context, value);
-						chunk.setBlockState(cursor, fluid == null ? Blocks.AIR.defaultBlockState() : fluid);
-					}
-				}
-			}
-		}
-	}
-
-	private static final class MutableDensityContext implements DensityFunction.FunctionContext {
-		private int x;
-		private int y;
-		private int z;
-
-		private void set(int x, int y, int z) {
-			this.x = x;
-			this.y = y;
-			this.z = z;
-		}
-
-		@Override
-		public int blockX() {
-			return this.x;
-		}
-
-		@Override
-		public int blockY() {
-			return this.y;
-		}
-
-		@Override
-		public int blockZ() {
-			return this.z;
-		}
-	}
-
-	private static Aquifer.FluidPicker createFluidPicker(NoiseGeneratorSettings settings) {
-		Aquifer.FluidStatus lava = new Aquifer.FluidStatus(-54, Blocks.LAVA.defaultBlockState());
-		int seaLevel = settings.seaLevel();
-		Aquifer.FluidStatus sea = new Aquifer.FluidStatus(seaLevel, settings.defaultFluid());
-		Aquifer.FluidStatus air = new Aquifer.FluidStatus(DimensionType.MIN_Y * 2, Blocks.AIR.defaultBlockState());
-		return (x, y, z) -> {
-			if (SharedConstants.DEBUG_DISABLE_FLUID_GENERATION) {
-				return air;
-			}
-			return y < Math.min(-54, seaLevel) ? lava : sea;
-		};
 	}
 
 	private static void applySnowCover(

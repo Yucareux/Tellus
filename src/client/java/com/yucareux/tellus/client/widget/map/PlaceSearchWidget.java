@@ -6,6 +6,7 @@ import com.google.common.util.concurrent.ThreadFactoryBuilder;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
@@ -223,7 +224,8 @@ public class PlaceSearchWidget extends EditBox {
 		this.pause = true;
 		cancelPendingSuggest();
 		clearSuggestions();
-		this.setValue(suggestion.displayName());
+		String displayName = Objects.requireNonNull(suggestion.displayName(), "suggestionDisplayName");
+		this.setValue(displayName);
 		this.state = State.FOUND;
 		this.searchHandler.handle(suggestion.latitude(), suggestion.longitude());
 	}
@@ -235,7 +237,8 @@ public class PlaceSearchWidget extends EditBox {
 		int width = this.getWidth();
 		for (int i = 0; i < this.suggestions.size(); i++) {
 			Geocoder.Suggestion suggestion = this.suggestions.get(i);
-			Component label = Component.literal(suggestion.displayName());
+			String displayName = Objects.requireNonNull(suggestion.displayName(), "suggestionDisplayName");
+			Component label = Component.literal(displayName);
 			Button button = new SuggestionButton(
 					x,
 					originY + i * (SUGGESTION_HEIGHT + SUGGESTION_GAP),
