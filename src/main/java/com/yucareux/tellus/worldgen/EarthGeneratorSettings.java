@@ -123,13 +123,13 @@ public record EarthGeneratorSettings(
 			Codec.BOOL.fieldOf("deep_dark").orElse(DEFAULT.deepDark()).forGetter(BaseToggles::deepDark),
 			Codec.BOOL.fieldOf("ore_distribution").orElse(DEFAULT.oreDistribution()).forGetter(BaseToggles::oreDistribution)
 	).apply(instance, (caveCarvers, largeCaves, canyonCarvers, aquifers, dripstone, deepDark, oreDistribution) -> new BaseToggles(
-			Objects.requireNonNull(caveCarvers, "caveCarvers").booleanValue(),
-			Objects.requireNonNull(largeCaves, "largeCaves").booleanValue(),
-			Objects.requireNonNull(canyonCarvers, "canyonCarvers").booleanValue(),
-			Objects.requireNonNull(aquifers, "aquifers").booleanValue(),
-			Objects.requireNonNull(dripstone, "dripstone").booleanValue(),
-			Objects.requireNonNull(deepDark, "deepDark").booleanValue(),
-			Objects.requireNonNull(oreDistribution, "oreDistribution").booleanValue()
+            Objects.requireNonNull(caveCarvers, "caveCarvers"),
+            Objects.requireNonNull(largeCaves, "largeCaves"),
+            Objects.requireNonNull(canyonCarvers, "canyonCarvers"),
+            Objects.requireNonNull(aquifers, "aquifers"),
+            Objects.requireNonNull(dripstone, "dripstone"),
+            Objects.requireNonNull(deepDark, "deepDark"),
+            Objects.requireNonNull(oreDistribution, "oreDistribution")
 	)));
 
 	private static final MapCodec<SettingsBase> BASE_CODEC = RecordCodecBuilder.mapCodec(instance -> instance.group(
@@ -318,25 +318,26 @@ public record EarthGeneratorSettings(
 			Boolean addAncientCities,
 			Boolean addTrialChambers
 	) {
-		return new StructureSettings(
-				Objects.requireNonNull(addStrongholds, "addStrongholds").booleanValue(),
-				Objects.requireNonNull(addVillages, "addVillages").booleanValue(),
-				Objects.requireNonNull(addMineshafts, "addMineshafts").booleanValue(),
-				Objects.requireNonNull(addOceanMonuments, "addOceanMonuments").booleanValue(),
-				Objects.requireNonNull(addWoodlandMansions, "addWoodlandMansions").booleanValue(),
-				Objects.requireNonNull(addDesertTemples, "addDesertTemples").booleanValue(),
-				Objects.requireNonNull(addJungleTemples, "addJungleTemples").booleanValue(),
-				Objects.requireNonNull(addPillagerOutposts, "addPillagerOutposts").booleanValue(),
-				Objects.requireNonNull(addRuinedPortals, "addRuinedPortals").booleanValue(),
-				Objects.requireNonNull(addShipwrecks, "addShipwrecks").booleanValue(),
-				Objects.requireNonNull(addOceanRuins, "addOceanRuins").booleanValue(),
-				Objects.requireNonNull(addBuriedTreasure, "addBuriedTreasure").booleanValue(),
-				Objects.requireNonNull(addIgloos, "addIgloos").booleanValue(),
-				Objects.requireNonNull(addWitchHuts, "addWitchHuts").booleanValue(),
-				Objects.requireNonNull(addAncientCities, "addAncientCities").booleanValue(),
-				Objects.requireNonNull(addTrialChambers, "addTrialChambers").booleanValue()
-		);
+        return new StructureSettings(
+                Objects.requireNonNull(addStrongholds, "addStrongholds"),
+                Objects.requireNonNull(addVillages, "addVillages"),
+                Objects.requireNonNull(addMineshafts, "addMineshafts"),
+                Objects.requireNonNull(addOceanMonuments, "addOceanMonuments"),
+                Objects.requireNonNull(addWoodlandMansions, "addWoodlandMansions"),
+                Objects.requireNonNull(addDesertTemples, "addDesertTemples"),
+                Objects.requireNonNull(addJungleTemples, "addJungleTemples"),
+                Objects.requireNonNull(addPillagerOutposts, "addPillagerOutposts"),
+                Objects.requireNonNull(addRuinedPortals, "addRuinedPortals"),
+                Objects.requireNonNull(addShipwrecks, "addShipwrecks"),
+                Objects.requireNonNull(addOceanRuins, "addOceanRuins"),
+                Objects.requireNonNull(addBuriedTreasure, "addBuriedTreasure"),
+                Objects.requireNonNull(addIgloos, "addIgloos"),
+                Objects.requireNonNull(addWitchHuts, "addWitchHuts"),
+                Objects.requireNonNull(addAncientCities, "addAncientCities"),
+                Objects.requireNonNull(addTrialChambers, "addTrialChambers")
+        );
 	}
+
 
 	private static SettingsBase createSettingsBase(
 			Double worldScale,
@@ -358,28 +359,27 @@ public record EarthGeneratorSettings(
 			Boolean deepDark,
 			Boolean oreDistribution
 	) {
-		int resolvedHeightOffset = Objects.requireNonNull(heightOffset, "heightOffset").intValue();
-		int resolvedSeaLevel = AUTO_SEA_LEVEL;
-		return new SettingsBase(
-				Objects.requireNonNull(worldScale, "worldScale").doubleValue(),
-				Objects.requireNonNull(terrestrialHeightScale, "terrestrialHeightScale").doubleValue(),
-				Objects.requireNonNull(oceanicHeightScale, "oceanicHeightScale").doubleValue(),
+		int resolvedHeightOffset = Objects.requireNonNull(heightOffset, "heightOffset");
+        return new SettingsBase(
+                Objects.requireNonNull(worldScale, "worldScale"),
+                Objects.requireNonNull(terrestrialHeightScale, "terrestrialHeightScale"),
+                Objects.requireNonNull(oceanicHeightScale, "oceanicHeightScale"),
 				resolvedHeightOffset,
-				resolvedSeaLevel,
-				Objects.requireNonNull(spawnLatitude, "spawnLatitude").doubleValue(),
-				Objects.requireNonNull(spawnLongitude, "spawnLongitude").doubleValue(),
-				Objects.requireNonNull(minAltitude, "minAltitude").intValue(),
-				Objects.requireNonNull(maxAltitude, "maxAltitude").intValue(),
-				Objects.requireNonNull(riverLakeShorelineBlend, "riverLakeShorelineBlend").intValue(),
-				Objects.requireNonNull(oceanShorelineBlend, "oceanShorelineBlend").intValue(),
-				Objects.requireNonNull(shorelineBlendCliffLimit, "shorelineBlendCliffLimit").booleanValue(),
-				Objects.requireNonNull(caveCarvers, "caveCarvers").booleanValue(),
-				Objects.requireNonNull(largeCaves, "largeCaves").booleanValue(),
-				Objects.requireNonNull(canyonCarvers, "canyonCarvers").booleanValue(),
-				Objects.requireNonNull(aquifers, "aquifers").booleanValue(),
-				Objects.requireNonNull(dripstone, "dripstone").booleanValue(),
-				Objects.requireNonNull(deepDark, "deepDark").booleanValue(),
-				Objects.requireNonNull(oreDistribution, "oreDistribution").booleanValue(),
+                AUTO_SEA_LEVEL,
+                Objects.requireNonNull(spawnLatitude, "spawnLatitude"),
+                Objects.requireNonNull(spawnLongitude, "spawnLongitude"),
+                Objects.requireNonNull(minAltitude, "minAltitude"),
+                Objects.requireNonNull(maxAltitude, "maxAltitude"),
+                Objects.requireNonNull(riverLakeShorelineBlend, "riverLakeShorelineBlend"),
+                Objects.requireNonNull(oceanShorelineBlend, "oceanShorelineBlend"),
+                Objects.requireNonNull(shorelineBlendCliffLimit, "shorelineBlendCliffLimit"),
+                Objects.requireNonNull(caveCarvers, "caveCarvers"),
+                Objects.requireNonNull(largeCaves, "largeCaves"),
+                Objects.requireNonNull(canyonCarvers, "canyonCarvers"),
+                Objects.requireNonNull(aquifers, "aquifers"),
+                Objects.requireNonNull(dripstone, "dripstone"),
+                Objects.requireNonNull(deepDark, "deepDark"),
+                Objects.requireNonNull(oreDistribution, "oreDistribution"),
 				DEFAULT.distantHorizonsWaterResolver(),
 				DEFAULT.distantHorizonsRenderMode(),
 				DEFAULT.geodes()
@@ -603,7 +603,7 @@ public record EarthGeneratorSettings(
 	}
 
 	private static EarthGeneratorSettings applyLavaPools(SettingsBase settings, Boolean lavaPools) {
-		return settings.withLavaPools(Objects.requireNonNull(lavaPools, "lavaPools").booleanValue());
+		return settings.withLavaPools(Objects.requireNonNull(lavaPools, "lavaPools"));
 	}
 
 	private static SettingsBase applySeaLevel(SettingsBase settings, Optional<Integer> seaLevel) {
@@ -619,7 +619,7 @@ public record EarthGeneratorSettings(
 	}
 
 	private static SettingsBase applyGeodes(SettingsBase settings, Boolean geodes) {
-		return settings.withGeodes(Objects.requireNonNull(geodes, "geodes").booleanValue());
+		return settings.withGeodes(Objects.requireNonNull(geodes, "geodes"));
 	}
 
 	private static SettingsBase applyDistantHorizonsRenderMode(
@@ -630,7 +630,7 @@ public record EarthGeneratorSettings(
 	}
 
 	private static SettingsBase applyDistantHorizonsWaterResolver(SettingsBase settings, Boolean enabled) {
-		return settings.withDistantHorizonsWaterResolver(Objects.requireNonNull(enabled, "distantHorizonsWaterResolver").booleanValue());
+		return settings.withDistantHorizonsWaterResolver(Objects.requireNonNull(enabled, "distantHorizonsWaterResolver"));
 	}
 
 	private record StructureSettings(
@@ -719,7 +719,7 @@ public record EarthGeneratorSettings(
 	}
 
 	private static EarthGeneratorSettings applyTrailRuins(EarthGeneratorSettings settings, Boolean addTrailRuins) {
-		return settings.withTrailRuins(Objects.requireNonNull(addTrailRuins, "addTrailRuins").booleanValue());
+		return settings.withTrailRuins(Objects.requireNonNull(addTrailRuins, "addTrailRuins"));
 	}
 
 	private EarthGeneratorSettings withTrailRuins(boolean addTrailRuins) {

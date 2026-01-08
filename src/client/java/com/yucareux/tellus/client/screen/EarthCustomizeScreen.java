@@ -186,7 +186,7 @@ public class EarthCustomizeScreen extends Screen {
 				"updatedDimensionType"
 		);
 
-		@NonNull ResourceKey<DimensionType> overworldKey = Objects.requireNonNull(
+		ResourceKey<DimensionType> overworldKey = Objects.requireNonNull(
 				overworldStem.type().unwrapKey().orElse(DYNAMIC_DIMENSION_TYPE_KEY),
 				"overworldDimensionTypeKey"
 		);
@@ -194,7 +194,7 @@ public class EarthCustomizeScreen extends Screen {
 		LayeredRegistryAccess<RegistryLayer> registriesWithTypes = registryUpdate.registries();
 		HolderLookup.RegistryLookup<DimensionType> dimensionTypes =
 				registriesWithTypes.compositeAccess().lookupOrThrow(Registries.DIMENSION_TYPE);
-		@NonNull Holder<DimensionType> overworldHolder = Objects.requireNonNull(
+		Holder<DimensionType> overworldHolder = Objects.requireNonNull(
 				registryUpdate.holder(),
 				"overworldDimensionTypeHolder"
 		);
@@ -291,7 +291,7 @@ public class EarthCustomizeScreen extends Screen {
 			@NonNull LayeredRegistryAccess<RegistryLayer> registries,
 			@NonNull Registry<LevelStem> updatedLevelStems
 	) {
-		@NonNull LayeredRegistryAccess<RegistryLayer> updated = registries;
+		LayeredRegistryAccess<RegistryLayer> updated = registries;
 		boolean updatedAny = false;
 		for (RegistryLayer layer : RegistryLayer.values()) {
 			RegistryAccess.Frozen layerAccess = updated.getLayer(layer);
@@ -456,7 +456,7 @@ public class EarthCustomizeScreen extends Screen {
 
 	private double findSliderValue(String key, double fallback) {
 		for (CategoryDefinition category : this.categories) {
-			for (SettingDefinition setting : category.getSettings()) {
+			for (SettingDefinition setting : category.settings()) {
 				if (setting instanceof SliderDefinition slider && slider.key.equals(key)) {
 					return slider.value;
 				}
@@ -467,7 +467,7 @@ public class EarthCustomizeScreen extends Screen {
 
 	private boolean findToggleValue(String key, boolean fallback) {
 		for (CategoryDefinition category : this.categories) {
-			for (SettingDefinition setting : category.getSettings()) {
+			for (SettingDefinition setting : category.settings()) {
 				if (setting instanceof ToggleDefinition toggle && toggle.key.equals(key)) {
 					return toggle.value;
 				}
@@ -481,7 +481,7 @@ public class EarthCustomizeScreen extends Screen {
 			EarthGeneratorSettings.DistantHorizonsRenderMode fallback
 	) {
 		for (CategoryDefinition category : this.categories) {
-			for (SettingDefinition setting : category.getSettings()) {
+			for (SettingDefinition setting : category.settings()) {
 				if (setting instanceof ModeDefinition mode && mode.key.equals(key)) {
 					return mode.value;
 				}
@@ -734,7 +734,7 @@ public class EarthCustomizeScreen extends Screen {
 				copy.register(key, value, info);
 			}
 
-			@NonNull Optional<KnownPack> emptyKnownPack = Objects.requireNonNull(
+			Optional<KnownPack> emptyKnownPack = Objects.requireNonNull(
 					Optional.<KnownPack>empty(),
 					"emptyKnownPack"
 			);
@@ -838,41 +838,31 @@ public class EarthCustomizeScreen extends Screen {
 				.build();
 		this.list.addWidget(back);
 
-		for (SettingDefinition setting : category.getSettings()) {
+		for (SettingDefinition setting : category.settings()) {
 			this.list.addWidget(setting.createWidget(this::onSettingsChanged));
 		}
 		this.list.setScrollAmount(0.0);
 	}
 
-	private static final class CategoryDefinition {
-		private final String id;
-		private final List<SettingDefinition> settings;
+    private record CategoryDefinition(String id, List<SettingDefinition> settings) {
 
-		private CategoryDefinition(String id, List<SettingDefinition> settings) {
-			this.id = id;
-			this.settings = settings;
-		}
+        private @NonNull Component getLabel() {
+            return this.getLabel(false);
+        }
 
-		private @NonNull Component getLabel() {
-			return this.getLabel(false);
-		}
+        private @NonNull Component getLabel(boolean selected) {
+            Component base = Objects.requireNonNull(
+                    Component.translatable("category.tellus." + this.id + ".name"),
+                    "categoryLabel"
+            );
+            if (!selected) {
+                return base;
+            }
+            return Objects.requireNonNull(base.copy().withStyle(ChatFormatting.YELLOW), "selectedCategoryLabel");
+        }
 
-		private @NonNull Component getLabel(boolean selected) {
-			Component base = Objects.requireNonNull(
-					Component.translatable("category.tellus." + this.id + ".name"),
-					"categoryLabel"
-			);
-			if (!selected) {
-				return base;
-			}
-			return Objects.requireNonNull(base.copy().withStyle(ChatFormatting.YELLOW), "selectedCategoryLabel");
-		}
 
-		private List<SettingDefinition> getSettings() {
-			return this.settings;
-		}
-
-	}
+    }
 
 	private static final class ToggleDefinition implements SettingDefinition {
 		private final String key;
