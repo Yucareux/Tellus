@@ -12,9 +12,10 @@ public class TellusClient implements ClientModInitializer {
 	public void onInitializeClient() {
 		ClientPlayNetworking.registerGlobalReceiver(GeoTpOpenMapPayload.TYPE, (payload, context) -> {
 			context.client().execute(() -> {
-				Minecraft minecraft = context.client();
-				Screen parent = minecraft.screen;
-				minecraft.setScreen(new EarthTeleportScreen(parent, payload.latitude(), payload.longitude()));
+				try(Minecraft minecraft = context.client()) {
+                    Screen parent = minecraft.screen;
+                    minecraft.setScreen(new EarthTeleportScreen(parent, payload.latitude(), payload.longitude()));
+                }
 			});
 		});
 	}
