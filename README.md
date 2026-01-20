@@ -29,7 +29,7 @@ Server support note: Tellus currently does **NOT** support being installed on a 
 Tellus integrates with the Distant Horizons (DH) mod to render planet-scale terrain far beyond vanilla view distance. When DH is installed, Tellus registers a DH world-generation override for Tellus worlds (DH API v4+), so distant terrain is built using Tellus data and settings instead of generic vanilla sampling.
 
 - **Approximate mode**: Tellus takes advantage of a a specific feature in DH (N-sized world gen) that samples elevation, land-cover, climate, and water data directly to drastically improve generation speeds when using DH, although discards certain features such as accurate foilage and structures (e.g. villages, ruined portals)
-   - **NOTE:** N-sized world gen support must be manually enabled in DH settings -> Server -> Enable N-sized support
+  
 - **Detailed mode**: Tellus falls back to DH's chunk-based generator for far terrain, which is more accurate but significantly slower.
 
 Because Tellus worlds are Earth-scale, DH is strongly recommended and is almost essential for comfortable exploration and long-distance views.
