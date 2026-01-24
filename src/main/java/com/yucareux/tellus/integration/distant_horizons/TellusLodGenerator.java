@@ -13,6 +13,7 @@ import com.seibel.distanthorizons.api.objects.data.IDhApiFullDataSource;
 import com.yucareux.tellus.worldgen.EarthBiomeSource;
 import com.yucareux.tellus.worldgen.EarthChunkGenerator;
 import com.yucareux.tellus.worldgen.WaterSurfaceResolver;
+import com.yucareux.tellus.world.data.osm.TellusVectorRoads;
 import com.yucareux.tellus.world.realtime.TellusRealtimeState;
 import java.io.IOException;
 import java.util.ArrayList;
@@ -99,8 +100,7 @@ public final class TellusLodGenerator implements IDhApiWorldGenerator {
 			final IDhApiFullDataSource pooledFullDataSource,
 			final EDhApiDistantGeneratorMode generatorMode,
 			final ExecutorService worldGeneratorThreadPool,
-			final Consumer<IDhApiFullDataSource> resultConsumer
-	) {
+			final Consumer<IDhApiFullDataSource> resultConsumer) {
 		prefetchLodResources(chunkPosMinX, chunkPosMinZ, detailLevel, pooledFullDataSource.getWidthInDataColumns());
 		return CompletableFuture.runAsync(() -> {
 			buildLod(pooledFullDataSource, chunkPosMinX, chunkPosMinZ, detailLevel);
@@ -112,8 +112,7 @@ public final class TellusLodGenerator implements IDhApiWorldGenerator {
 			final IDhApiFullDataSource output,
 			final int chunkPosMinX,
 			final int chunkPosMinZ,
-			final byte detailLevel
-	) {
+			final byte detailLevel) {
 		final int lodSizePoints = output.getWidthInDataColumns();
 		final int cellSize = 1 << detailLevel;
 		final int cellOffset = cellSize >> 1;
@@ -121,8 +120,7 @@ public final class TellusLodGenerator implements IDhApiWorldGenerator {
 				&& detailLevel <= LOD_WATER_RESOLVER_MAX_DETAIL;
 		final int maxBlendBlocks = Math.max(
 				generator.settings().riverLakeShorelineBlend(),
-				generator.settings().oceanShorelineBlend()
-		);
+				generator.settings().oceanShorelineBlend());
 		final int blendCells = baseDetailedWater && maxBlendBlocks > 0
 				? (maxBlendBlocks + cellSize - 1) / cellSize
 				: 0;
@@ -183,8 +181,8 @@ public final class TellusLodGenerator implements IDhApiWorldGenerator {
 						}
 						final int worldX = worldXs[localX];
 						final int index = localZ * lodSizePoints + localX;
-						final WaterSurfaceResolver.WaterColumnData fastColumn =
-								generator.resolveLodWaterColumn(worldX, worldZ, coverClass);
+						final WaterSurfaceResolver.WaterColumnData fastColumn = generator.resolveLodWaterColumn(worldX,
+								worldZ, coverClass);
 						final int surfaceY = Mth.clamp(fastColumn.terrainSurface(), minY, maxY - 1);
 						final int waterSurface = Mth.clamp(fastColumn.waterSurface(), minY, maxY - 1);
 						final boolean underwater = fastColumn.hasWater() && waterSurface > surfaceY;
@@ -209,7 +207,8 @@ public final class TellusLodGenerator implements IDhApiWorldGenerator {
 
 		boolean useDetailedWater = baseDetailedWater && hasWaterInTile;
 		if (baseDetailedWater && !useDetailedWater && blendCells > 0) {
-			useDetailedWater = hasWaterNearLodArea(baseX, baseZ, lodSizePoints, cellSize, cellOffset, blendCells, false);
+			useDetailedWater = hasWaterNearLodArea(baseX, baseZ, lodSizePoints, cellSize, cellOffset, blendCells,
+					false);
 		}
 
 		if (useDetailedWater) {
@@ -223,8 +222,8 @@ public final class TellusLodGenerator implements IDhApiWorldGenerator {
 						if (!isWaterCoverClass(coverClass)) {
 							continue;
 						}
-						final WaterSurfaceResolver.WaterColumnData detailedColumn =
-								generator.resolveLodWaterColumn(worldX, worldZ, coverClass, true);
+						final WaterSurfaceResolver.WaterColumnData detailedColumn = generator
+								.resolveLodWaterColumn(worldX, worldZ, coverClass, true);
 						final int surfaceY = Mth.clamp(detailedColumn.terrainSurface(), minY, maxY - 1);
 						final int waterSurface = Mth.clamp(detailedColumn.waterSurface(), minY, maxY - 1);
 						final boolean underwater = detailedColumn.hasWater() && waterSurface > surfaceY;
@@ -266,8 +265,8 @@ public final class TellusLodGenerator implements IDhApiWorldGenerator {
 						final int sampleWorldZ = worldZs[sampleLocalZ];
 						final int sampleIndex = sampleLocalZ * lodSizePoints + sampleLocalX;
 						final int sampleCover = coverClasses[sampleIndex];
-						final WaterSurfaceResolver.WaterColumnData detailedColumn =
-								generator.resolveLodWaterColumn(sampleWorldX, sampleWorldZ, sampleCover, true);
+						final WaterSurfaceResolver.WaterColumnData detailedColumn = generator
+								.resolveLodWaterColumn(sampleWorldX, sampleWorldZ, sampleCover, true);
 						final int surfaceY = Mth.clamp(detailedColumn.terrainSurface(), minY, maxY - 1);
 						final int waterSurface = Mth.clamp(detailedColumn.waterSurface(), minY, maxY - 1);
 						final boolean underwater = detailedColumn.hasWater() && waterSurface > surfaceY;
@@ -303,17 +302,22 @@ public final class TellusLodGenerator implements IDhApiWorldGenerator {
 			for (int localX = 0; localX < lodSizePoints; localX++) {
 				final int worldX = worldXs[localX];
 				final int index = localZ * lodSizePoints + localX;
-				final int surfaceY = surfaceYs[index];
-				final int vegetationSurfaceY = vegetationSurfaceYs[index];
+				int surfaceY = surfaceYs[index];
+				int vegetationSurfaceY = vegetationSurfaceYs[index];
+				int buildingHeight = generator.getBuildingHeight(worldX, worldZ, detailLevel);
+				if (buildingHeight > 0) {
+					surfaceY += buildingHeight;
+					vegetationSurfaceY += buildingHeight;
+				}
 				final int waterSurface = waterSurfaces[index];
-				final boolean underwater = underwaterFlags[index];
+				final boolean underwater = underwaterFlags[index] && surfaceY < waterSurface;
 				final int coverClass = coverClasses[index];
 				final Holder<Biome> biomeHolder = biomeHolders[index];
 				final IDhApiBiomeWrapper biome = biomeWrappers[index];
 				final CanopyProfile canopyProfile = canopyProfile(biomeHolder);
 				final boolean isMangrove = canopyProfile.isMangrove() || coverClass == ESA_MANGROVES;
-				final EarthChunkGenerator.LodSurface lodSurface =
-						generator.resolveLodSurface(biomeHolder, worldX, worldZ, surfaceY, underwater, coverClass);
+				final EarthChunkGenerator.LodSurface lodSurface = generator.resolveLodSurface(biomeHolder, worldX,
+						worldZ, surfaceY, underwater, detailLevel);
 				final BlockState topState = lodSurface.top();
 				final BlockState fillerState = lodSurface.filler();
 				final SurfaceWrapperPair surfaceWrapper;
@@ -322,8 +326,7 @@ public final class TellusLodGenerator implements IDhApiWorldGenerator {
 				} else {
 					surfaceWrapper = new SurfaceWrapperPair(
 							wrappers.getBlockState(topState),
-							wrappers.getBlockState(fillerState)
-					);
+							wrappers.getBlockState(fillerState));
 					lastTopState = topState;
 					lastFillerState = fillerState;
 					lastSurfaceWrapper = surfaceWrapper;
@@ -347,31 +350,30 @@ public final class TellusLodGenerator implements IDhApiWorldGenerator {
 					int bandBottomLayer = toLayerTop(bandBottomY, minY, absoluteTop);
 					if (bandBottomLayer > lastLayerTop) {
 						columnDataPoints.add(
-								DhApiTerrainDataPoint.create((byte) 0, 0, SKY_LIGHT, lastLayerTop, bandBottomLayer, fillerBlock, biome)
-						);
+								DhApiTerrainDataPoint.create((byte) 0, 0, SKY_LIGHT, lastLayerTop, bandBottomLayer,
+										fillerBlock, biome));
 						lastLayerTop = bandBottomLayer;
 					}
 					while (lastLayerTop < topLayerBase) {
 						int segmentTop = Math.min(topLayerBase, lastLayerTop + BADLANDS_LOD_BAND_HEIGHT);
 						int bandY = minY + segmentTop - 1;
 						IDhApiBlockStateWrapper bandBlock = wrappers.getBlockState(
-								generator.resolveBadlandsBandBlock(worldX, worldZ, bandY)
-						);
+								generator.resolveBadlandsBandBlock(worldX, worldZ, bandY));
 						columnDataPoints.add(
-								DhApiTerrainDataPoint.create((byte) 0, 0, SKY_LIGHT, lastLayerTop, segmentTop, bandBlock, biome)
-						);
+								DhApiTerrainDataPoint.create((byte) 0, 0, SKY_LIGHT, lastLayerTop, segmentTop,
+										bandBlock, biome));
 						lastLayerTop = segmentTop;
 					}
 				} else if (topLayerBase > lastLayerTop) {
 					columnDataPoints.add(
-							DhApiTerrainDataPoint.create((byte) 0, 0, SKY_LIGHT, lastLayerTop, topLayerBase, fillerBlock, biome)
-					);
+							DhApiTerrainDataPoint.create((byte) 0, 0, SKY_LIGHT, lastLayerTop, topLayerBase,
+									fillerBlock, biome));
 					lastLayerTop = topLayerBase;
 				}
 				if (surfaceTop > lastLayerTop) {
 					columnDataPoints.add(
-							DhApiTerrainDataPoint.create((byte) 0, 0, SKY_LIGHT, lastLayerTop, surfaceTop, topBlock, biome)
-					);
+							DhApiTerrainDataPoint.create((byte) 0, 0, SKY_LIGHT, lastLayerTop, surfaceTop, topBlock,
+									biome));
 					lastLayerTop = surfaceTop;
 				}
 
@@ -387,8 +389,7 @@ public final class TellusLodGenerator implements IDhApiWorldGenerator {
 							absoluteTop,
 							wrappers,
 							biome,
-							columnDataPoints
-					);
+							columnDataPoints);
 				}
 
 				if (underwater) {
@@ -403,28 +404,28 @@ public final class TellusLodGenerator implements IDhApiWorldGenerator {
 							vegetationBaseTop = Mth.clamp(vegetationBaseTop, lastLayerTop, waterTop);
 							if (vegetationBaseTop > lastLayerTop) {
 								columnDataPoints.add(
-										DhApiTerrainDataPoint.create((byte) 0, 0, SKY_LIGHT, lastLayerTop, vegetationBaseTop, waterBlock, biome)
-								);
+										DhApiTerrainDataPoint.create((byte) 0, 0, SKY_LIGHT, lastLayerTop,
+												vegetationBaseTop, waterBlock, biome));
 								lastLayerTop = vegetationBaseTop;
 							}
 							final int vegTop = Math.min(waterTop, lastLayerTop + vegetation.height);
 							if (vegTop > lastLayerTop) {
 								final IDhApiBlockStateWrapper vegBlock = wrappers.getBlockState(vegetation.blockState);
 								columnDataPoints.add(
-										DhApiTerrainDataPoint.create((byte) 0, 0, CANOPY_MAX_LIGHT, lastLayerTop, vegTop, vegBlock, biome)
-								);
+										DhApiTerrainDataPoint.create((byte) 0, 0, CANOPY_MAX_LIGHT, lastLayerTop,
+												vegTop, vegBlock, biome));
 								lastLayerTop = vegTop;
 							}
 							if (waterTop > lastLayerTop) {
 								columnDataPoints.add(
-										DhApiTerrainDataPoint.create((byte) 0, 0, SKY_LIGHT, lastLayerTop, waterTop, waterBlock, biome)
-								);
+										DhApiTerrainDataPoint.create((byte) 0, 0, SKY_LIGHT, lastLayerTop, waterTop,
+												waterBlock, biome));
 								lastLayerTop = waterTop;
 							}
 						} else {
 							columnDataPoints.add(
-									DhApiTerrainDataPoint.create((byte) 0, 0, SKY_LIGHT, lastLayerTop, waterTop, waterBlock, biome)
-							);
+									DhApiTerrainDataPoint.create((byte) 0, 0, SKY_LIGHT, lastLayerTop, waterTop,
+											waterBlock, biome));
 							lastLayerTop = waterTop;
 						}
 					}
@@ -437,12 +438,12 @@ public final class TellusLodGenerator implements IDhApiWorldGenerator {
 							absoluteTop,
 							wrappers,
 							biome,
-							columnDataPoints
-					);
+							columnDataPoints);
 				}
 
 				if (lastLayerTop < absoluteTop) {
-					columnDataPoints.add(DhApiTerrainDataPoint.create((byte) 0, 0, SKY_LIGHT, lastLayerTop, absoluteTop, wrappers.airBlock(), biome));
+					columnDataPoints.add(DhApiTerrainDataPoint.create((byte) 0, 0, SKY_LIGHT, lastLayerTop, absoluteTop,
+							wrappers.airBlock(), biome));
 				}
 
 				output.setApiDataPointColumn(localX, localZ, columnDataPoints);
@@ -464,8 +465,7 @@ public final class TellusLodGenerator implements IDhApiWorldGenerator {
 		int south = surfaceYs[Math.min(gridSize - 1, z + 1) * gridSize + x];
 		int maxDiff = Math.max(
 				Math.max(Math.abs(east - center), Math.abs(west - center)),
-				Math.max(Math.abs(north - center), Math.abs(south - center))
-		);
+				Math.max(Math.abs(north - center), Math.abs(south - center)));
 		int scaledStep = Math.max(1, cellSize);
 		return (maxDiff * LOD_SLOPE_STEP) / scaledStep;
 	}
@@ -474,8 +474,7 @@ public final class TellusLodGenerator implements IDhApiWorldGenerator {
 			final int chunkPosMinX,
 			final int chunkPosMinZ,
 			final byte detailLevel,
-			final int lodSizePoints
-	) {
+			final int lodSizePoints) {
 		if (lodSizePoints <= 0) {
 			return;
 		}
@@ -485,8 +484,7 @@ public final class TellusLodGenerator implements IDhApiWorldGenerator {
 				&& detailLevel <= LOD_WATER_RESOLVER_MAX_DETAIL;
 		final int maxBlendBlocks = Math.max(
 				generator.settings().riverLakeShorelineBlend(),
-				generator.settings().oceanShorelineBlend()
-		);
+				generator.settings().oceanShorelineBlend());
 		final int blendCells = useDetailedWater && maxBlendBlocks > 0
 				? (maxBlendBlocks + cellSize - 1) / cellSize
 				: 0;
@@ -497,15 +495,17 @@ public final class TellusLodGenerator implements IDhApiWorldGenerator {
 		final int maxBlockX = baseX + (lodSizePoints - 1) * cellSize + cellOffset;
 		final int maxBlockZ = baseZ + (lodSizePoints - 1) * cellSize + cellOffset;
 
-		int grid = Math.min(LOD_PREFETCH_GRID_MAX, Math.max(LOD_PREFETCH_GRID_MIN, lodSizePoints / LOD_PREFETCH_GRID_DIVISOR));
+		int grid = Math.min(LOD_PREFETCH_GRID_MAX,
+				Math.max(LOD_PREFETCH_GRID_MIN, lodSizePoints / LOD_PREFETCH_GRID_DIVISOR));
 		if (grid <= 1) {
 			grid = 2;
 		}
+		int zoom = TellusVectorRoads.detailLevelToZoom((int) detailLevel);
 		for (int gz = 0; gz < grid; gz++) {
 			int worldZ = lerpBlock(minBlockZ, maxBlockZ, gz, grid);
 			for (int gx = 0; gx < grid; gx++) {
 				int worldX = lerpBlock(minBlockX, maxBlockX, gx, grid);
-				prefetchAtBlock(worldX, worldZ);
+				prefetchAtBlock(worldX, worldZ, zoom);
 			}
 		}
 		if (useDetailedWater
@@ -521,8 +521,7 @@ public final class TellusLodGenerator implements IDhApiWorldGenerator {
 			final int cellSize,
 			final int cellOffset,
 			final int blendCells,
-			final boolean includeInterior
-	) {
+			final boolean includeInterior) {
 		final int min = -blendCells;
 		final int max = lodSizePoints - 1 + blendCells;
 		int worldZ = baseZ + min * cellSize + cellOffset;
@@ -539,8 +538,8 @@ public final class TellusLodGenerator implements IDhApiWorldGenerator {
 					return true;
 				}
 				if (coverClass == ESA_NO_DATA) {
-					final WaterSurfaceResolver.WaterColumnData column =
-							generator.resolveLodWaterColumn(worldX, worldZ, coverClass);
+					final WaterSurfaceResolver.WaterColumnData column = generator.resolveLodWaterColumn(worldX, worldZ,
+							coverClass);
 					if (column.hasWater()) {
 						return true;
 					}
@@ -574,11 +573,10 @@ public final class TellusLodGenerator implements IDhApiWorldGenerator {
 		return Math.min(stride, lodSizePoints);
 	}
 
-
-	private void prefetchAtBlock(final int blockX, final int blockZ) {
+	private void prefetchAtBlock(final int blockX, final int blockZ, int zoom) {
 		final int chunkX = SectionPos.blockToSectionCoord(blockX);
 		final int chunkZ = SectionPos.blockToSectionCoord(blockZ);
-		generator.prefetchForChunk(chunkX, chunkZ);
+		generator.prefetchForChunk(chunkX, chunkZ, zoom);
 	}
 
 	private static int lerpBlock(int min, int max, int index, int count) {
@@ -735,16 +733,14 @@ public final class TellusLodGenerator implements IDhApiWorldGenerator {
 				canopyBaseRadius,
 				canopyBaseHeight,
 				canopyMaxHeight,
-				waterVegetationChance
-		);
+				waterVegetationChance);
 	}
 
 	private static CanopyColumn resolveCanopyColumn(
 			final CanopyProfile profile,
 			final int worldX,
 			final int worldZ,
-			final int cellSize
-	) {
+			final int cellSize) {
 		final int baseChance = canopyCenterChancePercent(profile);
 		final int chance = boostCanopyChancePercent(baseChance);
 		if (chance <= 0) {
@@ -826,8 +822,7 @@ public final class TellusLodGenerator implements IDhApiWorldGenerator {
 			final int absoluteTop,
 			final WrapperCache wrappers,
 			final IDhApiBiomeWrapper biome,
-			final List<DhApiTerrainDataPoint> columnDataPoints
-	) {
+			final List<DhApiTerrainDataPoint> columnDataPoints) {
 		if (canopyColumn == null || lastLayerTop >= absoluteTop) {
 			return lastLayerTop;
 		}
@@ -838,8 +833,8 @@ public final class TellusLodGenerator implements IDhApiWorldGenerator {
 			if (trunkTop > layerTop) {
 				final IDhApiBlockStateWrapper trunkBlock = wrappers.getBlockState(canopyColumn.trunkBlock);
 				columnDataPoints.add(
-						DhApiTerrainDataPoint.create((byte) 0, 0, CANOPY_MAX_LIGHT, layerTop, trunkTop, trunkBlock, biome)
-				);
+						DhApiTerrainDataPoint.create((byte) 0, 0, CANOPY_MAX_LIGHT, layerTop, trunkTop, trunkBlock,
+								biome));
 				layerTop = trunkTop;
 			}
 		}
@@ -848,8 +843,8 @@ public final class TellusLodGenerator implements IDhApiWorldGenerator {
 			final int liftTop = Math.min(absoluteTop, layerTop + canopyColumn.leafLift);
 			if (liftTop > layerTop) {
 				columnDataPoints.add(
-						DhApiTerrainDataPoint.create((byte) 0, 0, CANOPY_MAX_LIGHT, layerTop, liftTop, wrappers.airBlock(), biome)
-				);
+						DhApiTerrainDataPoint.create((byte) 0, 0, CANOPY_MAX_LIGHT, layerTop, liftTop,
+								wrappers.airBlock(), biome));
 				layerTop = liftTop;
 			}
 		}
@@ -859,8 +854,8 @@ public final class TellusLodGenerator implements IDhApiWorldGenerator {
 			if (canopyTop > layerTop) {
 				final IDhApiBlockStateWrapper canopyBlock = wrappers.getBlockState(canopyColumn.leavesBlock);
 				columnDataPoints.add(
-						DhApiTerrainDataPoint.create((byte) 0, 0, CANOPY_MAX_LIGHT, layerTop, canopyTop, canopyBlock, biome)
-				);
+						DhApiTerrainDataPoint.create((byte) 0, 0, CANOPY_MAX_LIGHT, layerTop, canopyTop, canopyBlock,
+								biome));
 				layerTop = canopyTop;
 			}
 		}
@@ -932,8 +927,7 @@ public final class TellusLodGenerator implements IDhApiWorldGenerator {
 			final boolean isCenter,
 			final int centerTrunkHeight,
 			final int bestDist,
-			final int centerHash
-	) {
+			final int centerHash) {
 		if (isCenter) {
 			return 0;
 		}
@@ -950,8 +944,7 @@ public final class TellusLodGenerator implements IDhApiWorldGenerator {
 			final CanopyProfile profile,
 			final int worldX,
 			final int worldZ,
-			final int waterDepth
-	) {
+			final int waterDepth) {
 		if (waterDepth < WATER_VEG_MIN_DEPTH) {
 			return null;
 		}
@@ -1056,8 +1049,7 @@ public final class TellusLodGenerator implements IDhApiWorldGenerator {
 			final CanopyProfile profile,
 			final int worldX,
 			final int worldZ,
-			final int centerHash
-	) {
+			final int centerHash) {
 		if (profile.isWindsweptForest()) {
 			return Blocks.SPRUCE_LOG.defaultBlockState();
 		}
@@ -1140,8 +1132,7 @@ public final class TellusLodGenerator implements IDhApiWorldGenerator {
 			int canopyBaseRadius,
 			int canopyBaseHeight,
 			int canopyMaxHeight,
-			int waterVegetationChance
-	) {
+			int waterVegetationChance) {
 		private boolean isTallCanopy() {
 			return isMangrove || isDarkForest || isJungle;
 		}
@@ -1163,8 +1154,7 @@ public final class TellusLodGenerator implements IDhApiWorldGenerator {
 				final int leafLift,
 				final int leavesHeight,
 				final BlockState leavesBlock,
-				final BlockState trunkBlock
-		) {
+				final BlockState trunkBlock) {
 			this.trunkHeight = trunkHeight;
 			this.leafLift = leafLift;
 			this.leavesHeight = leavesHeight;
@@ -1185,7 +1175,6 @@ public final class TellusLodGenerator implements IDhApiWorldGenerator {
 
 	private record SurfaceWrapperPair(IDhApiBlockStateWrapper top, IDhApiBlockStateWrapper filler) {
 	}
-
 
 	@Override
 	public EDhApiWorldGeneratorReturnType getReturnType() {
@@ -1226,7 +1215,7 @@ public final class TellusLodGenerator implements IDhApiWorldGenerator {
 
 		private IDhApiBlockStateWrapper lookupBlockState(final BlockState blockState) {
 			try {
-				return DhApi.Delayed.wrapperFactory.getBlockStateWrapper(new BlockState[]{blockState}, levelWrapper);
+				return DhApi.Delayed.wrapperFactory.getBlockStateWrapper(new BlockState[] { blockState }, levelWrapper);
 			} catch (final ClassCastException e) {
 				throw new IllegalStateException(e);
 			}

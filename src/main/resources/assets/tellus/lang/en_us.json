@@ -119,5 +119,7 @@
   "property.tellus.realtime_weather.tooltip": "Uses real-world weather for rain, thunder, and snow",
   "property.tellus.historical_snow.name": "Historical Snow Coverage",
   "property.tellus.historical_snow.tooltip": "Applies snow based on recent snowfall and temperature history",
+  "property.tellus.experimental_roads.name": "(EXPERIMENTAL) Roads",
+  "property.tellus.experimental_roads.tooltip": "Generates road networks based on OpenStreetMap data. May cause performance issues during initial area loading.",
   "property.tellus.locked.name": "This feature is not currently available"
 }

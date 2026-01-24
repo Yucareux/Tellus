@@ -7,8 +7,10 @@ import com.yucareux.tellus.Tellus;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.EOFException;
+import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.RandomAccessFile;
 import java.net.HttpURLConnection;
 import java.net.URI;
 import java.nio.charset.StandardCharsets;
@@ -25,13 +27,23 @@ final class PmTilesReader {
 	private static final int READ_TIMEOUT_MS = 15000;
 	private static final int CONNECT_TIMEOUT_MS = 10000;
 
-	private final String url;
+	private final String source;
+	private final boolean isRemote;
 	private final LoadingCache<DirectoryKey, Directory> directoryCache;
 	private @Nullable PmTilesHeader header;
 	private @Nullable Directory rootDirectory;
+	private @Nullable RandomAccessFile localFile;
 
-	PmTilesReader(String url) {
-		this.url = Objects.requireNonNull(url, "url");
+	PmTilesReader(String source) {
+		this.source = Objects.requireNonNull(source, "source");
+		this.isRemote = source.startsWith("http://") || source.startsWith("https://");
+		if (!this.isRemote) {
+			try {
+				this.localFile = new RandomAccessFile(new File(source), "r");
+			} catch (IOException e) {
+				Tellus.LOGGER.warn("Failed to open local PMTiles: {}", source, e);
+			}
+		}
 		this.directoryCache = CacheBuilder.newBuilder()
 				.maximumSize(MAX_DIRECTORY_CACHE)
 				.build(new CacheLoader<>() {
@@ -40,6 +52,12 @@ final class PmTilesReader {
 						return readDirectory(key.offset, key.length);
 					}
 				});
+	}
+
+	public void close() throws IOException {
+		if (this.localFile != null) {
+			this.localFile.close();
+		}
 	}
 
 	PmTilesHeader header() throws IOException {
@@ -134,8 +152,7 @@ final class PmTilesReader {
 				tileOffset,
 				tileLength,
 				minZoom,
-				maxZoom
-		);
+				maxZoom);
 	}
 
 	private Directory readDirectory(long offset, long length) throws IOException {
@@ -176,7 +193,15 @@ final class PmTilesReader {
 		if (length <= 0) {
 			return new byte[0];
 		}
-		HttpURLConnection connection = (HttpURLConnection) URI.create(this.url).toURL().openConnection();
+		if (this.isRemote) {
+			return readRemoteBytes(offset, length);
+		} else {
+			return readLocalBytes(offset, length);
+		}
+	}
+
+	private byte[] readRemoteBytes(long offset, int length) throws IOException {
+		HttpURLConnection connection = (HttpURLConnection) URI.create(this.source).toURL().openConnection();
 		connection.setRequestProperty("Range", "bytes=" + offset + "-" + (offset + length - 1));
 		connection.setInstanceFollowRedirects(true);
 		connection.setConnectTimeout(CONNECT_TIMEOUT_MS);
@@ -196,9 +221,21 @@ final class PmTilesReader {
 		}
 	}
 
+	private byte[] readLocalBytes(long offset, int length) throws IOException {
+		if (this.localFile == null) {
+			throw new IOException("Local PMTiles file not open: " + this.source);
+		}
+		byte[] buffer = new byte[length];
+		synchronized (this.localFile) {
+			this.localFile.seek(offset);
+			this.localFile.readFully(buffer);
+		}
+		return buffer;
+	}
+
 	private static byte[] gunzip(byte[] input) throws IOException {
 		try (GZIPInputStream gzip = new GZIPInputStream(new ByteArrayInputStream(input));
-			 ByteArrayOutputStream output = new ByteArrayOutputStream()) {
+				ByteArrayOutputStream output = new ByteArrayOutputStream()) {
 			byte[] buffer = new byte[8192];
 			int read;
 			while ((read = gzip.read(buffer)) != -1) {
@@ -383,8 +420,7 @@ final class PmTilesReader {
 				long tileDataOffset,
 				long tileDataLength,
 				int minZoom,
-				int maxZoom
-		) {
+				int maxZoom) {
 			this.rootOffset = rootOffset;
 			this.rootLength = rootLength;
 			this.metadataOffset = metadataOffset;

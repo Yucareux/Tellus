@@ -4,6 +4,9 @@ import com.yucareux.tellus.world.data.cover.TellusLandCoverSource;
 import com.yucareux.tellus.world.data.elevation.TellusElevationSource;
 import com.yucareux.tellus.world.data.koppen.TellusKoppenSource;
 import com.yucareux.tellus.world.data.mask.TellusLandMaskSource;
+import com.yucareux.tellus.world.data.osm.TellusOsmDataset;
+import com.yucareux.tellus.world.data.osm.TellusVectorBuildings;
+import com.yucareux.tellus.world.data.osm.TellusVectorRoads;
 import java.util.Objects;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.ConcurrentHashMap;
@@ -17,56 +20,62 @@ import java.util.concurrent.atomic.AtomicInteger;
 import net.minecraft.world.level.ChunkPos;
 import org.jspecify.annotations.NonNull;
 
-final class TellusWorldgenSources {
+public final class TellusWorldgenSources {
 	private static final TellusLandCoverSource LAND_COVER = new TellusLandCoverSource();
 	private static final TellusElevationSource ELEVATION = new TellusElevationSource();
 	private static final TellusKoppenSource KOPPEN = new TellusKoppenSource();
+	private static final TellusOsmDataset OSM_DATASET = new TellusOsmDataset();
+	private static final TellusVectorRoads VECTOR_ROADS = new TellusVectorRoads(OSM_DATASET);
+	private static final TellusVectorBuildings VECTOR_BUILDINGS = new TellusVectorBuildings(OSM_DATASET);
 	private static final TellusLandMaskSource LAND_MASK = new TellusLandMaskSource();
-	private static final boolean PREFETCH_ENABLED =
-			Boolean.parseBoolean(System.getProperty("tellus.prefetch.enabled", "true"));
-	private static final int LAND_COVER_PREFETCH_RADIUS =
-			intProperty("tellus.prefetch.landcover.radius", 1);
-	private static final int ELEVATION_PREFETCH_RADIUS =
-			intProperty("tellus.prefetch.elevation.radius", 1);
-	private static final int LAND_MASK_PREFETCH_RADIUS =
-			intProperty("tellus.prefetch.landmask.radius", 1);
-	private static final boolean WATER_PREFETCH_ENABLED =
-			Boolean.parseBoolean(System.getProperty("tellus.prefetch.water.enabled", "true"));
-	private static final int WATER_PREFETCH_RADIUS =
-			intProperty("tellus.prefetch.water.radius", 1);
+	private static final boolean PREFETCH_ENABLED = Boolean
+			.parseBoolean(System.getProperty("tellus.prefetch.enabled", "true"));
+	private static final int LAND_COVER_PREFETCH_RADIUS = intProperty("tellus.prefetch.landcover.radius", 1);
+	private static final int ELEVATION_PREFETCH_RADIUS = intProperty("tellus.prefetch.elevation.radius", 1);
+	private static final int LAND_MASK_PREFETCH_RADIUS = intProperty("tellus.prefetch.landmask.radius", 1);
+	private static final int ROAD_PREFETCH_RADIUS = intProperty("tellus.prefetch.road.radius", 1);
+	private static final boolean WATER_PREFETCH_ENABLED = Boolean
+			.parseBoolean(System.getProperty("tellus.prefetch.water.enabled", "true"));
+	private static final int WATER_PREFETCH_RADIUS = intProperty("tellus.prefetch.water.radius", 1);
 	private static final ExecutorService PREFETCH_EXECUTOR = createPrefetchExecutor();
-	private static final ConcurrentMap<EarthGeneratorSettings, WaterSurfaceResolver> WATER_RESOLVERS =
-			new ConcurrentHashMap<>();
+	private static final ConcurrentMap<EarthGeneratorSettings, WaterSurfaceResolver> WATER_RESOLVERS = new ConcurrentHashMap<>();
 
 	private TellusWorldgenSources() {
 	}
 
-	static TellusLandCoverSource landCover() {
+	public static TellusLandCoverSource landCover() {
 		return LAND_COVER;
 	}
 
-	static TellusElevationSource elevation() {
+	public static TellusElevationSource elevation() {
 		return ELEVATION;
 	}
 
-	static TellusKoppenSource koppen() {
+	public static TellusKoppenSource koppen() {
 		return KOPPEN;
 	}
 
-	static TellusLandMaskSource landMask() {
+	public static TellusLandMaskSource landMask() {
 		return LAND_MASK;
 	}
 
-	static @NonNull WaterSurfaceResolver waterResolver(EarthGeneratorSettings settings) {
+	public static TellusVectorRoads vectorRoads() {
+		return VECTOR_ROADS;
+	}
+
+	public static TellusVectorBuildings vectorBuildings() {
+		return VECTOR_BUILDINGS;
+	}
+
+	public static @NonNull WaterSurfaceResolver waterResolver(EarthGeneratorSettings settings) {
 		Objects.requireNonNull(settings, "settings");
 		WaterSurfaceResolver resolver = WATER_RESOLVERS.computeIfAbsent(
 				settings,
-				value -> new WaterSurfaceResolver(LAND_COVER, LAND_MASK, ELEVATION, value)
-		);
+				value -> new WaterSurfaceResolver(LAND_COVER, LAND_MASK, ELEVATION, value));
 		return Objects.requireNonNull(resolver, "waterResolver");
 	}
 
-	static void prefetchForChunk(ChunkPos pos, EarthGeneratorSettings settings) {
+	public static void prefetchForChunk(ChunkPos pos, EarthGeneratorSettings settings, int zoom) {
 		if (!PREFETCH_ENABLED || PREFETCH_EXECUTOR == null) {
 			return;
 		}
@@ -81,6 +90,9 @@ final class TellusWorldgenSources {
 		}
 		if (LAND_MASK_PREFETCH_RADIUS > 0) {
 			submitPrefetch(() -> LAND_MASK.prefetchTiles(centerX, centerZ, worldScale, LAND_MASK_PREFETCH_RADIUS));
+		}
+		if (ROAD_PREFETCH_RADIUS > 0) {
+			submitPrefetch(() -> OSM_DATASET.prefetchTiles(centerX, centerZ, worldScale, zoom, ROAD_PREFETCH_RADIUS));
 		}
 		if (WATER_PREFETCH_ENABLED && WATER_PREFETCH_RADIUS > 0) {
 			submitPrefetch(() -> waterResolver(settings).prefetchRegionsForChunk(pos.x, pos.z, WATER_PREFETCH_RADIUS));
@@ -120,8 +132,7 @@ final class TellusWorldgenSources {
 				TimeUnit.SECONDS,
 				new ArrayBlockingQueue<>(Math.max(1, queueSize)),
 				factory,
-				new ThreadPoolExecutor.DiscardPolicy()
-		);
+				new ThreadPoolExecutor.DiscardPolicy());
 		executor.allowCoreThreadTimeOut(true);
 		return executor;
 	}
@@ -185,8 +196,7 @@ final class TellusWorldgenSources {
 				TimeUnit unit,
 				ArrayBlockingQueue<Runnable> workQueue,
 				ThreadFactory threadFactory,
-				RejectedExecutionHandler handler
-		) {
+				RejectedExecutionHandler handler) {
 			super(minThreads, maxThreads, keepAliveTime, unit, workQueue, threadFactory, handler);
 			this.minThreads = minThreads;
 			this.maxThreads = maxThreads;

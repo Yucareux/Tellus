@@ -70,20 +70,16 @@ import org.jspecify.annotations.Nullable;
 public class EarthCustomizeScreen extends Screen {
 	private static final @NonNull Component TITLE = Objects.requireNonNull(
 			Component.translatable("options.tellus.customize_world_title.name"),
-			"customizeTitle"
-	);
+			"customizeTitle");
 	private static final @NonNull Component YES = Objects.requireNonNull(
 			Component.translatable("gui.yes").withStyle(ChatFormatting.GREEN),
-			"yesLabel"
-	);
+			"yesLabel");
 	private static final @NonNull Component NO = Objects.requireNonNull(
 			Component.translatable("gui.no").withStyle(ChatFormatting.RED),
-			"noLabel"
-	);
+			"noLabel");
 	private static final @NonNull Component WORK_IN_PROGRESS = Objects.requireNonNull(
 			Component.translatable("tellus.customize.work_in_progress").withStyle(ChatFormatting.GRAY),
-			"workInProgressLabel"
-	);
+			"workInProgressLabel");
 
 	private static final int ENTRY_HEIGHT = 20;
 	private static final int LIST_TOP = 40;
@@ -101,10 +97,10 @@ public class EarthCustomizeScreen extends Screen {
 	private static final double ALTITUDE_AUTO_EPSILON = 0.5;
 	private static final double AUTO_SEA_LEVEL = -64.0;
 	private static final double SEA_LEVEL_AUTO_EPSILON = 0.5;
-	private static final @NonNull Identifier DYNAMIC_DIMENSION_TYPE_ID =
-			Objects.requireNonNull(Identifier.fromNamespaceAndPath("tellus", "earth_dynamic"), "dynamicDimensionTypeId");
-	private static final @NonNull ResourceKey<DimensionType> DYNAMIC_DIMENSION_TYPE_KEY =
-			Objects.requireNonNull(ResourceKey.create(Registries.DIMENSION_TYPE, DYNAMIC_DIMENSION_TYPE_ID), "dynamicDimensionTypeKey");
+	private static final @NonNull Identifier DYNAMIC_DIMENSION_TYPE_ID = Objects
+			.requireNonNull(Identifier.fromNamespaceAndPath("tellus", "earth_dynamic"), "dynamicDimensionTypeId");
+	private static final @NonNull ResourceKey<DimensionType> DYNAMIC_DIMENSION_TYPE_KEY = Objects.requireNonNull(
+			ResourceKey.create(Registries.DIMENSION_TYPE, DYNAMIC_DIMENSION_TYPE_ID), "dynamicDimensionTypeKey");
 
 	private final CreateWorldScreen parent;
 	private final List<CategoryDefinition> categories;
@@ -150,8 +146,7 @@ public class EarthCustomizeScreen extends Screen {
 		int buttonY = this.height - 28;
 		Component spawnpointLabel = Objects.requireNonNull(
 				Component.translatable("gui.earth.spawnpoint"),
-				"spawnpointLabel"
-		);
+				"spawnpointLabel");
 		this.addRenderableWidget(Button.builder(spawnpointLabel, button -> {
 			if (this.minecraft != null) {
 				this.minecraft.setScreen(new EarthSpawnpointScreen(this));
@@ -184,7 +179,8 @@ public class EarthCustomizeScreen extends Screen {
 
 	private void openPreviewFullScreen() {
 		if (this.minecraft != null && this.previewWidget != null) {
-			@NonNull ViewState viewState = Objects.requireNonNull(this.previewWidget.getViewState(), "viewState");
+			@NonNull
+			ViewState viewState = Objects.requireNonNull(this.previewWidget.getViewState(), "viewState");
 			this.minecraft.setScreen(new TerrainPreviewScreen(this, this.preview, viewState));
 		}
 	}
@@ -201,15 +197,14 @@ public class EarthCustomizeScreen extends Screen {
 	public void onClose() {
 		if (this.minecraft != null) {
 			EarthGeneratorSettings settings = Objects.requireNonNull(this.buildSettings(), "generatorSettings");
-			WorldCreationContext current = Objects.requireNonNull(this.parent.getUiState().getSettings(), "worldCreationContext");
+			WorldCreationContext current = Objects.requireNonNull(this.parent.getUiState().getSettings(),
+					"worldCreationContext");
 			EarthGeneratorSettings.HeightLimits limits = Objects.requireNonNull(
 					EarthGeneratorSettings.resolveHeightLimits(settings),
-					"heightLimits"
-			);
+					"heightLimits");
 			WorldCreationContext updated = Objects.requireNonNull(
 					updateWorldCreationContext(current, settings, limits),
-					"updatedWorldContext"
-			);
+					"updatedWorldContext");
 			this.parent.getUiState().setSettings(updated);
 			this.preview.close();
 			this.minecraft.setScreen(this.parent);
@@ -219,29 +214,28 @@ public class EarthCustomizeScreen extends Screen {
 	private static @NonNull WorldCreationContext updateWorldCreationContext(
 			@NonNull WorldCreationContext current,
 			@NonNull EarthGeneratorSettings settings,
-			EarthGeneratorSettings.@NonNull HeightLimits limits
-	) {
+			EarthGeneratorSettings.@NonNull HeightLimits limits) {
 		WorldDimensions selectedDimensions = current.selectedDimensions();
 		LevelStem overworldStem = selectedDimensions.get(LevelStem.OVERWORLD)
 				.orElseThrow(() -> new IllegalStateException("Overworld settings missing"));
 		Holder<DimensionType> baseType = Objects.requireNonNull(overworldStem.type(), "overworldDimensionType");
 		DimensionType updatedType = Objects.requireNonNull(
 				EarthGeneratorSettings.applyHeightLimits(baseType.value(), limits),
-				"updatedDimensionType"
-		);
+				"updatedDimensionType");
 
-		@NonNull ResourceKey<DimensionType> overworldKey = Objects.requireNonNull(
+		@NonNull
+		ResourceKey<DimensionType> overworldKey = Objects.requireNonNull(
 				overworldStem.type().unwrapKey().orElse(DYNAMIC_DIMENSION_TYPE_KEY),
-				"overworldDimensionTypeKey"
-		);
-		RegistryUpdate registryUpdate = updateDimensionTypeRegistry(current.worldgenRegistries(), updatedType, overworldKey);
+				"overworldDimensionTypeKey");
+		RegistryUpdate registryUpdate = updateDimensionTypeRegistry(current.worldgenRegistries(), updatedType,
+				overworldKey);
 		LayeredRegistryAccess<RegistryLayer> registriesWithTypes = registryUpdate.registries();
-		HolderLookup.RegistryLookup<DimensionType> dimensionTypes =
-				registriesWithTypes.compositeAccess().lookupOrThrow(Registries.DIMENSION_TYPE);
-		@NonNull Holder<DimensionType> overworldHolder = Objects.requireNonNull(
+		HolderLookup.RegistryLookup<DimensionType> dimensionTypes = registriesWithTypes.compositeAccess()
+				.lookupOrThrow(Registries.DIMENSION_TYPE);
+		@NonNull
+		Holder<DimensionType> overworldHolder = Objects.requireNonNull(
 				registryUpdate.holder(),
-				"overworldDimensionTypeHolder"
-		);
+				"overworldDimensionTypeHolder");
 
 		if (Tellus.LOGGER.isInfoEnabled()) {
 			DimensionType registryType = dimensionTypes.getOrThrow(overworldKey).value();
@@ -256,28 +250,24 @@ public class EarthCustomizeScreen extends Screen {
 					limits.logicalHeight(),
 					overworldKey.identifier(),
 					describeDimensionType(updatedType),
-					describeDimensionType(registryType)
-			);
+					describeDimensionType(registryType));
 		}
 
-		ChunkGenerator generator =
-				Objects.requireNonNull(EarthChunkGenerator.create(registriesWithTypes.compositeAccess(), settings), "overworldGenerator");
+		ChunkGenerator generator = Objects.requireNonNull(
+				EarthChunkGenerator.create(registriesWithTypes.compositeAccess(), settings), "overworldGenerator");
 		WorldDimensions updatedDimensions = updateDimensions(
 				selectedDimensions,
 				overworldHolder,
 				generator,
-				dimensionTypes
-		);
+				dimensionTypes);
 		Registry<LevelStem> updatedDatapackDimensions = updateDatapackDimensions(
 				current.datapackDimensions(),
 				overworldHolder,
 				generator,
-				dimensionTypes
-		);
+				dimensionTypes);
 		LayeredRegistryAccess<RegistryLayer> updatedRegistries = updateWorldgenLevelStems(
 				registriesWithTypes,
-				updatedDatapackDimensions
-		);
+				updatedDatapackDimensions);
 
 		return new WorldCreationContext(
 				current.options(),
@@ -286,24 +276,21 @@ public class EarthCustomizeScreen extends Screen {
 				updatedRegistries,
 				current.dataPackResources(),
 				current.dataConfiguration(),
-				current.initialWorldCreationOptions()
-		);
+				current.initialWorldCreationOptions());
 	}
 
 	private static @NonNull Registry<LevelStem> updateDatapackDimensions(
 			@NonNull Registry<LevelStem> source,
 			@NonNull Holder<DimensionType> overworldHolder,
 			@NonNull ChunkGenerator overworldGenerator,
-			HolderLookup.RegistryLookup<DimensionType> dimensionTypes
-	) {
-		HolderLookup.RegistryLookup<DimensionType> dimensionTypesChecked =
-				Objects.requireNonNull(dimensionTypes, "dimensionTypes");
+			HolderLookup.RegistryLookup<DimensionType> dimensionTypes) {
+		HolderLookup.RegistryLookup<DimensionType> dimensionTypesChecked = Objects.requireNonNull(dimensionTypes,
+				"dimensionTypes");
 		Lifecycle lifecycle = Objects.requireNonNull(
 				source instanceof MappedRegistry<LevelStem> mapped
 						? mapped.registryLifecycle()
 						: Lifecycle.experimental(),
-				"datapackDimensionsLifecycle"
-		);
+				"datapackDimensionsLifecycle");
 		MappedRegistry<LevelStem> copy = new MappedRegistry<>(Registries.LEVEL_STEM, lifecycle);
 		List<Map.Entry<ResourceKey<LevelStem>, LevelStem>> entries = new ArrayList<>(source.entrySet());
 		entries.sort(Comparator.comparingInt(entry -> source.getId(entry.getValue())));
@@ -315,16 +302,15 @@ public class EarthCustomizeScreen extends Screen {
 			if (key.equals(LevelStem.OVERWORLD)) {
 				updatedStem = new LevelStem(overworldHolder, overworldGenerator);
 			} else {
-					ResourceKey<DimensionType> typeKey = stem.type().unwrapKey().orElse(null);
-					Holder<DimensionType> typeHolder = typeKey != null
-							? Objects.requireNonNull(dimensionTypesChecked.getOrThrow(typeKey), "dimensionType")
-							: Objects.requireNonNull(stem.type(), "stemDimensionType");
-					updatedStem = new LevelStem(typeHolder, stem.generator());
-				}
+				ResourceKey<DimensionType> typeKey = stem.type().unwrapKey().orElse(null);
+				Holder<DimensionType> typeHolder = typeKey != null
+						? Objects.requireNonNull(dimensionTypesChecked.getOrThrow(typeKey), "dimensionType")
+						: Objects.requireNonNull(stem.type(), "stemDimensionType");
+				updatedStem = new LevelStem(typeHolder, stem.generator());
+			}
 			RegistrationInfo info = Objects.requireNonNull(
 					source.registrationInfo(key).orElse(RegistrationInfo.BUILT_IN),
-					"dimensionStemRegistrationInfo"
-			);
+					"dimensionStemRegistrationInfo");
 			copy.register(key, updatedStem, info);
 		}
 
@@ -333,9 +319,9 @@ public class EarthCustomizeScreen extends Screen {
 
 	private static @NonNull LayeredRegistryAccess<RegistryLayer> updateWorldgenLevelStems(
 			@NonNull LayeredRegistryAccess<RegistryLayer> registries,
-			@NonNull Registry<LevelStem> updatedLevelStems
-	) {
-		@NonNull LayeredRegistryAccess<RegistryLayer> updated = registries;
+			@NonNull Registry<LevelStem> updatedLevelStems) {
+		@NonNull
+		LayeredRegistryAccess<RegistryLayer> updated = registries;
 		boolean updatedAny = false;
 		for (RegistryLayer layer : RegistryLayer.values()) {
 			RegistryAccess.Frozen layerAccess = updated.getLayer(layer);
@@ -354,10 +340,9 @@ public class EarthCustomizeScreen extends Screen {
 			@NonNull WorldDimensions dimensions,
 			@NonNull Holder<DimensionType> overworldHolder,
 			@NonNull ChunkGenerator overworldGenerator,
-			HolderLookup.RegistryLookup<DimensionType> dimensionTypes
-	) {
-		HolderLookup.RegistryLookup<DimensionType> dimensionTypesChecked =
-				Objects.requireNonNull(dimensionTypes, "dimensionTypes");
+			HolderLookup.RegistryLookup<DimensionType> dimensionTypes) {
+		HolderLookup.RegistryLookup<DimensionType> dimensionTypesChecked = Objects.requireNonNull(dimensionTypes,
+				"dimensionTypes");
 		Map<ResourceKey<LevelStem>, LevelStem> updatedStems = new LinkedHashMap<>();
 		dimensions.dimensions().forEach((key, stem) -> {
 			Holder<DimensionType> typeHolder;
@@ -375,8 +360,7 @@ public class EarthCustomizeScreen extends Screen {
 		return new WorldDimensions(WorldDimensions.withOverworld(
 				updatedStems,
 				overworldHolder,
-				overworldGenerator
-		));
+				overworldGenerator));
 	}
 
 	@Override
@@ -405,102 +389,88 @@ public class EarthCustomizeScreen extends Screen {
 		double worldScale = this.findSliderValue("world_scale", EarthGeneratorSettings.DEFAULT.worldScale());
 		double terrestrialScale = this.findSliderValue("terrestrial_height_scale",
 				EarthGeneratorSettings.DEFAULT.terrestrialHeightScale());
-		double oceanicScale = this.findSliderValue("oceanic_height_scale", EarthGeneratorSettings.DEFAULT.oceanicHeightScale());
-		int heightOffset = (int) Math.round(this.findSliderValue("height_offset", EarthGeneratorSettings.DEFAULT.heightOffset()));
+		double oceanicScale = this.findSliderValue("oceanic_height_scale",
+				EarthGeneratorSettings.DEFAULT.oceanicHeightScale());
+		int heightOffset = (int) Math
+				.round(this.findSliderValue("height_offset", EarthGeneratorSettings.DEFAULT.heightOffset()));
 		int seaLevel = this.resolveSeaLevelSetting("sea_level", AUTO_SEA_LEVEL);
 		int maxAltitude = this.resolveAltitudeSetting("max_altitude", AUTO_MAX_ALTITUDE);
 		int minAltitude = this.resolveAltitudeSetting("min_altitude", AUTO_MIN_ALTITUDE);
 		int riverLakeShorelineBlend = (int) Math.round(
-				this.findSliderValue("river_lake_shoreline_blend", EarthGeneratorSettings.DEFAULT.riverLakeShorelineBlend())
-		);
+				this.findSliderValue("river_lake_shoreline_blend",
+						EarthGeneratorSettings.DEFAULT.riverLakeShorelineBlend()));
 		int oceanShorelineBlend = (int) Math.round(
-				this.findSliderValue("ocean_shoreline_blend", EarthGeneratorSettings.DEFAULT.oceanShorelineBlend())
-		);
+				this.findSliderValue("ocean_shoreline_blend", EarthGeneratorSettings.DEFAULT.oceanShorelineBlend()));
 		boolean shorelineBlendCliffLimit = this.findToggleValue(
 				"shoreline_blend_cliff_limit",
-				EarthGeneratorSettings.DEFAULT.shorelineBlendCliffLimit()
-		);
+				EarthGeneratorSettings.DEFAULT.shorelineBlendCliffLimit());
 		boolean caveGeneration = this.findToggleValue(
 				"cave_generation",
-				EarthGeneratorSettings.DEFAULT.caveGeneration()
-		);
+				EarthGeneratorSettings.DEFAULT.caveGeneration());
 		boolean oreDistribution = this.findToggleValue(
 				"ore_distribution",
-				EarthGeneratorSettings.DEFAULT.oreDistribution()
-		);
+				EarthGeneratorSettings.DEFAULT.oreDistribution());
 		boolean lavaPools = this.findToggleValue(
 				"lava_pools",
-				EarthGeneratorSettings.DEFAULT.lavaPools()
-		);
+				EarthGeneratorSettings.DEFAULT.lavaPools());
 		boolean deepDark = this.findToggleValue("deep_dark", EarthGeneratorSettings.DEFAULT.deepDark());
 		boolean geodes = this.findToggleValue("geodes", EarthGeneratorSettings.DEFAULT.geodes());
 		boolean addStrongholds = this.findToggleValue(
 				"add_strongholds",
-				EarthGeneratorSettings.DEFAULT.addStrongholds()
-		);
+				EarthGeneratorSettings.DEFAULT.addStrongholds());
 		boolean addVillages = this.findToggleValue("add_villages", EarthGeneratorSettings.DEFAULT.addVillages());
 		boolean addMineshafts = this.findToggleValue(
 				"add_mineshafts",
-				EarthGeneratorSettings.DEFAULT.addMineshafts()
-		);
+				EarthGeneratorSettings.DEFAULT.addMineshafts());
 		boolean addOceanMonuments = this.findToggleValue(
 				"add_ocean_monuments",
-				EarthGeneratorSettings.DEFAULT.addOceanMonuments()
-		);
+				EarthGeneratorSettings.DEFAULT.addOceanMonuments());
 		boolean addWoodlandMansions = this.findToggleValue(
 				"add_woodland_mansions",
-				EarthGeneratorSettings.DEFAULT.addWoodlandMansions()
-		);
+				EarthGeneratorSettings.DEFAULT.addWoodlandMansions());
 		boolean addDesertTemples = this.findToggleValue(
 				"add_desert_temples",
-				EarthGeneratorSettings.DEFAULT.addDesertTemples()
-		);
+				EarthGeneratorSettings.DEFAULT.addDesertTemples());
 		boolean addJungleTemples = this.findToggleValue(
 				"add_jungle_temples",
-				EarthGeneratorSettings.DEFAULT.addJungleTemples()
-		);
+				EarthGeneratorSettings.DEFAULT.addJungleTemples());
 		boolean addPillagerOutposts = this.findToggleValue(
 				"add_pillager_outposts",
-				EarthGeneratorSettings.DEFAULT.addPillagerOutposts()
-		);
+				EarthGeneratorSettings.DEFAULT.addPillagerOutposts());
 		boolean addRuinedPortals = this.findToggleValue(
 				"add_ruined_portals",
-				EarthGeneratorSettings.DEFAULT.addRuinedPortals()
-		);
+				EarthGeneratorSettings.DEFAULT.addRuinedPortals());
 		boolean addShipwrecks = this.findToggleValue(
 				"add_shipwrecks",
-				EarthGeneratorSettings.DEFAULT.addShipwrecks()
-		);
+				EarthGeneratorSettings.DEFAULT.addShipwrecks());
 		boolean addOceanRuins = this.findToggleValue(
 				"add_ocean_ruins",
-				EarthGeneratorSettings.DEFAULT.addOceanRuins()
-		);
+				EarthGeneratorSettings.DEFAULT.addOceanRuins());
 		boolean addBuriedTreasure = this.findToggleValue(
 				"add_buried_treasure",
-				EarthGeneratorSettings.DEFAULT.addBuriedTreasure()
-		);
+				EarthGeneratorSettings.DEFAULT.addBuriedTreasure());
 		boolean addIgloos = this.findToggleValue("add_igloos", EarthGeneratorSettings.DEFAULT.addIgloos());
 		boolean addWitchHuts = this.findToggleValue("add_witch_huts", EarthGeneratorSettings.DEFAULT.addWitchHuts());
 		boolean addAncientCities = this.findToggleValue(
 				"add_ancient_cities",
-				EarthGeneratorSettings.DEFAULT.addAncientCities()
-		);
+				EarthGeneratorSettings.DEFAULT.addAncientCities());
 		boolean addTrialChambers = this.findToggleValue(
 				"add_trial_chambers",
-				EarthGeneratorSettings.DEFAULT.addTrialChambers()
-		);
+				EarthGeneratorSettings.DEFAULT.addTrialChambers());
 		boolean addTrailRuins = this.findToggleValue("add_trail_ruins", EarthGeneratorSettings.DEFAULT.addTrailRuins());
 		boolean distantHorizonsWaterResolver = this.findToggleValue(
 				"distant_horizons_water_resolver",
-				EarthGeneratorSettings.DEFAULT.distantHorizonsWaterResolver()
-		);
+				EarthGeneratorSettings.DEFAULT.distantHorizonsWaterResolver());
 		boolean realtimeTime = this.findToggleValue("realtime_time", EarthGeneratorSettings.DEFAULT.realtimeTime());
-		boolean realtimeWeather = this.findToggleValue("realtime_weather", EarthGeneratorSettings.DEFAULT.realtimeWeather());
-		boolean historicalSnow = this.findToggleValue("historical_snow", EarthGeneratorSettings.DEFAULT.historicalSnow());
+		boolean realtimeWeather = this.findToggleValue("realtime_weather",
+				EarthGeneratorSettings.DEFAULT.realtimeWeather());
+		boolean historicalSnow = this.findToggleValue("historical_snow",
+				EarthGeneratorSettings.DEFAULT.historicalSnow());
+		boolean experimentalRoads = this.findToggleValue("experimental_roads",
+				EarthGeneratorSettings.DEFAULT.experimentalRoads());
 		EarthGeneratorSettings.DistantHorizonsRenderMode renderMode = this.findRenderMode(
 				"distant_horizons_render_mode",
-				EarthGeneratorSettings.DEFAULT.distantHorizonsRenderMode()
-		);
+				EarthGeneratorSettings.DEFAULT.distantHorizonsRenderMode());
 		return new EarthGeneratorSettings(
 				worldScale,
 				terrestrialScale,
@@ -540,8 +510,8 @@ public class EarthCustomizeScreen extends Screen {
 				realtimeTime,
 				realtimeWeather,
 				historicalSnow,
-				renderMode
-		);
+				experimentalRoads,
+				renderMode);
 	}
 
 	private double findSliderValue(String key, double fallback) {
@@ -568,8 +538,7 @@ public class EarthCustomizeScreen extends Screen {
 
 	private EarthGeneratorSettings.DistantHorizonsRenderMode findRenderMode(
 			String key,
-			EarthGeneratorSettings.DistantHorizonsRenderMode fallback
-	) {
+			EarthGeneratorSettings.DistantHorizonsRenderMode fallback) {
 		for (CategoryDefinition category : this.categories) {
 			for (SettingDefinition setting : category.getSettings()) {
 				if (setting instanceof ModeDefinition mode && mode.key.equals(key)) {
@@ -608,12 +577,13 @@ public class EarthCustomizeScreen extends Screen {
 				slider("min_altitude", EarthGeneratorSettings.DEFAULT.minAltitude(),
 						AUTO_MIN_ALTITUDE, EarthGeneratorSettings.MAX_WORLD_Y, 16.0)
 						.withDisplay(EarthCustomizeScreen::formatMinAltitude),
-				slider("river_lake_shoreline_blend", EarthGeneratorSettings.DEFAULT.riverLakeShorelineBlend(), 0.0, 10.0, 1.0)
+				slider("river_lake_shoreline_blend", EarthGeneratorSettings.DEFAULT.riverLakeShorelineBlend(), 0.0,
+						10.0, 1.0)
 						.withDisplay(EarthCustomizeScreen::formatHeightOffset),
 				slider("ocean_shoreline_blend", EarthGeneratorSettings.DEFAULT.oceanShorelineBlend(), 0.0, 10.0, 1.0)
 						.withDisplay(EarthCustomizeScreen::formatHeightOffset),
-				toggle("shoreline_blend_cliff_limit", EarthGeneratorSettings.DEFAULT.shorelineBlendCliffLimit())
-		)));
+				toggle("shoreline_blend_cliff_limit", EarthGeneratorSettings.DEFAULT.shorelineBlendCliffLimit()),
+				toggle("experimental_roads", EarthGeneratorSettings.DEFAULT.experimentalRoads()))));
 
 		categories.add(new CategoryDefinition("ecological", List.of(
 				toggle("land_vegetation", true).locked(true),
@@ -624,14 +594,12 @@ public class EarthCustomizeScreen extends Screen {
 						.withDisplay(EarthCustomizeScreen::formatPercent)
 						.locked(true),
 				toggle("aquatic_vegetation", true).locked(true),
-				toggle("crops_in_villages", true).locked(true)
-		)));
+				toggle("crops_in_villages", true).locked(true))));
 
 		categories.add(new CategoryDefinition("geological", List.of(
 				toggle("cave_generation", EarthGeneratorSettings.DEFAULT.caveGeneration()),
 				toggle("ore_distribution", EarthGeneratorSettings.DEFAULT.oreDistribution()),
-				toggle("lava_pools", EarthGeneratorSettings.DEFAULT.lavaPools())
-		)));
+				toggle("lava_pools", EarthGeneratorSettings.DEFAULT.lavaPools()))));
 
 		categories.add(new CategoryDefinition("structure", List.of(
 				toggle("add_strongholds", EarthGeneratorSettings.DEFAULT.addStrongholds()),
@@ -652,20 +620,18 @@ public class EarthCustomizeScreen extends Screen {
 				toggle("add_trial_chambers", EarthGeneratorSettings.DEFAULT.addTrialChambers()),
 				toggle("add_trail_ruins", EarthGeneratorSettings.DEFAULT.addTrailRuins()),
 				toggle("deep_dark", EarthGeneratorSettings.DEFAULT.deepDark()),
-				toggle("geodes", EarthGeneratorSettings.DEFAULT.geodes())
-		)));
+				toggle("geodes", EarthGeneratorSettings.DEFAULT.geodes()))));
 
 		categories.add(new CategoryDefinition("realtime", List.of(
 				toggle("realtime_time", EarthGeneratorSettings.DEFAULT.realtimeTime()),
 				toggle("realtime_weather", EarthGeneratorSettings.DEFAULT.realtimeWeather()),
-				toggle("historical_snow", EarthGeneratorSettings.DEFAULT.historicalSnow())
-		)));
+				toggle("historical_snow", EarthGeneratorSettings.DEFAULT.historicalSnow()))));
 
 		categories.add(new CategoryDefinition("compatibility", List.of(
 				mode("distant_horizons_render_mode", EarthGeneratorSettings.DEFAULT.distantHorizonsRenderMode()),
-				toggle("distant_horizons_water_resolver", EarthGeneratorSettings.DEFAULT.distantHorizonsWaterResolver()),
-				comingSoonButton()
-		)));
+				toggle("distant_horizons_water_resolver",
+						EarthGeneratorSettings.DEFAULT.distantHorizonsWaterResolver()),
+				comingSoonButton())));
 
 		categories.add(new CategoryDefinition("cache", List.of(
 				cacheEntry(CacheMetric.OSM, true),
@@ -674,9 +640,7 @@ public class EarthCustomizeScreen extends Screen {
 				cacheEntry(CacheMetric.TOTAL, false),
 				cacheActionButton(
 						Component.translatable("tellus.cache.delete_all"),
-						CacheManager::deleteAll
-				)
-		)));
+						CacheManager::deleteAll))));
 
 		categories.add(new CategoryDefinition("data_sources", dataSourcesEntries()));
 
@@ -688,8 +652,7 @@ public class EarthCustomizeScreen extends Screen {
 			double defaultValue,
 			double min,
 			double max,
-			double step
-	) {
+			double step) {
 		return new SliderDefinition(key, defaultValue, min, max, step);
 	}
 
@@ -699,8 +662,7 @@ public class EarthCustomizeScreen extends Screen {
 
 	private static ModeDefinition mode(
 			String key,
-			EarthGeneratorSettings.DistantHorizonsRenderMode defaultValue
-	) {
+			EarthGeneratorSettings.DistantHorizonsRenderMode defaultValue) {
 		return new ModeDefinition(key, defaultValue);
 	}
 
@@ -712,8 +674,7 @@ public class EarthCustomizeScreen extends Screen {
 						.copy()
 						.append(Component.literal(" "))
 						.append(WORK_IN_PROGRESS),
-				"comingSoonTooltip"
-		);
+				"comingSoonTooltip");
 		return new ButtonDefinition(label, tooltip, false);
 	}
 
@@ -759,8 +720,10 @@ public class EarthCustomizeScreen extends Screen {
 		entries.add(infoSubtle("ArcticDEM terrain data: DEM(s) were created from DigitalGlobe, Inc. imagery"));
 		entries.add(infoSubtle("and funded under National Science Foundation awards 1043681, 1559691, and 1542736;"));
 		entries.add(infoSubtle("Australia terrain data © Commonwealth of Australia (Geoscience Australia) 2017;"));
-		entries.add(infoSubtle("Austria terrain data © offene Daten Österreichs – Digitales Geländemodell (DGM) Österreich;"));
-		entries.add(infoSubtle("Canada terrain data contains information licensed under the Open Government Licence – Canada;"));
+		entries.add(infoSubtle(
+				"Austria terrain data © offene Daten Österreichs – Digitales Geländemodell (DGM) Österreich;"));
+		entries.add(infoSubtle(
+				"Canada terrain data contains information licensed under the Open Government Licence – Canada;"));
 		entries.add(infoSubtle("Europe terrain data produced using Copernicus data and information funded by the"));
 		entries.add(infoSubtle("European Union – EU-DEM layers;"));
 		entries.add(infoSubtle("Global ETOPO1 terrain data U.S. National Oceanic and Atmospheric Administration;"));
@@ -768,7 +731,8 @@ public class EarthCustomizeScreen extends Screen {
 		entries.add(infoSubtle("New Zealand terrain data Copyright 2011 Crown copyright (c) Land Information"));
 		entries.add(infoSubtle("New Zealand and the New Zealand Government (All rights reserved);"));
 		entries.add(infoSubtle("Norway terrain data © Kartverket;"));
-		entries.add(infoSubtle("United Kingdom terrain data © Environment Agency copyright and/or database right 2015."));
+		entries.add(
+				infoSubtle("United Kingdom terrain data © Environment Agency copyright and/or database right 2015."));
 		entries.add(infoSubtle("All rights reserved;"));
 		entries.add(infoSubtle("United States 3DEP (formerly NED) and global GMTED2010 and SRTM terrain data"));
 		entries.add(infoSubtle("courtesy of the U.S. Geological Survey."));
@@ -848,8 +812,7 @@ public class EarthCustomizeScreen extends Screen {
 	private static @NonNull Component formatRenderMode(EarthGeneratorSettings.DistantHorizonsRenderMode mode) {
 		return Objects.requireNonNull(
 				Component.translatable("property.tellus.distant_horizons_render_mode.value." + mode.id()),
-				"renderModeLabel"
-		);
+				"renderModeLabel");
 	}
 
 	private static String formatAltitude(double value, double autoValue) {
@@ -864,17 +827,20 @@ public class EarthCustomizeScreen extends Screen {
 			return "0 B";
 		}
 		double value = bytes;
-		String[] units = {"B", "KB", "MB", "GB", "TB"};
+		String[] units = { "B", "KB", "MB", "GB", "TB" };
 		int unit = 0;
 		while (value >= 1024.0 && unit < units.length - 1) {
 			value /= 1024.0;
 			unit++;
 		}
 		if (unit == 0) {
-			@NonNull String formatted = Objects.requireNonNull(String.format(Locale.ROOT, "%d B", bytes), "formattedBytes");
+			@NonNull
+			String formatted = Objects.requireNonNull(String.format(Locale.ROOT, "%d B", bytes), "formattedBytes");
 			return formatted;
 		}
-		@NonNull String formatted = Objects.requireNonNull(String.format(Locale.ROOT, "%.1f %s", value, units[unit]), "formattedBytes");
+		@NonNull
+		String formatted = Objects.requireNonNull(String.format(Locale.ROOT, "%.1f %s", value, units[unit]),
+				"formattedBytes");
 		return formatted;
 	}
 
@@ -885,8 +851,7 @@ public class EarthCustomizeScreen extends Screen {
 	private static @NonNull Component settingTooltip(String key) {
 		return Objects.requireNonNull(
 				Component.translatable("property.tellus." + key + ".tooltip").withStyle(ChatFormatting.GRAY),
-				"settingTooltip"
-		);
+				"settingTooltip");
 	}
 
 	private static @NonNull Component workInProgressTooltip(String key) {
@@ -919,8 +884,7 @@ public class EarthCustomizeScreen extends Screen {
 	private static @NonNull RegistryUpdate updateDimensionTypeRegistry(
 			@NonNull LayeredRegistryAccess<RegistryLayer> registries,
 			@NonNull DimensionType updatedType,
-			@NonNull ResourceKey<DimensionType> targetKey
-	) {
+			@NonNull ResourceKey<DimensionType> targetKey) {
 		LayeredRegistryAccess<RegistryLayer> updatedRegistries = registries;
 		boolean updatedAny = false;
 		for (RegistryLayer layer : RegistryLayer.values()) {
@@ -933,8 +897,7 @@ public class EarthCustomizeScreen extends Screen {
 					source instanceof MappedRegistry<DimensionType> mapped
 							? mapped.registryLifecycle()
 							: Lifecycle.experimental(),
-					"dimensionTypeLifecycle"
-			);
+					"dimensionTypeLifecycle");
 			MappedRegistry<DimensionType> copy = new MappedRegistry<>(Registries.DIMENSION_TYPE, lifecycle);
 			List<Map.Entry<ResourceKey<DimensionType>, DimensionType>> entries = new ArrayList<>(source.entrySet());
 			entries.sort(Comparator.comparingInt(entry -> source.getId(entry.getValue())));
@@ -947,32 +910,27 @@ public class EarthCustomizeScreen extends Screen {
 				DimensionType value = Objects.requireNonNull(entry.getValue(), "dimensionType");
 				RegistrationInfo info = Objects.requireNonNull(
 						source.registrationInfo(key).orElse(RegistrationInfo.BUILT_IN),
-						"registrationInfo"
-				);
+						"registrationInfo");
 				copy.register(key, value, info);
 			}
 
-			@NonNull Optional<KnownPack> emptyKnownPack = Objects.requireNonNull(
+			@NonNull
+			Optional<KnownPack> emptyKnownPack = Objects.requireNonNull(
 					Optional.<KnownPack>empty(),
-					"emptyKnownPack"
-			);
+					"emptyKnownPack");
 			RegistrationInfo targetInfo = Objects.requireNonNull(
 					source.registrationInfo(targetKey)
 							.map(info -> new RegistrationInfo(
 									emptyKnownPack,
-									Objects.requireNonNull(info.lifecycle(), "dimensionTypeLifecycle")
-							))
+									Objects.requireNonNull(info.lifecycle(), "dimensionTypeLifecycle")))
 							.orElseGet(() -> new RegistrationInfo(
 									emptyKnownPack,
-									Objects.requireNonNull(Lifecycle.experimental(), "experimentalLifecycle")
-							)),
-					"dimensionTypeRegistrationInfo"
-			);
+									Objects.requireNonNull(Lifecycle.experimental(), "experimentalLifecycle"))),
+					"dimensionTypeRegistrationInfo");
 			copy.register(
 					targetKey,
 					Objects.requireNonNull(updatedType, "updatedType"),
-					targetInfo
-			);
+					targetInfo);
 			Registry<DimensionType> frozen = copy.freeze();
 			RegistryAccess.Frozen updatedLayer = replaceRegistry(layerAccess, Registries.DIMENSION_TYPE, frozen);
 			updatedRegistries = replaceLayer(updatedRegistries, layer, updatedLayer);
@@ -983,20 +941,18 @@ public class EarthCustomizeScreen extends Screen {
 			throw new IllegalStateException("Dimension type registry missing");
 		}
 
-		HolderLookup.RegistryLookup<DimensionType> dimensionTypes =
-				updatedRegistries.compositeAccess().lookupOrThrow(Registries.DIMENSION_TYPE);
+		HolderLookup.RegistryLookup<DimensionType> dimensionTypes = updatedRegistries.compositeAccess()
+				.lookupOrThrow(Registries.DIMENSION_TYPE);
 		Holder<DimensionType> holder = Objects.requireNonNull(
 				dimensionTypes.getOrThrow(targetKey),
-				"dimensionTypeHolder"
-		);
+				"dimensionTypeHolder");
 		return new RegistryUpdate(updatedRegistries, holder);
 	}
 
 	private static RegistryAccess.Frozen replaceRegistry(
 			RegistryAccess.Frozen source,
 			ResourceKey<? extends Registry<?>> registryKey,
-			Registry<?> replacement
-	) {
+			Registry<?> replacement) {
 		Map<ResourceKey<? extends Registry<?>>, Registry<?>> registryMap = new LinkedHashMap<>();
 		source.registries().forEach(entry -> registryMap.put(entry.key(), entry.value()));
 		registryMap.put(registryKey, replacement);
@@ -1006,8 +962,7 @@ public class EarthCustomizeScreen extends Screen {
 	private static @NonNull LayeredRegistryAccess<RegistryLayer> replaceLayer(
 			@NonNull LayeredRegistryAccess<RegistryLayer> registries,
 			@NonNull RegistryLayer target,
-			RegistryAccess.Frozen replacement
-	) {
+			RegistryAccess.Frozen replacement) {
 		RegistryAccess.Frozen replacementChecked = Objects.requireNonNull(replacement, "replacement");
 		RegistryLayer[] layers = RegistryLayer.values();
 		List<RegistryAccess.Frozen> replacements = new ArrayList<>();
@@ -1028,7 +983,8 @@ public class EarthCustomizeScreen extends Screen {
 		return registries.replaceFrom(target, replacements);
 	}
 
-	private record RegistryUpdate(LayeredRegistryAccess<RegistryLayer> registries, Holder<DimensionType> holder) {}
+	private record RegistryUpdate(LayeredRegistryAccess<RegistryLayer> registries, Holder<DimensionType> holder) {
+	}
 
 	private interface SettingDefinition {
 		AbstractWidget createWidget(Runnable onChange);
@@ -1130,8 +1086,7 @@ public class EarthCustomizeScreen extends Screen {
 		private @NonNull Component getLabel(boolean selected) {
 			Component base = Objects.requireNonNull(
 					Component.translatable("category.tellus." + this.id + ".name"),
-					"categoryLabel"
-			);
+					"categoryLabel");
 			if (!selected) {
 				return base;
 			}
@@ -1256,8 +1211,8 @@ public class EarthCustomizeScreen extends Screen {
 	private static final class CacheEntryWidget extends AbstractWidget {
 		private static final int PADDING = 4;
 		private static final int MIN_BUTTON_WIDTH = 96;
-		private static final @NonNull Component DELETE_LABEL =
-				Objects.requireNonNull(Component.translatable("tellus.cache.delete"), "deleteLabel");
+		private static final @NonNull Component DELETE_LABEL = Objects
+				.requireNonNull(Component.translatable("tellus.cache.delete"), "deleteLabel");
 
 		private final CacheMetric metric;
 		private final Button deleteButton;
@@ -1278,7 +1233,8 @@ public class EarthCustomizeScreen extends Screen {
 			CacheSnapshot snapshot = CacheManager.snapshot();
 			boolean ready = snapshot.ready();
 			long bytes = snapshot.bytesFor(this.metric);
-			@NonNull String sizeText = ready ? formatBytes(bytes) : "...";
+			@NonNull
+			String sizeText = ready ? formatBytes(bytes) : "...";
 
 			int buttonWidth = Math.max(MIN_BUTTON_WIDTH, font.width(DELETE_LABEL) + 12);
 			int buttonX = this.getX() + this.width - buttonWidth;
@@ -1513,11 +1469,11 @@ public class EarthCustomizeScreen extends Screen {
 			}
 			SNAPSHOT.set(CacheSnapshot.empty());
 			CompletableFuture.supplyAsync(() -> {
-						if (task != null) {
-							task.run();
-						}
-						return computeSnapshot();
-					}, EXECUTOR)
+				if (task != null) {
+					task.run();
+				}
+				return computeSnapshot();
+			}, EXECUTOR)
 					.whenComplete((snapshot, error) -> {
 						if (snapshot != null && error == null) {
 							SNAPSHOT.set(snapshot);
@@ -1613,8 +1569,7 @@ public class EarthCustomizeScreen extends Screen {
 					: settingTooltip(this.key);
 			CycleButton.Builder<EarthGeneratorSettings.DistantHorizonsRenderMode> builder = CycleButton.builder(
 					EarthCustomizeScreen::formatRenderMode,
-					this.value
-			).withValues(MODES).withTooltip(value -> Tooltip.create(tooltip));
+					this.value).withValues(MODES).withTooltip(value -> Tooltip.create(tooltip));
 			CycleButton<EarthGeneratorSettings.DistantHorizonsRenderMode> button = builder.create(
 					0,
 					0,
@@ -1624,8 +1579,7 @@ public class EarthCustomizeScreen extends Screen {
 					(btn, value) -> {
 						this.value = value;
 						onChange.run();
-					}
-			);
+					});
 			button.active = !this.locked;
 			return button;
 		}

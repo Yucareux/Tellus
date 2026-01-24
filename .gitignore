@@ -38,3 +38,12 @@ hs_err_*.log
 replay_*.log
 *.hprof
 *.jfr
+
+# external dependencies and reference folders
+
+voxy-*.jar
+voxy/
+BigGlobe/
+terraplusplus/
+build_log*.txt
+crossplatform/

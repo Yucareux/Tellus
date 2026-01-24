@@ -33,15 +33,28 @@ public final class TellusLandCoverSource {
 	private static final double MIN_LON = -180.0;
 	private static final double MAX_LON = 180.0;
 	private static final int TILE_DEGREES = 3;
-	private static final int SNOW_ICE_CLASS = 70;
-	private static final int WATER_CLASS = 80;
-	private static final int NO_DATA_CLASS = 0;
+	public static final int ESA_TREE_COVER = 10;
+	public static final int ESA_SHRUBLAND = 20;
+	public static final int ESA_GRASSLAND = 30;
+	public static final int ESA_CROPLAND = 40;
+	public static final int ESA_BUILT_UP = 50;
+	public static final int ESA_BARE_VEGETATION = 60;
+	public static final int ESA_SNOW_ICE = 70;
+	public static final int ESA_WATER = 80;
+	public static final int ESA_HERBACEOUS_WETLAND = 90;
+	public static final int ESA_MANGROVES = 95;
+	public static final int ESA_MOSS_LICHEN = 100;
+	public static final int ESA_NO_DATA = 0;
+
+	private static final int SNOW_ICE_CLASS = ESA_SNOW_ICE;
+	private static final int WATER_CLASS = ESA_WATER;
+	private static final int NO_DATA_CLASS = ESA_NO_DATA;
 	private static final int MAX_CACHE_TILES = intProperty("tellus.landcover.cacheTiles", 64);
 	private static final double RESOLUTION_METERS = 10.0;
 	private static final int TILE_CACHE_ENTRIES = intProperty("tellus.landcover.tileCacheEntries", 32);
 	private static final int SMOOTH_RADIUS_PIXELS = 1;
-	private static final ThreadLocal<CoverSmoothScratch> COVER_SMOOTH_SCRATCH =
-			ThreadLocal.withInitial(CoverSmoothScratch::new);
+	private static final ThreadLocal<CoverSmoothScratch> COVER_SMOOTH_SCRATCH = ThreadLocal
+			.withInitial(CoverSmoothScratch::new);
 
 	private static final String ENDPOINT = "https://esa-worldcover.s3.eu-central-1.amazonaws.com/v200/2021/map";
 	private static final String TILE_PATTERN = "ESA_WorldCover_10m_2021_v200_%s_Map.tif";
@@ -375,8 +388,7 @@ public final class TellusLandCoverSource {
 				double pixelScaleX,
 				double pixelScaleY,
 				double tieLon,
-				double tieLat
-		) {
+				double tieLat) {
 			this.path = path;
 			this.channel = channel;
 			this.width = width;
@@ -597,8 +609,7 @@ public final class TellusLandCoverSource {
 					pixelScale[0],
 					pixelScale[1],
 					tiepoint[3],
-					tiepoint[4]
-			);
+					tiepoint[4]);
 		}
 
 		private static int readIntValue(int type, int count, int value, ByteOrder order) throws IOException {
@@ -617,7 +628,8 @@ public final class TellusLandCoverSource {
 			throw new IOException("Unsupported TIFF value type " + type);
 		}
 
-		private static long[] readLongArray(FileChannel channel, long offset, int count, ByteOrder order) throws IOException {
+		private static long[] readLongArray(FileChannel channel, long offset, int count, ByteOrder order)
+				throws IOException {
 			if (count <= 0) {
 				return new long[0];
 			}
@@ -631,7 +643,8 @@ public final class TellusLandCoverSource {
 			return values;
 		}
 
-		private static int[] readIntArray(FileChannel channel, long offset, int count, ByteOrder order) throws IOException {
+		private static int[] readIntArray(FileChannel channel, long offset, int count, ByteOrder order)
+				throws IOException {
 			if (count <= 0) {
 				return new int[0];
 			}
@@ -645,7 +658,8 @@ public final class TellusLandCoverSource {
 			return values;
 		}
 
-		private static double[] readDoubleArray(FileChannel channel, long offset, int count, ByteOrder order) throws IOException {
+		private static double[] readDoubleArray(FileChannel channel, long offset, int count, ByteOrder order)
+				throws IOException {
 			if (count <= 0) {
 				return new double[0];
 			}
