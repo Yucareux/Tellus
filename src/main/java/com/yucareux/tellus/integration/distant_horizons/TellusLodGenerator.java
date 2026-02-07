@@ -12,6 +12,7 @@ import com.seibel.distanthorizons.api.objects.data.DhApiTerrainDataPoint;
 import com.seibel.distanthorizons.api.objects.data.IDhApiFullDataSource;
 import com.yucareux.tellus.worldgen.EarthBiomeSource;
 import com.yucareux.tellus.worldgen.EarthChunkGenerator;
+import com.yucareux.tellus.worldgen.EarthGeneratorSettings;
 import com.yucareux.tellus.worldgen.WaterSurfaceResolver;
 import com.yucareux.tellus.world.data.osm.TellusVectorRoads;
 import com.yucareux.tellus.world.realtime.TellusRealtimeState;
@@ -41,7 +42,7 @@ import org.slf4j.Logger;
 public final class TellusLodGenerator implements IDhApiWorldGenerator {
 	private static final Logger LOGGER = LogUtils.getLogger();
 	private static final int SKY_LIGHT = 15;
-	private static final int CANOPY_MAX_LIGHT = 15;
+	static final int CANOPY_MAX_LIGHT = 15;
 	private static final int CANOPY_GRID_SIZE = 8;
 	private static final int CANOPY_GRID_SCALE_MAX = 8;
 	private static final int CANOPY_DENSITY_NUM = 3;
@@ -72,12 +73,17 @@ public final class TellusLodGenerator implements IDhApiWorldGenerator {
 	private final IDhApiLevelWrapper levelWrapper;
 	private final EarthChunkGenerator generator;
 	private final EarthBiomeSource biomeSource;
+	private final LegacyLodGenerator legacyGenerator;
 	private final ThreadLocal<@NonNull WrapperCache> wrapperCache;
 
 	public TellusLodGenerator(final IDhApiLevelWrapper levelWrapper, final EarthChunkGenerator generator) {
 		this.levelWrapper = levelWrapper;
 		this.generator = generator;
 		this.biomeSource = (EarthBiomeSource) generator.getBiomeSource();
+		this.legacyGenerator = generator.settings()
+				.distantHorizonsRenderMode() == EarthGeneratorSettings.DistantHorizonsRenderMode.FAST
+						? new LegacyLodGenerator(levelWrapper, generator)
+						: null;
 		this.wrapperCache = ThreadLocal.withInitial(() -> new WrapperCache(levelWrapper));
 	}
 
@@ -101,6 +107,20 @@ public final class TellusLodGenerator implements IDhApiWorldGenerator {
 			final EDhApiDistantGeneratorMode generatorMode,
 			final ExecutorService worldGeneratorThreadPool,
 			final Consumer<IDhApiFullDataSource> resultConsumer) {
+		if (generator.settings().distantHorizonsRenderMode() == EarthGeneratorSettings.DistantHorizonsRenderMode.FAST
+				&& detailLevel > 3 && legacyGenerator != null) {
+			return legacyGenerator.generateLod(
+					chunkPosMinX,
+					chunkPosMinZ,
+					lodPosX,
+					lodPosZ,
+					detailLevel,
+					pooledFullDataSource,
+					generatorMode,
+					worldGeneratorThreadPool,
+					resultConsumer);
+		}
+
 		prefetchLodResources(chunkPosMinX, chunkPosMinZ, detailLevel, pooledFullDataSource.getWidthInDataColumns());
 		return CompletableFuture.runAsync(() -> {
 			buildLod(pooledFullDataSource, chunkPosMinX, chunkPosMinZ, detailLevel);
@@ -314,7 +334,7 @@ public final class TellusLodGenerator implements IDhApiWorldGenerator {
 				final int coverClass = coverClasses[index];
 				final Holder<Biome> biomeHolder = biomeHolders[index];
 				final IDhApiBiomeWrapper biome = biomeWrappers[index];
-				final CanopyProfile canopyProfile = canopyProfile(biomeHolder);
+				final CanopyProfile canopyProfile = getCanopyProfile(biomeHolder);
 				final boolean isMangrove = canopyProfile.isMangrove() || coverClass == ESA_MANGROVES;
 				final EarthChunkGenerator.LodSurface lodSurface = generator.resolveLodSurface(biomeHolder, worldX,
 						worldZ, surfaceY, underwater, detailLevel);
@@ -587,11 +607,11 @@ public final class TellusLodGenerator implements IDhApiWorldGenerator {
 		return (int) Math.round(min + (max - min) * t);
 	}
 
-	private static CanopyProfile canopyProfile(final Holder<Biome> biome) {
-		return CANOPY_PROFILES.computeIfAbsent(biome, TellusLodGenerator::buildCanopyProfile);
+	static CanopyProfile getCanopyProfile(final Holder<Biome> biome) {
+		return CANOPY_PROFILES.computeIfAbsent(biome, TellusLodGenerator::createCanopyProfile);
 	}
 
-	private static CanopyProfile buildCanopyProfile(final Holder<Biome> biome) {
+	private static CanopyProfile createCanopyProfile(final Holder<Biome> biome) {
 		final boolean isMangrove = biome.is(Biomes.MANGROVE_SWAMP);
 		final boolean isDarkForest = biome.is(Biomes.DARK_FOREST);
 		final boolean isBambooJungle = biome.is(Biomes.BAMBOO_JUNGLE);
@@ -736,7 +756,7 @@ public final class TellusLodGenerator implements IDhApiWorldGenerator {
 				waterVegetationChance);
 	}
 
-	private static CanopyColumn resolveCanopyColumn(
+	static CanopyColumn resolveCanopyColumn(
 			final CanopyProfile profile,
 			final int worldX,
 			final int worldZ,
@@ -1108,7 +1128,7 @@ public final class TellusLodGenerator implements IDhApiWorldGenerator {
 		return roll < threshold;
 	}
 
-	private record CanopyProfile(
+	record CanopyProfile(
 			boolean isMangrove,
 			boolean isDarkForest,
 			boolean isBambooJungle,
@@ -1142,14 +1162,14 @@ public final class TellusLodGenerator implements IDhApiWorldGenerator {
 		}
 	}
 
-	private static final class CanopyColumn {
-		private final int trunkHeight;
-		private final int leafLift;
-		private final int leavesHeight;
-		private final BlockState leavesBlock;
-		private final BlockState trunkBlock;
+	static final class CanopyColumn {
+		final int trunkHeight;
+		final int leafLift;
+		final int leavesHeight;
+		final BlockState leavesBlock;
+		final BlockState trunkBlock;
 
-		private CanopyColumn(
+		CanopyColumn(
 				final int trunkHeight,
 				final int leafLift,
 				final int leavesHeight,

@@ -1,0 +1,146 @@
+﻿
+> Configure project :
+Fabric Loom: 1.14.10
+
+> Task :compileJava FAILED
+./gradlew.bat : C:\Use
+rs\grape\TerrariumPlus
+\src\main\java\com\yuc
+areux\tellus\worldgen\
+EarthGeneratorSettings
+.java:878: error: 
+constructor EarthGener
+atorSettings in 
+record EarthGeneratorS
+ettings cannot be 
+applied to given 
+types;
+At line:1 char:1
++ ./gradlew.bat 
+compileJava > 
+compile_log.txt 2>&1
++ ~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~
+    + CategoryInfo    
+          : NotSpeci  
+  fied: (C:\Users\g   
+ rape\...to given     
+types;:String) []    
+, RemoteException
+    + FullyQualifiedE 
+   rrorId : NativeCo  
+  mmandError
+ 
+		return new EarthGene
+ratorSettings(
+		       ^
+  required: double,dou
+ble,double,int,int,dou
+ble,double,int,int,int
+,int,boolean,boolean,b
+oolean,boolean,boolean
+,boolean,boolean,boole
+an,boolean,boolean,boo
+lean,boolean,boolean,b
+oolean,boolean,boolean
+,boolean,boolean,boole
+an,boolean,boolean,boo
+lean,boolean,boolean,b
+oolean,boolean,boolean
+,boolean,DistantHorizo
+nsRenderMode,LodGenera
+tionType
+  found:    double,dou
+ble,double,int,int,dou
+ble,double,int,int,int
+,int,boolean,boolean,b
+oolean,boolean,boolean
+,boolean,boolean,boole
+an,boolean,boolean,boo
+lean,boolean,boolean,b
+oolean,boolean,boolean
+,boolean,boolean,boole
+an,boolean,boolean,boo
+lean,boolean,boolean,b
+oolean,boolean,boolean
+,boolean,DistantHorizo
+nsRenderMode
+  reason: actual and 
+formal argument lists 
+differ in length
+1 error
+
+[Incubating] Problems report is available at: file:///C:/Users/grape/TerrariumPlus/build/reports/problems/problems-report.html
+
+FAILURE: Build failed 
+with an exception.
+
+* What went wrong:
+Execution failed for 
+task ':compileJava'.
+> Compilation failed; 
+see the compiler 
+output below.
+  C:\Users\grape\Terra
+riumPlus\src\main\java
+\com\yucareux\tellus\w
+orldgen\EarthGenerator
+Settings.java:878: 
+error: constructor Ear
+thGeneratorSettings 
+in record EarthGenerat
+orSettings cannot be 
+applied to given 
+types;
+  		return new EarthGe
+neratorSettings(
+  		       ^
+    required: double,d
+ouble,double,int,int,d
+ouble,double,int,int,i
+nt,int,boolean,boolean
+,boolean,boolean,boole
+an,boolean,boolean,boo
+lean,boolean,boolean,b
+oolean,boolean,boolean
+,boolean,boolean,boole
+an,boolean,boolean,boo
+lean,boolean,boolean,b
+oolean,boolean,boolean
+,boolean,boolean,boole
+an,boolean,DistantHori
+zonsRenderMode,LodGene
+rationType
+    found:    double,d
+ouble,double,int,int,d
+ouble,double,int,int,i
+nt,int,boolean,boolean
+,boolean,boolean,boole
+an,boolean,boolean,boo
+lean,boolean,boolean,b
+oolean,boolean,boolean
+,boolean,boolean,boole
+an,boolean,boolean,boo
+lean,boolean,boolean,b
+oolean,boolean,boolean
+,boolean,boolean,boole
+an,boolean,DistantHori
+zonsRenderMode
+    reason: actual 
+and formal argument 
+lists differ in length
+  1 error
+
+* Try:
+> Check your code and 
+dependencies to fix 
+the compilation 
+error(s)
+> Run with --scan to 
+generate a Build Scan 
+(powered by 
+Develocity).
+
+BUILD FAILED in 2s
+1 actionable task: 1 executed

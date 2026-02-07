@@ -629,6 +629,7 @@ public class EarthCustomizeScreen extends Screen {
 
 		categories.add(new CategoryDefinition("compatibility", List.of(
 				mode("distant_horizons_render_mode", EarthGeneratorSettings.DEFAULT.distantHorizonsRenderMode()),
+				mode("distant_horizons_render_mode", EarthGeneratorSettings.DEFAULT.distantHorizonsRenderMode()),
 				toggle("distant_horizons_water_resolver",
 						EarthGeneratorSettings.DEFAULT.distantHorizonsWaterResolver()),
 				comingSoonButton())));
