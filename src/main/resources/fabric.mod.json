@@ -3,13 +3,13 @@
 	"id": "tellus",
 	"version": "${version}",
 	"name": "Tellus",
-	"description": "This is an example description! Tell everyone what your mod is about!",
+	"description": "Tellus is a Fabric mod that recreates real-world terrain in Minecraft by generating Earth-scale landscapes from geographic data.",
 	"authors": [
-		"Me!"
+		"Yucareux"
 	],
 	"contact": {
-		"homepage": "https://fabricmc.net/",
-		"sources": "https://github.com/FabricMC/fabric-example-mod"
+		"homepage": "https://github.com/Yucareux/Tellus",
+		"sources": "https://github.com/Yucareux/Tellus"
 	},
 	"license": "LGPL-3.0-only",
 	"icon": "assets/tellus/icon.png",
