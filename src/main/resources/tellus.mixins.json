@@ -6,7 +6,8 @@
 		"BiomeFreezeMixin",
 		"BiomePrecipitationMixin",
 		"OceanMonumentBuildingMixin",
-		"OceanMonumentStructureMixin"
+		"OceanMonumentStructureMixin",
+		"ReduceStorageSizeMixin"
 	],
 	"injectors": {
 		"defaultRequire": 1
