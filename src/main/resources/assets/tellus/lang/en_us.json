@@ -211,5 +211,8 @@
   "property.tellus.enable_water.tooltip": "Use Overture/OSM water when enabled. Leave off to keep ESA water",
   "tellus.openstreetmaps_features.scale_limit_warning": "Roads and buildings are disabled because they are only available when World Scale is 1:15 (15 m/block) or finer.",
   "property.tellus.enable_roads.scale_limit.tooltip": "Disabled because roads are only available when World Scale is 1:15 (15 m/block) or finer.",
-  "property.tellus.enable_buildings.scale_limit.tooltip": "Disabled because buildings are only available when World Scale is 1:15 (15 m/block) or finer."
+  "property.tellus.enable_buildings.scale_limit.tooltip": "Disabled because buildings are only available when World Scale is 1:15 (15 m/block) or finer.",
+  "category.tellus.optimizations.name": "Optimizations",
+  "property.tellus.optimize_storage.name": "Optimize Storage",
+  "property.tellus.optimize_storage.tooltip": "Reduces save file size by up to 60% by removing redundant data from empty chunk sections.\nWarning: This prevents tree leaves from breaking automatically."
 }

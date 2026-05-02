@@ -211,5 +211,8 @@
   "property.tellus.enable_water.tooltip": "Usa agua de Overture/OSM cuando está activado. Déjalo desactivado para mantener el agua ESA",
   "tellus.openstreetmaps_features.scale_limit_warning": "Las carreteras y los edificios están desactivados porque solo están disponibles cuando la escala del mundo es 1:15 (15 m/bloque) o más detallada.",
   "property.tellus.enable_roads.scale_limit.tooltip": "Desactivado porque las carreteras solo están disponibles cuando la escala del mundo es 1:15 (15 m/bloque) o más detallada.",
-  "property.tellus.enable_buildings.scale_limit.tooltip": "Desactivado porque los edificios solo están disponibles cuando la escala del mundo es 1:15 (15 m/bloque) o más detallada."
+  "property.tellus.enable_buildings.scale_limit.tooltip": "Desactivado porque los edificios solo están disponibles cuando la escala del mundo es 1:15 (15 m/bloque) o más detallada.",
+  "category.tellus.optimizations.name": "Optimizaciones",
+  "property.tellus.optimize_storage.name": "Optimizar almacenamiento",
+  "property.tellus.optimize_storage.tooltip": "Reduce el tamaño del archivo de guardado hasta un 60% eliminando datos redundantes de las secciones de chunks vacías.\nAdvertencia: Esto impide que las hojas de los árboles se rompan automáticamente."
 }

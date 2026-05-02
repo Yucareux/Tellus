@@ -418,6 +418,7 @@ public class EarthCustomizeScreen extends Screen {
       boolean enableRoads = this.findToggleValue("enable_roads", EarthGeneratorSettings.DEFAULT.enableRoads());
       boolean enableBuildings = this.findToggleValue("enable_buildings", EarthGeneratorSettings.DEFAULT.enableBuildings());
       boolean enableWater = this.findToggleValue("enable_water", EarthGeneratorSettings.DEFAULT.enableWater());
+      boolean enableStorageOptimization = this.findToggleValue("optimize_storage", EarthGeneratorSettings.DEFAULT.optimizeStorage());
       boolean deepDark = this.findToggleValue("deep_dark", EarthGeneratorSettings.DEFAULT.deepDark());
       boolean geodes = this.findToggleValue("geodes", EarthGeneratorSettings.DEFAULT.geodes());
       boolean addStrongholds = this.findToggleValue("add_strongholds", EarthGeneratorSettings.DEFAULT.addStrongholds());
@@ -516,7 +517,8 @@ public class EarthCustomizeScreen extends Screen {
          demSelection,
          enableRoads,
          enableBuildings,
-         enableWater
+         enableWater,
+         enableStorageOptimization
       );
    }
 
@@ -564,6 +566,7 @@ public class EarthCustomizeScreen extends Screen {
       this.setToggleValue("enable_roads", initialSettings.enableRoads());
       this.setToggleValue("enable_buildings", initialSettings.enableBuildings());
       this.setToggleValue("enable_water", initialSettings.enableWater());
+      this.setToggleValue("optimize_storage", initialSettings.optimizeStorage());
       this.setToggleValue("deep_dark", initialSettings.deepDark());
       this.setToggleValue("geodes", initialSettings.geodes());
       this.setToggleValue("add_strongholds", initialSettings.addStrongholds());
@@ -864,6 +867,14 @@ public class EarthCustomizeScreen extends Screen {
                toggle("realtime_time", EarthGeneratorSettings.DEFAULT.realtimeTime()),
                toggle("realtime_weather", EarthGeneratorSettings.DEFAULT.realtimeWeather()),
                toggle("historical_snow", false).forceDisabled(true, historicalSnowReworkTooltip())
+            )
+         )
+      );
+      categories.add(
+         new EarthCustomizeScreen.CategoryDefinition(
+            "optimizations",
+            List.of(
+                  toggle("optimize_storage", EarthGeneratorSettings.DEFAULT.optimizeStorage())
             )
          )
       );

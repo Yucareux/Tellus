@@ -96,6 +96,7 @@ import net.minecraft.world.level.biome.Biomes;
 import net.minecraft.world.level.biome.BiomeGenerationSettings.PlainBuilder;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.Blocks;
+import net.minecraft.world.level.block.LeavesBlock;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.block.state.properties.BlockStateProperties;
 import net.minecraft.world.level.block.state.properties.DoubleBlockHalf;
@@ -333,6 +334,8 @@ public final class EarthChunkGenerator extends ChunkGenerator {
    private final AtomicLong chunkDetailGenerationSequence = new AtomicLong();
    private final ConcurrentHashMap<Long, Long> terrainGenerationStamps = new ConcurrentHashMap<>();
 
+   public static volatile boolean optimizeStorage = false;
+
    public EarthChunkGenerator(BiomeSource biomeSource, EarthGeneratorSettings settings) {
       super(biomeSource, biome -> generationSettingsForBiome(biome, settings));
       this.settings = settings;
@@ -348,6 +351,8 @@ public final class EarthChunkGenerator extends ChunkGenerator {
       int spawnBlockZ = Mth.floor(EarthProjection.latToBlockZ(settings.spawnLatitude(), settings.worldScale()));
       this.configuredSpawnChunkX = Math.floorDiv(spawnBlockX, 16);
       this.configuredSpawnChunkZ = Math.floorDiv(spawnBlockZ, 16);
+      EarthChunkGenerator.optimizeStorage = settings.optimizeStorage();
+
       if (biomeSource instanceof EarthBiomeSource earthBiomeSource) {
          earthBiomeSource.setFastSpawnMode(true);
       }
@@ -3824,6 +3829,20 @@ public final class EarthChunkGenerator extends ChunkGenerator {
 
                                  ConfiguredFeature<?, ?> feature = features.get(random.nextInt(features.size()));
                                  feature.place(level, this, random, position);
+                                 
+                                 if(EarthChunkGenerator.optimizeStorage) {
+                                    // Force persistent=true on leaves to remove scheduled ticks and reduce storage size
+                                    BlockPos.betweenClosed(
+                                       position.offset(-8, -1, -8),
+                                       position.offset(8, 16, 8)
+                                    ).forEach(bp -> {
+                                       BlockState state = level.getBlockState(bp);
+                                       if (state.is(BlockTags.LEAVES) && state.hasProperty(LeavesBlock.PERSISTENT)) {
+                                          level.setBlock(bp, state.setValue(LeavesBlock.PERSISTENT, true), 20);
+                                       }
+                                    });
+                                 }
+                                 
                               }
                            }
                         }
