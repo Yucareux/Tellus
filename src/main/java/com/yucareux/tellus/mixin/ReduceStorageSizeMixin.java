@@ -59,7 +59,6 @@ public abstract class ReduceStorageSizeMixin {
             }
         }
 
-        // PostProcessing : supprimer les sous-listes vides
         Optional<ListTag> ppOpt = tag.getList("PostProcessing");
         if (ppOpt.isPresent()) {
             ListTag pp = ppOpt.get();
