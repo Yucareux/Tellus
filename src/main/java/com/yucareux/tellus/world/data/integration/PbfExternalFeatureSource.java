@@ -42,11 +42,13 @@ public final class PbfExternalFeatureSource implements ExternalFeatureSource {
 
    private final boolean enabled;
    private final List<Path> paths;
+   private final GeoBounds coverage;
    private final JsonExternalFeatureSource delegate;
 
-   private PbfExternalFeatureSource(boolean enabled, List<Path> paths, JsonExternalFeatureSource delegate) {
+   private PbfExternalFeatureSource(boolean enabled, List<Path> paths, GeoBounds coverage, JsonExternalFeatureSource delegate) {
       this.enabled = enabled;
       this.paths = paths == null ? List.of() : List.copyOf(paths);
+      this.coverage = coverage;
       this.delegate = Objects.requireNonNull(delegate, "delegate");
    }
 
@@ -79,15 +81,16 @@ public final class PbfExternalFeatureSource implements ExternalFeatureSource {
             delegate.points().size()
          );
          TellusDiagnostics.traffic(
-            "PBF source loaded files=%d roads=%d buildings=%d areas=%d lines=%d points=%d",
+            "PBF source loaded files=%d coverage=%s roads=%d buildings=%d areas=%d lines=%d points=%d",
             paths.size(),
+            parsed.coverage(),
             delegate.roads().size(),
             delegate.buildings().size(),
             delegate.areas().size(),
             delegate.lines().size(),
             delegate.points().size()
          );
-         return new PbfExternalFeatureSource(true, paths, delegate);
+         return new PbfExternalFeatureSource(true, paths, parsed.coverage(), delegate);
       } catch (IOException | RuntimeException error) {
          LOGGER.warn("Failed to load Tellus PBF features from {}", paths, error);
          TellusDiagnostics.traffic("PBF source unavailable paths=%s error=%s", paths, shortError(error));
@@ -96,7 +99,7 @@ public final class PbfExternalFeatureSource implements ExternalFeatureSource {
    }
 
    public static PbfExternalFeatureSource disabled() {
-      return new PbfExternalFeatureSource(false, List.of(), new JsonExternalFeatureSource(List.of(), List.of()));
+      return new PbfExternalFeatureSource(false, List.of(), null, new JsonExternalFeatureSource(List.of(), List.of()));
    }
 
    public boolean available() {
@@ -118,6 +121,17 @@ public final class PbfExternalFeatureSource implements ExternalFeatureSource {
 
    public boolean cityDetailsAvailable() {
       return this.enabled && (!this.delegate.areas().isEmpty() || !this.delegate.lines().isEmpty() || !this.delegate.points().isEmpty());
+   }
+
+   public boolean coversBounds(GeoBounds bounds) {
+      Objects.requireNonNull(bounds, "bounds");
+      if (!this.enabled || this.coverage == null) {
+         return false;
+      }
+      return bounds.south() >= this.coverage.south()
+         && bounds.north() <= this.coverage.north()
+         && bounds.west() >= this.coverage.west()
+         && bounds.east() <= this.coverage.east();
    }
 
    public List<Path> paths() {
@@ -688,6 +702,10 @@ public final class PbfExternalFeatureSource implements ExternalFeatureSource {
       private final List<ExternalAreaFeature> areas = new ArrayList<>();
       private final List<ExternalLineFeature> lines = new ArrayList<>();
       private final List<ExternalPointFeature> points = new ArrayList<>();
+      private double south = Double.POSITIVE_INFINITY;
+      private double west = Double.POSITIVE_INFINITY;
+      private double north = Double.NEGATIVE_INFINITY;
+      private double east = Double.NEGATIVE_INFINITY;
       private long nodeCount;
       private long wayCount;
       private long relationCount;
@@ -718,6 +736,7 @@ public final class PbfExternalFeatureSource implements ExternalFeatureSource {
       private void processNode(Node node) {
          this.nodeCount++;
          GeoPoint point = new GeoPoint(node.getLatitude(), node.getLongitude());
+         this.expandCoverage(point);
          this.nodes.put(node.getId(), point);
          Map<String, String> tags = tags(node);
          if (!tags.isEmpty()) {
@@ -785,8 +804,22 @@ public final class PbfExternalFeatureSource implements ExternalFeatureSource {
          }
       }
 
+      private void expandCoverage(GeoPoint point) {
+         this.south = Math.min(this.south, point.latitude());
+         this.north = Math.max(this.north, point.latitude());
+         this.west = Math.min(this.west, point.longitude());
+         this.east = Math.max(this.east, point.longitude());
+      }
+
+      private GeoBounds coverage() {
+         if (!Double.isFinite(this.south) || !Double.isFinite(this.west) || !Double.isFinite(this.north) || !Double.isFinite(this.east)) {
+            return null;
+         }
+         return new GeoBounds(this.south, this.west, this.north, this.east);
+      }
+
       private ParsedFeatures toParsedFeatures() {
-         return new ParsedFeatures(this.roads, this.buildings, this.areas, this.lines, this.points);
+         return new ParsedFeatures(this.roads, this.buildings, this.areas, this.lines, this.points, this.coverage());
       }
    }
 
@@ -795,7 +828,8 @@ public final class PbfExternalFeatureSource implements ExternalFeatureSource {
       List<ExternalBuildingFeature> buildings,
       List<ExternalAreaFeature> areas,
       List<ExternalLineFeature> lines,
-      List<ExternalPointFeature> points
+      List<ExternalPointFeature> points,
+      GeoBounds coverage
    ) {
       private ParsedFeatures {
          roads = roads == null ? List.of() : List.copyOf(roads);
@@ -806,7 +840,7 @@ public final class PbfExternalFeatureSource implements ExternalFeatureSource {
       }
 
       private static ParsedFeatures empty() {
-         return new ParsedFeatures(List.of(), List.of(), List.of(), List.of(), List.of());
+         return new ParsedFeatures(List.of(), List.of(), List.of(), List.of(), List.of(), null);
       }
 
       private ParsedFeatures merge(ParsedFeatures other) {
@@ -820,11 +854,26 @@ public final class PbfExternalFeatureSource implements ExternalFeatureSource {
          mergedLines.addAll(other.lines);
          List<ExternalPointFeature> mergedPoints = new ArrayList<>(this.points);
          mergedPoints.addAll(other.points);
-         return new ParsedFeatures(mergedRoads, mergedBuildings, mergedAreas, mergedLines, mergedPoints);
+         return new ParsedFeatures(mergedRoads, mergedBuildings, mergedAreas, mergedLines, mergedPoints, mergeCoverage(this.coverage, other.coverage));
       }
 
       private JsonExternalFeatureSource toSource() {
          return new JsonExternalFeatureSource(this.roads, this.buildings, this.areas, this.lines, this.points);
+      }
+
+      private static GeoBounds mergeCoverage(GeoBounds first, GeoBounds second) {
+         if (first == null) {
+            return second;
+         }
+         if (second == null) {
+            return first;
+         }
+         return new GeoBounds(
+            Math.min(first.south(), second.south()),
+            Math.min(first.west(), second.west()),
+            Math.max(first.north(), second.north()),
+            Math.max(first.east(), second.east())
+         );
       }
    }
 }

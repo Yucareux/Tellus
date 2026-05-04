@@ -114,7 +114,9 @@ public final class TellusExternalFeatureSource {
          List<ExternalRoadFeature> externalRoads = new ArrayList<>();
          externalRoads.addAll(this.currentSource().roadsForBounds(bounds));
          externalRoads.addAll(this.pbfSource.roadsForBounds(bounds));
-         externalRoads.addAll(this.overpassSource.roadsForBounds(bounds));
+         if (!this.pbfSource.coversBounds(bounds)) {
+            externalRoads.addAll(this.overpassSource.roadsForBounds(bounds));
+         }
          if (externalRoads.isEmpty()) {
             return List.of();
          }
@@ -141,7 +143,9 @@ public final class TellusExternalFeatureSource {
          List<ExternalBuildingFeature> externalBuildings = new ArrayList<>();
          externalBuildings.addAll(this.currentSource().buildingsForBounds(bounds));
          externalBuildings.addAll(this.pbfSource.buildingsForBounds(bounds));
-         externalBuildings.addAll(this.overpassSource.buildingsForBounds(bounds));
+         if (!this.pbfSource.coversBounds(bounds)) {
+            externalBuildings.addAll(this.overpassSource.buildingsForBounds(bounds));
+         }
          if (externalBuildings.isEmpty()) {
             return List.of();
          }
@@ -168,7 +172,9 @@ public final class TellusExternalFeatureSource {
          List<ExternalAreaFeature> areas = new ArrayList<>();
          areas.addAll(this.currentSource().areasForBounds(bounds));
          areas.addAll(this.pbfSource.areasForBounds(bounds));
-         areas.addAll(this.overpassSource.areasForBounds(bounds));
+         if (!this.pbfSource.coversBounds(bounds)) {
+            areas.addAll(this.overpassSource.areasForBounds(bounds));
+         }
          return areas.isEmpty() ? List.of() : List.copyOf(areas);
       } catch (RuntimeException error) {
          LOGGER.warn("Failed to query external Tellus city areas from {}", this.path, error);
@@ -188,7 +194,9 @@ public final class TellusExternalFeatureSource {
          List<ExternalLineFeature> lines = new ArrayList<>();
          lines.addAll(this.currentSource().linesForBounds(bounds));
          lines.addAll(this.pbfSource.linesForBounds(bounds));
-         lines.addAll(this.overpassSource.linesForBounds(bounds));
+         if (!this.pbfSource.coversBounds(bounds)) {
+            lines.addAll(this.overpassSource.linesForBounds(bounds));
+         }
          return lines.isEmpty() ? List.of() : List.copyOf(lines);
       } catch (RuntimeException error) {
          LOGGER.warn("Failed to query external Tellus city lines from {}", this.path, error);
@@ -208,7 +216,9 @@ public final class TellusExternalFeatureSource {
          List<ExternalPointFeature> points = new ArrayList<>();
          points.addAll(this.currentSource().pointsForBounds(bounds));
          points.addAll(this.pbfSource.pointsForBounds(bounds));
-         points.addAll(this.overpassSource.pointsForBounds(bounds));
+         if (!this.pbfSource.coversBounds(bounds)) {
+            points.addAll(this.overpassSource.pointsForBounds(bounds));
+         }
          return points.isEmpty() ? List.of() : List.copyOf(points);
       } catch (RuntimeException error) {
          LOGGER.warn("Failed to query external Tellus city points from {}", this.path, error);
