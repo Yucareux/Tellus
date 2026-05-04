@@ -23,8 +23,11 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
@@ -39,6 +42,7 @@ public final class OverpassExternalFeatureSource implements ExternalFeatureSourc
    public static final String ENDPOINTS_PROPERTY = "tellus.arnis.overpass.endpoints";
    public static final String NETWORK_MODE_PROPERTY = "tellus.arnis.overpass.network";
    public static final String CITY_DETAILS_PROPERTY = "tellus.arnis.overpass.cityDetails";
+   public static final String BLOCKING_CITY_DETAILS_NETWORK_PROPERTY = "tellus.arnis.overpass.cityDetails.blockingNetwork";
    private static final String SOURCE = "arnis-overpass";
    private static final String CITY_CACHE_PROFILE = "city-v7";
    private static final String NETWORK_CACHE_FIRST = "cache-first";
@@ -67,12 +71,22 @@ public final class OverpassExternalFeatureSource implements ExternalFeatureSourc
    private static final int PROBE_READ_TIMEOUT_MS = intProperty("tellus.arnis.overpass.probeReadTimeoutMs", 7000, 1, 120000);
    private static final int PREFETCH_MAX_TILES = intProperty("tellus.arnis.overpass.prefetchMaxTiles", 32, 1, 4096);
    private static final String PROBE_QUERY = String.format(Locale.ROOT, "[out:json][timeout:%d];node(0,0,0.001,0.001);out ids 1;", PROBE_TIMEOUT_SECONDS);
+   private static final ExecutorService BACKGROUND_CITY_DETAILS_EXECUTOR = Executors.newFixedThreadPool(
+      intProperty("tellus.arnis.overpass.cityDetails.backgroundThreads", 2, 1, 8),
+      task -> {
+         Thread thread = new Thread(task, "Tellus Arnis city details");
+         thread.setDaemon(true);
+         return thread;
+      }
+   );
 
    private final boolean enabled;
    private final boolean networkEnabled;
    private final Path cacheRoot;
    private final URI[] endpoints;
    private final ConcurrentMap<TileKey, TileFeatures> memoryCache = new ConcurrentHashMap<>();
+   private final ConcurrentMap<TileKey, Object> tileLocks = new ConcurrentHashMap<>();
+   private final ConcurrentMap<TileKey, CompletableFuture<Void>> backgroundCityFetches = new ConcurrentHashMap<>();
    private final ConcurrentMap<TileKey, Long> failedUntilMs = new ConcurrentHashMap<>();
    private final Semaphore requestGuard = new Semaphore(1, true);
    private final AtomicLong nextAllowedRequestMs = new AtomicLong(0L);
@@ -102,13 +116,14 @@ public final class OverpassExternalFeatureSource implements ExternalFeatureSourc
       String endpoints = System.getProperty(ENDPOINTS_PROPERTY, DEFAULT_ENDPOINTS);
       URI[] parsedEndpoints = parseEndpoints(endpoints);
       TellusDiagnostics.traffic(
-         "Overpass source ready networkMode=%s networkEnabled=%s cacheRoot=%s endpoints=%d queryZoom=%d cityDetails=%s maxNetworkTiles=%d",
+         "Overpass source ready networkMode=%s networkEnabled=%s cacheRoot=%s endpoints=%d queryZoom=%d cityDetails=%s blockingCityDetails=%s maxNetworkTiles=%d",
          networkMode,
          !NETWORK_CACHE_ONLY.equals(networkMode),
          cacheRoot,
          parsedEndpoints.length,
          QUERY_ZOOM,
          cityDetailsEnabled(),
+         blockingCityDetailsNetwork(),
          MAX_NETWORK_TILES_PER_SESSION
       );
       return new OverpassExternalFeatureSource(true, !NETWORK_CACHE_ONLY.equals(networkMode), cacheRoot, parsedEndpoints);
@@ -184,7 +199,7 @@ public final class OverpassExternalFeatureSource implements ExternalFeatureSourc
             break;
          }
          attempted++;
-         this.tileForKey(key, requireCityDetails);
+         this.tileForKey(key, requireCityDetails, true);
          if (this.tileReadyForPrefetch(cachePath, requireCityDetails)) {
             cachedAfterAttempt++;
          }
@@ -326,22 +341,38 @@ public final class OverpassExternalFeatureSource implements ExternalFeatureSourc
    }
 
    private TileFeatures tileForKey(TileKey key, boolean requireCityDetails) {
+      return this.tileForKey(key, requireCityDetails, !requireCityDetails || blockingCityDetailsNetwork());
+   }
+
+   private TileFeatures tileForKey(TileKey key, boolean requireCityDetails, boolean allowBlockingNetwork) {
       TileFeatures cached = this.memoryCache.get(key);
       if (cached != null && (!requireCityDetails || cached.cityDetailsLoaded())) {
          return cached;
       }
 
-      Long failedUntil = this.failedUntilMs.get(key);
-      if (failedUntil != null && System.currentTimeMillis() < failedUntil) {
-         return TileFeatures.empty(key.bounds());
-      }
+      Object lock = this.tileLocks.computeIfAbsent(key, ignored -> new Object());
+      try {
+         synchronized(lock) {
+            cached = this.memoryCache.get(key);
+            if (cached != null && (!requireCityDetails || cached.cityDetailsLoaded())) {
+               return cached;
+            }
 
-      TileFeatures loaded = this.loadTile(key, requireCityDetails, cached);
-      this.memoryCache.put(key, loaded);
-      return loaded;
+            Long failedUntil = this.failedUntilMs.get(key);
+            if (allowBlockingNetwork && failedUntil != null && System.currentTimeMillis() < failedUntil) {
+               return cached != null ? cached : TileFeatures.empty(key.bounds());
+            }
+
+            TileFeatures loaded = this.loadTile(key, requireCityDetails, cached, allowBlockingNetwork);
+            this.memoryCache.put(key, loaded);
+            return loaded;
+         }
+      } finally {
+         this.tileLocks.remove(key, lock);
+      }
    }
 
-   private TileFeatures loadTile(TileKey key, boolean requireCityDetails, TileFeatures fallback) {
+   private TileFeatures loadTile(TileKey key, boolean requireCityDetails, TileFeatures fallback, boolean allowBlockingNetwork) {
       Path cachePath = this.cachePathFor(key);
       if (Files.exists(cachePath)) {
          try {
@@ -359,8 +390,13 @@ public final class OverpassExternalFeatureSource implements ExternalFeatureSourc
                );
                return parsed;
             }
-            TellusDiagnostics.traffic("Overpass cache missing city profile tile=%s; refetching with city details", key);
             fallback = parsed;
+            if (!allowBlockingNetwork) {
+               TellusDiagnostics.traffic("Overpass city details deferred tile=%s; using base cache and filling in background", key);
+               this.scheduleCityDetailsFetch(key);
+               return fallback;
+            }
+            TellusDiagnostics.traffic("Overpass cache missing city profile tile=%s; refetching with city details", key);
          } catch (IOException | RuntimeException error) {
             LOGGER.debug("Invalid Arnis Overpass cache tile {}, refetching", key, error);
             TellusDiagnostics.traffic("Overpass cache invalid tile=%s error=%s", key, shortError(error));
@@ -370,6 +406,12 @@ public final class OverpassExternalFeatureSource implements ExternalFeatureSourc
                LOGGER.debug("Failed to delete invalid Arnis Overpass cache tile {}", cachePath, deleteError);
             }
          }
+      }
+
+      if (requireCityDetails && !allowBlockingNetwork) {
+         TellusDiagnostics.traffic("Overpass city details deferred tile=%s; no city cache available yet", key);
+         this.scheduleCityDetailsFetch(key);
+         return fallback != null ? fallback : TileFeatures.empty(key.bounds());
       }
 
       if (!this.networkEnabled) {
@@ -420,6 +462,28 @@ public final class OverpassExternalFeatureSource implements ExternalFeatureSourc
          this.failedUntilMs.put(key, System.currentTimeMillis() + FAILURE_COOLDOWN_MS);
          return fallback != null ? fallback : TileFeatures.empty(key.bounds());
       }
+   }
+
+   private void scheduleCityDetailsFetch(TileKey key) {
+      if (!this.networkEnabled || !cityDetailsEnabled()) {
+         return;
+      }
+
+      this.backgroundCityFetches.computeIfAbsent(
+         key,
+         ignored -> CompletableFuture.runAsync(
+               () -> {
+                  try {
+                     this.tileForKey(key, true, true);
+                  } catch (RuntimeException error) {
+                     TellusDiagnostics.traffic("Overpass background city details failed tile=%s error=%s", key, shortError(error));
+                  } finally {
+                     this.backgroundCityFetches.remove(key);
+                  }
+               },
+               BACKGROUND_CITY_DETAILS_EXECUTOR
+            )
+      );
    }
 
    private boolean reserveNetworkTile() {
@@ -1382,6 +1446,10 @@ public final class OverpassExternalFeatureSource implements ExternalFeatureSourc
 
    private static boolean cityDetailsEnabled() {
       return Boolean.parseBoolean(System.getProperty(CITY_DETAILS_PROPERTY, "true"));
+   }
+
+   private static boolean blockingCityDetailsNetwork() {
+      return Boolean.parseBoolean(System.getProperty(BLOCKING_CITY_DETAILS_NETWORK_PROPERTY, "false"));
    }
 
    private static int intProperty(String key, int defaultValue, int minInclusive, int maxInclusive) {
