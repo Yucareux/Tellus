@@ -1,18 +1,18 @@
 # Tellus
 
-Tellus is a Fabric mod that recreates real-world terrain in Minecraft by generating Earth-scale landscapes from geographic data. It focuses on realistic elevation, biome placement, and climate-driven time and weather, aiming to make the world feel like a playable map of our planet.
+Tellus is a Fabric mod (NeoForge coming soon) that replicates real-world terrain in Minecraft by converting various open-sourced geographical datasets into chunks in real-time. It focuses on realistic elevation (1:30m globally with more detailed coverage for areas that support it), biome placement, and climate-driven time and weather, aiming to transform Minecraft into a playable, voxelised map of the Earth.
 
 ![Tellus header image](images/Header%20image.png)
 
-Inspired by Gegy's Terrarium: https://modrinth.com/mod/terrarium
+Inspired and partially based off of Gegy's Terrarium: https://modrinth.com/mod/terrarium
 
 Survival note: Some survival features are still missing (including certain structures and biomes). While a survival world is possible, upcoming updates may break those worlds; for now Tellus is better suited for testing and exploration than long-term survival.
 
-Internet & data note: Tellus requires an active internet connection and will not work offline. It downloads terrain, land cover, climate, and weather data on demand; expect ongoing data usage that varies with how much of the world you explore.
+Internet & data note: Tellus requires an active internet connection and will **not** work offline. It gradually streams terrain datasets, (e.g. land cover, climate, and weather data) so expect ongoing data usage that varies with how much of the world you explore.
 
-Server support note: Tellus must be installed on the server, but is not required on clients. Official server support is not available yet; for now you should create the world in singleplayer first, then move that world to the server (with Tellus installed) so new chunks generate with Tellus.
+Server support note: Tellus currently does **NOT** support being installed on a server and currently only works in singleplayer.
 
-*Note: generative AI was used during the creation of this mod.*
+*Note: generative AI was used to assist the creation of this mod.*
 
 ## Features
 
@@ -20,25 +20,26 @@ Server support note: Tellus must be installed on the server, but is not required
 - Highly customizable terrain generation (scale, height limits, and more)
 - Built-in terrain preview screen for visualizing settings before world creation
 - Biomes placed to match real-world climate regions
-- Real-time inspired weather and time systems (optional)
-- Distant Horizons integration for long-distance terrain rendering
+- Real-time weather and time systems (optional)
+- Dedicated Distant Horizons integration
 - In-game map teleport UI for choosing real-world locations
 
 ## Distant Horizons Integration
 
 Tellus integrates with the Distant Horizons (DH) mod to render planet-scale terrain far beyond vanilla view distance. When DH is installed, Tellus registers a DH world-generation override for Tellus worlds (DH API v4+), so distant terrain is built using Tellus data and settings instead of generic vanilla sampling.
 
-- **Fast mode**: Tellus provides a custom LOD generator that samples its elevation, land-cover, climate, and water data directly to build distant terrain quickly and consistently with your world settings.
-- **Detailed mode**: Tellus delegates to DH's chunk-based generator for far terrain, which is more accurate but significantly heavier on performance.
+- **Approximate mode**: Tellus takes advantage of a a specific feature in DH (N-sized world gen) that samples elevation, land-cover, climate, and water data directly to drastically improve generation speeds when using DH, although discards certain features such as accurate foilage and structures (e.g. villages, ruined portals)
+  
+- **Detailed mode**: Tellus falls back to DH's chunk-based generator for far terrain, which is more accurate but significantly slower.
 
 Because Tellus worlds are Earth-scale, DH is strongly recommended and is almost essential for comfortable exploration and long-distance views.
 
 ## Commands
 
-- `/tellus map`: Opens the GeoTP map UI (requires gamemaster permissions).
-- `/tellus weather`: Shows local Tellus weather and time information at your current position.
-- `/tellus config weather enable_realtime_time <true|false>`: Overrides the real-time time setting on the server (requires gamemaster permissions).
-- `/tellus config weather enable_realtime_weather <true|false>`: Overrides the real-time weather setting on the server (requires gamemaster permissions).
+- `/tellus map`: Opens the GeoTP map UI (requires operator).
+- `/tellus weather`: Shows local Tellus weather and time information based on your current in-game position.
+- `/tellus config weather enable_realtime_time <true|false>`: Overrides the real-time time setting on the server (requires operator permissions).
+- `/tellus config weather enable_realtime_weather <true|false>`: Overrides the real-time weather setting on the server (requires operator permissions).
 
 More commands will be added over time.
 
