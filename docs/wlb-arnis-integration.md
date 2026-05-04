@@ -114,6 +114,9 @@ Useful runtime switches:
 -Dtellus.arnis.overpass.prefetchMaxTiles=32
 -Dtellus.arnis.overpass.endpoints=https://overpass-api.de/api/interpreter,https://overpass.osm.ch/api/interpreter,https://overpass.kumi.systems/api/interpreter
 -Dtellus.map.tile.endpoints=https://tile.openstreetmap.org/%d/%d/%d.png,https://tile.openstreetmap.de/%d/%d/%d.png
+-Dtellus.arnis.pbf.enabled=true
+-Dtellus.arnis.pbf.directory=/path/to/osm-pbf-folder
+-Dtellus.arnis.pbf.paths=/path/to/new-york.osm.pbf,/path/to/new-jersey.osm.pbf
 -Dtellus.external.features.prefer=false
 ```
 
@@ -127,6 +130,7 @@ Network behavior is intentionally conservative to avoid burning VPN traffic:
 - Overpass endpoints are tried with per-endpoint cooldown. If one public source times out or rate-limits, it is skipped for a short period instead of delaying every following tile.
 - Empty Overpass responses are still treated as a completed city-detail cache entry. This prevents empty ocean or low-detail tiles from being downloaded repeatedly.
 - The spawn/world map tile loader also supports multiple raster tile endpoints through `tellus.map.tile.endpoints`; tile failures are written to the Tellus traffic log.
+- Local `.osm.pbf` extracts are loaded before Overpass. By default Tellus scans `<gameDir>/tellus/cache/osm-pbf/`; configured files provide roads, buildings, landuse/natural/leisure/water areas, barriers/rail/waterway/power lines, and point details without live Overpass traffic.
 
 The world customization UI has a Data Sources entry named `Test OSM connectivity`. It sends a tiny Overpass query to each configured endpoint from the current computer and reports how many endpoints are reachable plus per-endpoint timing in the tooltip. This is intended for checking whether the current network can direct-connect before spending cache/download budget.
 

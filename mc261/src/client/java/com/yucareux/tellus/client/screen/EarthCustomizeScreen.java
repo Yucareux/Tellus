@@ -9,6 +9,7 @@ import com.yucareux.tellus.config.HmaAccessConfig;
 import com.yucareux.tellus.client.preview.TerrainPreview;
 import com.yucareux.tellus.client.preview.TerrainPreviewWidget;
 import com.yucareux.tellus.client.widget.CustomizationList;
+import com.yucareux.tellus.world.data.integration.PbfExternalFeatureSource;
 import com.yucareux.tellus.worldgen.EarthChunkGenerator;
 import com.yucareux.tellus.worldgen.EarthGeneratorSettings;
 import java.io.IOException;
@@ -1024,6 +1025,12 @@ public class EarthCustomizeScreen extends Screen {
 
    private static List<EarthCustomizeScreen.SettingDefinition> dataSourcesEntries() {
       List<EarthCustomizeScreen.SettingDefinition> entries = new ArrayList<>();
+      PbfExternalFeatureSource.FileSummary pbfSummary = PbfExternalFeatureSource.summarizeConfiguredFiles();
+      entries.add(infoHeader("Local OSM PBF"));
+      entries.add(infoLine("Local extracts provide roads/buildings/city details without live OSM traffic."));
+      entries.add(infoSubtle("Path: " + pbfSummary.location()));
+      entries.add(infoSubtle("Files: " + pbfSummary.fileCount() + " (" + formatBytes(pbfSummary.bytes()) + ")"));
+      entries.add(infoSpacer());
       entries.add(infoHeader("ESA WorldCover 2021 (land cover)"));
       entries.add(infoLine("ESA WorldCover 2021 (10 m land cover, v200)"));
       entries.add(infoLine("© ESA WorldCover project / Contains modified Copernicus Sentinel data (2021)"));

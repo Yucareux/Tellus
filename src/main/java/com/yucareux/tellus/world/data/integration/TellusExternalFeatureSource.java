@@ -22,6 +22,7 @@ public final class TellusExternalFeatureSource {
    private static final long REFRESH_INTERVAL_NANOS = TimeUnit.SECONDS.toNanos(2L);
 
    private final Path path;
+   private final PbfExternalFeatureSource pbfSource;
    private final OverpassExternalFeatureSource overpassSource;
    private final boolean preferExternalFeatures;
    private final Object refreshLock = new Object();
@@ -30,15 +31,27 @@ public final class TellusExternalFeatureSource {
    private volatile long nextRefreshAtNanos;
 
    public TellusExternalFeatureSource(Path path) {
-      this(path, OverpassExternalFeatureSource.createDefault(), Boolean.parseBoolean(System.getProperty(PREFER_EXTERNAL_PROPERTY, "true")));
+      this(
+         path,
+         PbfExternalFeatureSource.createDefault(),
+         OverpassExternalFeatureSource.createDefault(),
+         Boolean.parseBoolean(System.getProperty(PREFER_EXTERNAL_PROPERTY, "true"))
+      );
    }
 
    public TellusExternalFeatureSource(Path path, OverpassExternalFeatureSource overpassSource) {
-      this(path, overpassSource, false);
+      this(path, PbfExternalFeatureSource.disabled(), overpassSource, false);
    }
 
    public TellusExternalFeatureSource(Path path, OverpassExternalFeatureSource overpassSource, boolean preferExternalFeatures) {
+      this(path, PbfExternalFeatureSource.disabled(), overpassSource, preferExternalFeatures);
+   }
+
+   public TellusExternalFeatureSource(
+      Path path, PbfExternalFeatureSource pbfSource, OverpassExternalFeatureSource overpassSource, boolean preferExternalFeatures
+   ) {
       this.path = Objects.requireNonNull(path, "path").toAbsolutePath().normalize();
+      this.pbfSource = Objects.requireNonNull(pbfSource, "pbfSource");
       this.overpassSource = Objects.requireNonNull(overpassSource, "overpassSource");
       this.preferExternalFeatures = preferExternalFeatures;
    }
@@ -62,20 +75,25 @@ public final class TellusExternalFeatureSource {
          || !current.areas().isEmpty()
          || !current.lines().isEmpty()
          || !current.points().isEmpty()
+         || this.pbfSource.available()
          || this.overpassSource.available();
    }
 
    public boolean roadsAvailable() {
-      return !this.currentSource().roads().isEmpty() || this.overpassSource.available();
+      return !this.currentSource().roads().isEmpty() || this.pbfSource.roadsAvailable() || this.overpassSource.available();
    }
 
    public boolean buildingsAvailable() {
-      return !this.currentSource().buildings().isEmpty() || this.overpassSource.available();
+      return !this.currentSource().buildings().isEmpty() || this.pbfSource.buildingsAvailable() || this.overpassSource.available();
    }
 
    public boolean cityDetailsAvailable() {
       JsonExternalFeatureSource current = this.currentSource();
-      return !current.areas().isEmpty() || !current.lines().isEmpty() || !current.points().isEmpty() || this.overpassSource.available();
+      return !current.areas().isEmpty()
+         || !current.lines().isEmpty()
+         || !current.points().isEmpty()
+         || this.pbfSource.cityDetailsAvailable()
+         || this.overpassSource.available();
    }
 
    public boolean preferExternalRoads() {
@@ -95,6 +113,7 @@ public final class TellusExternalFeatureSource {
       try {
          List<ExternalRoadFeature> externalRoads = new ArrayList<>();
          externalRoads.addAll(this.currentSource().roadsForBounds(bounds));
+         externalRoads.addAll(this.pbfSource.roadsForBounds(bounds));
          externalRoads.addAll(this.overpassSource.roadsForBounds(bounds));
          if (externalRoads.isEmpty()) {
             return List.of();
@@ -121,6 +140,7 @@ public final class TellusExternalFeatureSource {
       try {
          List<ExternalBuildingFeature> externalBuildings = new ArrayList<>();
          externalBuildings.addAll(this.currentSource().buildingsForBounds(bounds));
+         externalBuildings.addAll(this.pbfSource.buildingsForBounds(bounds));
          externalBuildings.addAll(this.overpassSource.buildingsForBounds(bounds));
          if (externalBuildings.isEmpty()) {
             return List.of();
@@ -147,6 +167,7 @@ public final class TellusExternalFeatureSource {
       try {
          List<ExternalAreaFeature> areas = new ArrayList<>();
          areas.addAll(this.currentSource().areasForBounds(bounds));
+         areas.addAll(this.pbfSource.areasForBounds(bounds));
          areas.addAll(this.overpassSource.areasForBounds(bounds));
          return areas.isEmpty() ? List.of() : List.copyOf(areas);
       } catch (RuntimeException error) {
@@ -166,6 +187,7 @@ public final class TellusExternalFeatureSource {
       try {
          List<ExternalLineFeature> lines = new ArrayList<>();
          lines.addAll(this.currentSource().linesForBounds(bounds));
+         lines.addAll(this.pbfSource.linesForBounds(bounds));
          lines.addAll(this.overpassSource.linesForBounds(bounds));
          return lines.isEmpty() ? List.of() : List.copyOf(lines);
       } catch (RuntimeException error) {
@@ -185,6 +207,7 @@ public final class TellusExternalFeatureSource {
       try {
          List<ExternalPointFeature> points = new ArrayList<>();
          points.addAll(this.currentSource().pointsForBounds(bounds));
+         points.addAll(this.pbfSource.pointsForBounds(bounds));
          points.addAll(this.overpassSource.pointsForBounds(bounds));
          return points.isEmpty() ? List.of() : List.copyOf(points);
       } catch (RuntimeException error) {
