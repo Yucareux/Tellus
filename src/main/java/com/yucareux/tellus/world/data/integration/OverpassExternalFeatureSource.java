@@ -51,19 +51,21 @@ public final class OverpassExternalFeatureSource implements ExternalFeatureSourc
    private static final String DEFAULT_ENDPOINTS = String.join(
       ",",
       "https://overpass-api.de/api/interpreter",
-      "https://lz4.overpass-api.de/api/interpreter",
+      "https://overpass.osm.ch/api/interpreter",
+      "https://overpass.kumi.systems/api/interpreter",
       "https://z.overpass-api.de/api/interpreter",
+      "https://lz4.overpass-api.de/api/interpreter",
       "https://overpass.private.coffee/api/interpreter"
    );
    private static final Logger LOGGER = LoggerFactory.getLogger("tellus");
    private static final double MIN_LAT = -85.05112878;
    private static final double MAX_LAT = 85.05112878;
    private static final int QUERY_ZOOM = intProperty("tellus.arnis.overpass.queryZoom", 14, 0, 20);
-   private static final int QUERY_TIMEOUT_SECONDS = intProperty("tellus.arnis.overpass.queryTimeoutSec", 60, 5, 360);
-   private static final int CONNECT_TIMEOUT_MS = intProperty("tellus.arnis.overpass.connectTimeoutMs", 7000, 1, 120000);
-   private static final int READ_TIMEOUT_MS = intProperty("tellus.arnis.overpass.readTimeoutMs", 60000, 1, 360000);
+   private static final int QUERY_TIMEOUT_SECONDS = intProperty("tellus.arnis.overpass.queryTimeoutSec", 25, 5, 360);
+   private static final int CONNECT_TIMEOUT_MS = intProperty("tellus.arnis.overpass.connectTimeoutMs", 5000, 1, 120000);
+   private static final int READ_TIMEOUT_MS = intProperty("tellus.arnis.overpass.readTimeoutMs", 20000, 1, 360000);
    private static final long MIN_REQUEST_SPACING_MS = longProperty("tellus.arnis.overpass.minSpacingMs", 500L, 0L, 60000L);
-   private static final long FAILURE_COOLDOWN_MS = longProperty("tellus.arnis.overpass.failureCooldownMs", 60000L, 0L, 600000L);
+   private static final long FAILURE_COOLDOWN_MS = longProperty("tellus.arnis.overpass.failureCooldownMs", 180000L, 0L, 600000L);
    private static final int MAX_KEYS_PER_QUERY = intProperty("tellus.arnis.overpass.maxTilesPerQuery", 16, 1, 256);
    private static final int MAX_NETWORK_TILES_PER_SESSION = intProperty("tellus.arnis.overpass.maxNetworkTilesPerSession", 96, 0, 1000000);
    private static final int PROBE_TIMEOUT_SECONDS = intProperty("tellus.arnis.overpass.probeTimeoutSec", 5, 1, 60);
@@ -88,6 +90,7 @@ public final class OverpassExternalFeatureSource implements ExternalFeatureSourc
    private final ConcurrentMap<TileKey, Object> tileLocks = new ConcurrentHashMap<>();
    private final ConcurrentMap<TileKey, CompletableFuture<Void>> backgroundCityFetches = new ConcurrentHashMap<>();
    private final ConcurrentMap<TileKey, Long> failedUntilMs = new ConcurrentHashMap<>();
+   private final ConcurrentMap<String, Long> endpointFailedUntilMs = new ConcurrentHashMap<>();
    private final Semaphore requestGuard = new Semaphore(1, true);
    private final AtomicLong nextAllowedRequestMs = new AtomicLong(0L);
    private final AtomicLong endpointCursor = new AtomicLong(0L);
@@ -457,7 +460,7 @@ public final class OverpassExternalFeatureSource implements ExternalFeatureSourc
          );
          return parsed;
       } catch (IOException | RuntimeException error) {
-         LOGGER.warn("Arnis Overpass tile unavailable {}", key, error);
+         LOGGER.debug("Arnis Overpass tile unavailable {}", key, error);
          TellusDiagnostics.traffic("Overpass tile unavailable tile=%s cooldownMs=%d error=%s", key, FAILURE_COOLDOWN_MS, shortError(error));
          this.failedUntilMs.put(key, System.currentTimeMillis() + FAILURE_COOLDOWN_MS);
          return fallback != null ? fallback : TileFeatures.empty(key.bounds());
@@ -508,18 +511,51 @@ public final class OverpassExternalFeatureSource implements ExternalFeatureSourc
 
       IOException lastError = null;
       long startEndpoint = this.endpointCursor.getAndIncrement();
+      int attempted = 0;
       for (int attempt = 0; attempt < this.endpoints.length; attempt++) {
          URI endpoint = this.endpoints[Math.floorMod(startEndpoint + attempt, this.endpoints.length)];
+         long nowMs = System.currentTimeMillis();
+         Long endpointFailedUntil = this.endpointFailedUntilMs.get(endpoint.toString());
+         if (endpointFailedUntil != null && endpointFailedUntil > nowMs) {
+            TellusDiagnostics.traffic(
+               "Overpass endpoint skipped tile=%s endpoint=%s cooldownRemainingMs=%d",
+               key,
+               endpoint,
+               endpointFailedUntil - nowMs
+            );
+            continue;
+         }
          try {
-            TellusDiagnostics.traffic("Overpass request start tile=%s endpoint=%s cityDetails=%s attempt=%d", key, endpoint, includeCityDetails, attempt + 1);
-            return this.executeQuery(endpoint, query);
+            attempted++;
+            TellusDiagnostics.traffic("Overpass request start tile=%s endpoint=%s cityDetails=%s attempt=%d", key, endpoint, includeCityDetails, attempted);
+            String response = this.executeQuery(endpoint, query);
+            this.endpointFailedUntilMs.remove(endpoint.toString());
+            return response;
          } catch (IOException error) {
             lastError = error;
-            TellusDiagnostics.traffic("Overpass request failed tile=%s endpoint=%s attempt=%d error=%s", key, endpoint, attempt + 1, shortError(error));
+            this.markEndpointFailure(endpoint, error);
+            TellusDiagnostics.traffic("Overpass request failed tile=%s endpoint=%s attempt=%d error=%s", key, endpoint, attempted, shortError(error));
          }
       }
 
+      if (attempted == 0) {
+         throw new IOException("all Arnis Overpass endpoints are cooling down");
+      }
       throw new IOException("all Arnis Overpass endpoints failed", lastError);
+   }
+
+   private void markEndpointFailure(URI endpoint, IOException error) {
+      if (FAILURE_COOLDOWN_MS <= 0L) {
+         return;
+      }
+      long untilMs = System.currentTimeMillis() + FAILURE_COOLDOWN_MS;
+      this.endpointFailedUntilMs.put(endpoint.toString(), untilMs);
+      TellusDiagnostics.traffic(
+         "Overpass endpoint cooldown endpoint=%s cooldownMs=%d error=%s",
+         endpoint,
+         FAILURE_COOLDOWN_MS,
+         shortError(error)
+      );
    }
 
    private static String overpassQuery(GeoBounds bounds, boolean includeCityDetails) {
@@ -681,7 +717,7 @@ public final class OverpassExternalFeatureSource implements ExternalFeatureSourc
 
       JsonArray elements = parsed.getAsJsonObject().getAsJsonArray("elements");
       if (elements == null || elements.isEmpty()) {
-         return TileFeatures.empty(key.bounds());
+         return TileFeatures.empty(key.bounds(), cityDetailsLoaded);
       }
 
       List<ExternalRoadFeature> roads = new ArrayList<>();
@@ -1532,6 +1568,10 @@ public final class OverpassExternalFeatureSource implements ExternalFeatureSourc
 
       private static TileFeatures empty(GeoBounds bounds) {
          return new TileFeatures(bounds, List.of(), List.of(), List.of(), List.of(), List.of(), false);
+      }
+
+      private static TileFeatures empty(GeoBounds bounds, boolean cityDetailsLoaded) {
+         return new TileFeatures(bounds, List.of(), List.of(), List.of(), List.of(), List.of(), cityDetailsLoaded);
       }
 
       private List<ExternalRoadFeature> roadsForBounds(GeoBounds queryBounds) {
