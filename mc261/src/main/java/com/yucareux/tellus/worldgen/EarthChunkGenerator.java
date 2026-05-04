@@ -3,6 +3,7 @@ package com.yucareux.tellus.worldgen;
 import com.mojang.serialization.MapCodec;
 import com.mojang.serialization.codecs.RecordCodecBuilder;
 import com.yucareux.tellus.Tellus;
+import com.yucareux.tellus.util.TellusDiagnostics;
 import com.yucareux.tellus.world.data.cover.TellusLandCoverSource;
 import com.yucareux.tellus.world.data.elevation.TellusElevationSource;
 import com.yucareux.tellus.world.data.koppen.TellusKoppenSource;
@@ -388,6 +389,17 @@ public final class EarthChunkGenerator extends ChunkGenerator {
                }
             );
       }
+      TellusDiagnostics.worldgen(
+         "EarthChunkGenerator init: scale=%s minAltitude=%d maxAltitude=%d heightOffset=%d limits=[minY=%d,height=%d,logicalHeight=%d] seaLevel=%d",
+         settings.worldScale(),
+         settings.minAltitude(),
+         settings.maxAltitude(),
+         settings.heightOffset(),
+         limits.minY(),
+         limits.height(),
+         limits.logicalHeight(),
+         this.seaLevel
+      );
    }
 
    public static EarthChunkGenerator create(Provider registries, EarthGeneratorSettings settings) {
@@ -812,6 +824,19 @@ public final class EarthChunkGenerator extends ChunkGenerator {
                   this.settings.maxAltitude()
                }
             );
+         TellusDiagnostics.worldgen(
+            "fillFromNoise layout: chunkPos=%s minY=%d height=%d maxY=%d sections=%d genMinY=%d genHeight=%d seaLevel=%d settingsMinAlt=%d settingsMaxAlt=%d",
+            pos,
+            chunkMinY,
+            chunkHeight,
+            chunkMinY + chunkHeight - 1,
+            chunkHeight >> 4,
+            this.minY,
+            this.height,
+            this.seaLevel,
+            this.settings.minAltitude(),
+            this.settings.maxAltitude()
+         );
       }
 
       int deepslateStart = this.minY + 64;
@@ -10452,7 +10477,7 @@ public final class EarthChunkGenerator extends ChunkGenerator {
                   }
                }
 
-               Tellus.LOGGER.info(message.toString());
+               TellusDiagnostics.worldgen(message.toString());
             }
          }
       }
@@ -10559,21 +10584,19 @@ public final class EarthChunkGenerator extends ChunkGenerator {
          long now = System.nanoTime();
          long next = NEXT_LOG_AT_NS.get();
          if (now >= next && NEXT_LOG_AT_NS.compareAndSet(next, now + LOG_INTERVAL_NS)) {
-            Tellus.LOGGER.info(
-               "Terrain streaming perf 15s: shell(chunks={},heightMisses={},coverMisses={},visualMisses={},waterFallbacks={},heightFallbacks={},chunkThreadElevationDiskOpens=0,chunkThreadCoverDiskOpens=0,prefetchQueueRejections={}) refinement(queued={},applied={},staleDrops={},detailDelays={})",
-               new Object[]{
-                  SHELL_CHUNKS.sumThenReset(),
-                  SHELL_HEIGHT_MISSES.sumThenReset(),
-                  SHELL_COVER_MISSES.sumThenReset(),
-                  SHELL_VISUAL_MISSES.sumThenReset(),
-                  SHELL_WATER_FALLBACKS.sumThenReset(),
-                  SHELL_HEIGHT_FALLBACKS.sumThenReset(),
-                  PREFETCH_QUEUE_REJECTIONS.sumThenReset(),
-                  REFINEMENT_QUEUED.sumThenReset(),
-                  REFINEMENT_APPLIES.sumThenReset(),
-                  REFINEMENT_STALE_DROPS.sumThenReset(),
-                  DETAIL_DELAYS.sumThenReset()
-               }
+            TellusDiagnostics.worldgen(
+               "Terrain streaming perf 15s: shell(chunks=%d,heightMisses=%d,coverMisses=%d,visualMisses=%d,waterFallbacks=%d,heightFallbacks=%d,chunkThreadElevationDiskOpens=0,chunkThreadCoverDiskOpens=0,prefetchQueueRejections=%d) refinement(queued=%d,applied=%d,staleDrops=%d,detailDelays=%d)",
+               SHELL_CHUNKS.sumThenReset(),
+               SHELL_HEIGHT_MISSES.sumThenReset(),
+               SHELL_COVER_MISSES.sumThenReset(),
+               SHELL_VISUAL_MISSES.sumThenReset(),
+               SHELL_WATER_FALLBACKS.sumThenReset(),
+               SHELL_HEIGHT_FALLBACKS.sumThenReset(),
+               PREFETCH_QUEUE_REJECTIONS.sumThenReset(),
+               REFINEMENT_QUEUED.sumThenReset(),
+               REFINEMENT_APPLIES.sumThenReset(),
+               REFINEMENT_STALE_DROPS.sumThenReset(),
+               DETAIL_DELAYS.sumThenReset()
             );
          }
       }
@@ -10672,20 +10695,18 @@ public final class EarthChunkGenerator extends ChunkGenerator {
       }
 
       private static void logAndReset() {
-         Tellus.LOGGER.info(
-            "Chunk detail perf 15s: baseTerrain(total={}ms,calls={}) detailJob(total={}ms,calls={}) detailApply(total={}ms,calls={}) skippedFallbacks={} staleDrops={} failures={} maxQueueDepth={}",
-            new Object[]{
-               toMillis(BASE_TERRAIN_NS.sumThenReset()),
-               BASE_TERRAIN_CALLS.sumThenReset(),
-               toMillis(DETAIL_JOB_NS.sumThenReset()),
-               DETAIL_JOB_CALLS.sumThenReset(),
-               toMillis(DETAIL_APPLY_NS.sumThenReset()),
-               DETAIL_APPLY_CALLS.sumThenReset(),
-               SKIPPED_BLOCKING_FALLBACKS.sumThenReset(),
-               STALE_DROPS.sumThenReset(),
-               FAILURES.sumThenReset(),
-               MAX_QUEUE_DEPTH.getAndSet(0L)
-            }
+         TellusDiagnostics.worldgen(
+            "Chunk detail perf 15s: baseTerrain(total=%sms,calls=%d) detailJob(total=%sms,calls=%d) detailApply(total=%sms,calls=%d) skippedFallbacks=%d staleDrops=%d failures=%d maxQueueDepth=%d",
+            toMillis(BASE_TERRAIN_NS.sumThenReset()),
+            BASE_TERRAIN_CALLS.sumThenReset(),
+            toMillis(DETAIL_JOB_NS.sumThenReset()),
+            DETAIL_JOB_CALLS.sumThenReset(),
+            toMillis(DETAIL_APPLY_NS.sumThenReset()),
+            DETAIL_APPLY_CALLS.sumThenReset(),
+            SKIPPED_BLOCKING_FALLBACKS.sumThenReset(),
+            STALE_DROPS.sumThenReset(),
+            FAILURES.sumThenReset(),
+            MAX_QUEUE_DEPTH.getAndSet(0L)
          );
       }
 

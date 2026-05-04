@@ -4,6 +4,7 @@ import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
+import com.yucareux.tellus.util.TellusDiagnostics;
 import com.yucareux.tellus.world.data.osm.RoadClass;
 import com.yucareux.tellus.world.data.osm.RoadMode;
 import java.io.IOException;
@@ -89,15 +90,28 @@ public final class OverpassExternalFeatureSource implements ExternalFeatureSourc
    public static OverpassExternalFeatureSource createDefault() {
       boolean enabled = Boolean.parseBoolean(System.getProperty(ENABLED_PROPERTY, "true"));
       if (!enabled) {
+         TellusDiagnostics.traffic("Overpass source disabled by %s=false", ENABLED_PROPERTY);
          return disabled();
       }
       String networkMode = normalizedNetworkMode(System.getProperty(NETWORK_MODE_PROPERTY, NETWORK_CACHE_FIRST));
       if (NETWORK_OFF.equals(networkMode)) {
+         TellusDiagnostics.traffic("Overpass source disabled by %s=%s", NETWORK_MODE_PROPERTY, NETWORK_OFF);
          return disabled();
       }
       Path cacheRoot = defaultCacheRoot();
       String endpoints = System.getProperty(ENDPOINTS_PROPERTY, DEFAULT_ENDPOINTS);
-      return new OverpassExternalFeatureSource(true, !NETWORK_CACHE_ONLY.equals(networkMode), cacheRoot, parseEndpoints(endpoints));
+      URI[] parsedEndpoints = parseEndpoints(endpoints);
+      TellusDiagnostics.traffic(
+         "Overpass source ready networkMode=%s networkEnabled=%s cacheRoot=%s endpoints=%d queryZoom=%d cityDetails=%s maxNetworkTiles=%d",
+         networkMode,
+         !NETWORK_CACHE_ONLY.equals(networkMode),
+         cacheRoot,
+         parsedEndpoints.length,
+         QUERY_ZOOM,
+         cityDetailsEnabled(),
+         MAX_NETWORK_TILES_PER_SESSION
+      );
+      return new OverpassExternalFeatureSource(true, !NETWORK_CACHE_ONLY.equals(networkMode), cacheRoot, parsedEndpoints);
    }
 
    public static CacheEstimate estimateConfiguredCache(GeoBounds bounds) {
@@ -142,6 +156,16 @@ public final class OverpassExternalFeatureSource implements ExternalFeatureSourc
       }
 
       CacheEstimate before = estimateCache(bounds, this.cacheRoot, this.networkEnabled);
+      TellusDiagnostics.traffic(
+         "Overpass prefetch start bounds=%s tiles=%d cached=%d cityCached=%d missing=%d networkEnabled=%s maxMissing=%d",
+         bounds,
+         before.totalTiles(),
+         before.cachedTiles(),
+         before.cityDetailCachedTiles(),
+         before.missingTiles(),
+         this.networkEnabled,
+         maxMissingTiles
+      );
       if (!this.networkEnabled || maxMissingTiles <= 0 || before.missingTiles() <= 0) {
          return new PrefetchResult(before, before, 0, 0, 0);
       }
@@ -167,6 +191,16 @@ public final class OverpassExternalFeatureSource implements ExternalFeatureSourc
       }
 
       CacheEstimate after = estimateCache(bounds, this.cacheRoot, this.networkEnabled);
+      TellusDiagnostics.traffic(
+         "Overpass prefetch done bounds=%s attempted=%d cachedAfterAttempt=%d failed=%d missingBefore=%d missingAfter=%d cachedBytes=%d",
+         bounds,
+         attempted,
+         cachedAfterAttempt,
+         Math.max(0, attempted - cachedAfterAttempt),
+         before.missingTiles(),
+         after.missingTiles(),
+         after.cachedBytes()
+      );
       return new PrefetchResult(before, after, attempted, cachedAfterAttempt, Math.max(0, attempted - cachedAfterAttempt));
    }
 
@@ -179,11 +213,13 @@ public final class OverpassExternalFeatureSource implements ExternalFeatureSourc
 
    public static List<EndpointProbeResult> probeConfiguredEndpoints() {
       if (!Boolean.parseBoolean(System.getProperty(ENABLED_PROPERTY, "true"))) {
+         TellusDiagnostics.traffic("Overpass probe skipped: source disabled");
          return List.of(new EndpointProbeResult("Overpass", false, -1, 0L, "disabled"));
       }
 
       String networkMode = normalizedNetworkMode(System.getProperty(NETWORK_MODE_PROPERTY, NETWORK_CACHE_FIRST));
       if (NETWORK_OFF.equals(networkMode)) {
+         TellusDiagnostics.traffic("Overpass probe skipped: network off");
          return List.of(new EndpointProbeResult("Overpass", false, -1, 0L, "network off"));
       }
 
@@ -268,6 +304,13 @@ public final class OverpassExternalFeatureSource implements ExternalFeatureSourc
 
       if (keys.size() > MAX_KEYS_PER_QUERY) {
          LOGGER.warn("Skipping Arnis Overpass query over {} tiles, limit is {}", keys.size(), MAX_KEYS_PER_QUERY);
+         TellusDiagnostics.traffic(
+            "Overpass query skipped bounds=%s tiles=%d limit=%d requireCityDetails=%s",
+            bounds,
+            keys.size(),
+            MAX_KEYS_PER_QUERY,
+            requireCityDetails
+         );
          return List.of();
       }
 
@@ -304,11 +347,23 @@ public final class OverpassExternalFeatureSource implements ExternalFeatureSourc
          try {
             TileFeatures parsed = this.parseTile(key, this.readCompressed(cachePath), this.cacheHasCityProfile(cachePath));
             if (!requireCityDetails || parsed.cityDetailsLoaded()) {
+               TellusDiagnostics.traffic(
+                  "Overpass cache hit tile=%s cityDetails=%s roads=%d buildings=%d areas=%d lines=%d points=%d",
+                  key,
+                  parsed.cityDetailsLoaded(),
+                  parsed.roads().size(),
+                  parsed.buildings().size(),
+                  parsed.areas().size(),
+                  parsed.lines().size(),
+                  parsed.points().size()
+               );
                return parsed;
             }
+            TellusDiagnostics.traffic("Overpass cache missing city profile tile=%s; refetching with city details", key);
             fallback = parsed;
          } catch (IOException | RuntimeException error) {
             LOGGER.debug("Invalid Arnis Overpass cache tile {}, refetching", key, error);
+            TellusDiagnostics.traffic("Overpass cache invalid tile=%s error=%s", key, shortError(error));
             try {
                Files.deleteIfExists(cachePath);
             } catch (IOException deleteError) {
@@ -318,6 +373,7 @@ public final class OverpassExternalFeatureSource implements ExternalFeatureSourc
       }
 
       if (!this.networkEnabled) {
+         TellusDiagnostics.traffic("Overpass cache miss tile=%s networkEnabled=false fallback=%s", key, fallback != null);
          return fallback != null ? fallback : TileFeatures.empty(key.bounds());
       }
       if (!this.reserveNetworkTile()) {
@@ -329,6 +385,14 @@ public final class OverpassExternalFeatureSource implements ExternalFeatureSourc
                MAX_NETWORK_TILES_PER_SESSION
             );
          }
+         TellusDiagnostics.traffic(
+            "Overpass network budget exhausted tile=%s reserved=%d budget=%d skipped=%d fallback=%s",
+            key,
+            this.networkTilesReserved.get(),
+            MAX_NETWORK_TILES_PER_SESSION,
+            skipped,
+            fallback != null
+         );
          return fallback != null ? fallback : TileFeatures.empty(key.bounds());
       }
 
@@ -338,9 +402,21 @@ public final class OverpassExternalFeatureSource implements ExternalFeatureSourc
          TileFeatures parsed = this.parseTile(key, response, includeCityDetails);
          this.cacheTile(cachePath, response, includeCityDetails);
          this.failedUntilMs.remove(key);
+         TellusDiagnostics.traffic(
+            "Overpass tile fetched tile=%s cityDetails=%s bytes=%d roads=%d buildings=%d areas=%d lines=%d points=%d",
+            key,
+            includeCityDetails,
+            response.getBytes(StandardCharsets.UTF_8).length,
+            parsed.roads().size(),
+            parsed.buildings().size(),
+            parsed.areas().size(),
+            parsed.lines().size(),
+            parsed.points().size()
+         );
          return parsed;
       } catch (IOException | RuntimeException error) {
          LOGGER.warn("Arnis Overpass tile unavailable {}", key, error);
+         TellusDiagnostics.traffic("Overpass tile unavailable tile=%s cooldownMs=%d error=%s", key, FAILURE_COOLDOWN_MS, shortError(error));
          this.failedUntilMs.put(key, System.currentTimeMillis() + FAILURE_COOLDOWN_MS);
          return fallback != null ? fallback : TileFeatures.empty(key.bounds());
       }
@@ -371,9 +447,11 @@ public final class OverpassExternalFeatureSource implements ExternalFeatureSourc
       for (int attempt = 0; attempt < this.endpoints.length; attempt++) {
          URI endpoint = this.endpoints[Math.floorMod(startEndpoint + attempt, this.endpoints.length)];
          try {
+            TellusDiagnostics.traffic("Overpass request start tile=%s endpoint=%s cityDetails=%s attempt=%d", key, endpoint, includeCityDetails, attempt + 1);
             return this.executeQuery(endpoint, query);
          } catch (IOException error) {
             lastError = error;
+            TellusDiagnostics.traffic("Overpass request failed tile=%s endpoint=%s attempt=%d error=%s", key, endpoint, attempt + 1, shortError(error));
          }
       }
 
@@ -437,6 +515,7 @@ public final class OverpassExternalFeatureSource implements ExternalFeatureSourc
 
    private String executeQuery(URI endpoint, String query) throws IOException {
       this.acquireRequestGuard();
+      long startMs = System.currentTimeMillis();
       try {
          this.applyRateLimitDelay();
          URI requestUri = URI.create(endpoint.toString() + "?data=" + URLEncoder.encode(query, StandardCharsets.UTF_8));
@@ -452,7 +531,15 @@ public final class OverpassExternalFeatureSource implements ExternalFeatureSourc
                throw new IOException("Arnis Overpass HTTP " + status + " (" + endpoint.getHost() + ")");
             }
             try (InputStream input = Objects.requireNonNull(connection.getInputStream(), "overpassResponse")) {
-               return new String(input.readAllBytes(), StandardCharsets.UTF_8);
+               byte[] response = input.readAllBytes();
+               TellusDiagnostics.traffic(
+                  "Overpass request ok endpoint=%s status=%d bytes=%d elapsedMs=%d",
+                  endpoint,
+                  status,
+                  response.length,
+                  System.currentTimeMillis() - startMs
+               );
+               return new String(response, StandardCharsets.UTF_8);
             }
          } finally {
             connection.disconnect();
@@ -479,14 +566,20 @@ public final class OverpassExternalFeatureSource implements ExternalFeatureSourc
                try (InputStream input = Objects.requireNonNull(connection.getInputStream(), "overpassProbeResponse")) {
                   input.readNBytes(256);
                }
-               return new EndpointProbeResult(endpoint.toString(), true, status, System.currentTimeMillis() - startMs, "ok");
+               EndpointProbeResult result = new EndpointProbeResult(endpoint.toString(), true, status, System.currentTimeMillis() - startMs, "ok");
+               TellusDiagnostics.traffic("Overpass probe endpoint=%s ok=%s status=%d elapsedMs=%d message=%s", endpoint, result.ok(), result.httpStatus(), result.elapsedMs(), result.message());
+               return result;
             }
-            return new EndpointProbeResult(endpoint.toString(), false, status, System.currentTimeMillis() - startMs, "HTTP " + status);
+            EndpointProbeResult result = new EndpointProbeResult(endpoint.toString(), false, status, System.currentTimeMillis() - startMs, "HTTP " + status);
+            TellusDiagnostics.traffic("Overpass probe endpoint=%s ok=%s status=%d elapsedMs=%d message=%s", endpoint, result.ok(), result.httpStatus(), result.elapsedMs(), result.message());
+            return result;
          } finally {
             connection.disconnect();
          }
       } catch (IOException | RuntimeException error) {
-         return new EndpointProbeResult(endpoint.toString(), false, status, System.currentTimeMillis() - startMs, shortError(error));
+         EndpointProbeResult result = new EndpointProbeResult(endpoint.toString(), false, status, System.currentTimeMillis() - startMs, shortError(error));
+         TellusDiagnostics.traffic("Overpass probe endpoint=%s ok=%s status=%d elapsedMs=%d message=%s", endpoint, result.ok(), result.httpStatus(), result.elapsedMs(), result.message());
+         return result;
       }
    }
 
@@ -1061,8 +1154,15 @@ public final class OverpassExternalFeatureSource implements ExternalFeatureSourc
          } else {
             Files.deleteIfExists(cacheProfilePath(path));
          }
+         TellusDiagnostics.traffic(
+            "Overpass cache write path=%s cityDetails=%s bytes=%d",
+            path,
+            cityDetailsLoaded,
+            Files.size(path)
+         );
       } catch (IOException error) {
          LOGGER.debug("Failed to cache Arnis Overpass tile {}", path, error);
+         TellusDiagnostics.traffic("Overpass cache write failed path=%s error=%s", path, shortError(error));
       }
    }
 

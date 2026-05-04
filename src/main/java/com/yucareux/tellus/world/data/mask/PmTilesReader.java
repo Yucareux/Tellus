@@ -4,6 +4,7 @@ import com.google.common.cache.CacheBuilder;
 import com.google.common.cache.CacheLoader;
 import com.google.common.cache.LoadingCache;
 import com.yucareux.tellus.Tellus;
+import com.yucareux.tellus.util.TellusDiagnostics;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.EOFException;
@@ -187,6 +188,7 @@ final class PmTilesReader {
       if (length <= 0) {
          return new byte[0];
       } else {
+         long startMs = System.currentTimeMillis();
          HttpURLConnection connection = (HttpURLConnection)this.uri().toURL().openConnection();
          connection.setRequestProperty("Range", "bytes=" + offset + "-" + (offset + length - 1L));
          connection.setInstanceFollowRedirects(true);
@@ -195,22 +197,32 @@ final class PmTilesReader {
          int code = connection.getResponseCode();
          if (code != HttpURLConnection.HTTP_OK && code != HttpURLConnection.HTTP_PARTIAL) {
             connection.disconnect();
+            TellusDiagnostics.traffic("Landmask PMTiles range failed uri=%s status=%d offset=%d requestedBytes=%d elapsedMs=%d", this.uri(), code, offset, length, System.currentTimeMillis() - startMs);
             throw new IOException("PMTiles HTTP error " + code);
          }
 
-         byte[] var7;
+         byte[] data;
          try (InputStream input = connection.getInputStream()) {
             if (code == HttpURLConnection.HTTP_OK) {
                skipFully(input, offset);
-               return readFully(input, length);
+               data = readFully(input, length);
+            } else {
+               data = readFully(input, length);
             }
-
-            var7 = readFully(input, length);
          } finally {
             connection.disconnect();
          }
 
-         return var7;
+         TellusDiagnostics.traffic(
+            "Landmask PMTiles range ok uri=%s status=%d offset=%d requestedBytes=%d bytes=%d elapsedMs=%d",
+            this.uri(),
+            code,
+            offset,
+            length,
+            data.length,
+            System.currentTimeMillis() - startMs
+         );
+         return data;
       }
    }
 
