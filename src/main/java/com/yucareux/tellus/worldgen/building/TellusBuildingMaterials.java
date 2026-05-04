@@ -13,6 +13,12 @@ public final class TellusBuildingMaterials {
    private static final BlockState BUILDING_SLATE_ROOF_STATE = Blocks.DEEPSLATE_TILES.defaultBlockState();
    private static final BlockState BUILDING_CLAY_TILE_ROOF_STATE = Blocks.BRICKS.defaultBlockState();
    private static final BlockState BUILDING_STONE_ROOF_STATE = Blocks.STONE_BRICKS.defaultBlockState();
+   private static final BlockState BUILDING_METAL_ROOF_STATE = Blocks.IRON_BLOCK.defaultBlockState();
+   private static final BlockState BUILDING_DARK_ROOF_STATE = Blocks.BLACK_CONCRETE.defaultBlockState();
+   private static final BlockState BUILDING_GREEN_ROOF_STATE = Blocks.MOSS_BLOCK.defaultBlockState();
+   private static final BlockState BUILDING_RED_ROOF_STATE = Blocks.RED_TERRACOTTA.defaultBlockState();
+   private static final BlockState BUILDING_ORANGE_ROOF_STATE = Blocks.ORANGE_TERRACOTTA.defaultBlockState();
+   private static final BlockState BUILDING_BROWN_ROOF_STATE = Blocks.BROWN_TERRACOTTA.defaultBlockState();
    private static final BlockState BUILDING_RESIDENTIAL_WALL_STATE = Blocks.WHITE_TERRACOTTA.defaultBlockState();
    private static final BlockState BUILDING_ARID_WALL_STATE = Blocks.SANDSTONE.defaultBlockState();
    private static final BlockState BUILDING_SANDSTONE_WALL_STATE = Blocks.SMOOTH_SANDSTONE.defaultBlockState();
@@ -23,6 +29,12 @@ public final class TellusBuildingMaterials {
    private static final BlockState BUILDING_COMMERCIAL_WALL_STATE = Blocks.LIGHT_GRAY_CONCRETE.defaultBlockState();
    private static final BlockState BUILDING_INDUSTRIAL_WALL_STATE = Blocks.ANDESITE.defaultBlockState();
    private static final BlockState BUILDING_TOWER_WALL_STATE = Blocks.CYAN_TERRACOTTA.defaultBlockState();
+   private static final BlockState BUILDING_GLASS_WALL_STATE = Blocks.LIGHT_BLUE_STAINED_GLASS.defaultBlockState();
+   private static final BlockState BUILDING_METAL_WALL_STATE = Blocks.IRON_BLOCK.defaultBlockState();
+   private static final BlockState BUILDING_RED_WALL_STATE = Blocks.RED_TERRACOTTA.defaultBlockState();
+   private static final BlockState BUILDING_YELLOW_WALL_STATE = Blocks.YELLOW_TERRACOTTA.defaultBlockState();
+   private static final BlockState BUILDING_BROWN_WALL_STATE = Blocks.BROWN_TERRACOTTA.defaultBlockState();
+   private static final BlockState BUILDING_DARK_WALL_STATE = Blocks.GRAY_CONCRETE.defaultBlockState();
    private static final BlockState BUILDING_TRIM_STATE = Blocks.POLISHED_ANDESITE.defaultBlockState();
    private static final BlockState BUILDING_WHITE_TRIM_STATE = Blocks.SMOOTH_QUARTZ.defaultBlockState();
    private static final BlockState BUILDING_SANDSTONE_TRIM_STATE = Blocks.CUT_SANDSTONE.defaultBlockState();
@@ -81,6 +93,27 @@ public final class TellusBuildingMaterials {
          };
       }
 
+      BlockState materialWall = wallBlockForMaterial(profile.wallMaterial());
+      if (materialWall != null) {
+         wall = materialWall;
+         trim = trimBlockForWallMaterial(profile.wallMaterial(), trim);
+      }
+
+      BlockState materialRoof = roofBlockForMaterial(profile.roofMaterial());
+      if (materialRoof != null) {
+         roof = materialRoof;
+      }
+
+      BlockState colorWall = wallBlockForColor(profile.wallColor());
+      if (colorWall != null) {
+         wall = colorWall;
+      }
+
+      BlockState colorRoof = roofBlockForColor(profile.roofColor());
+      if (colorRoof != null) {
+         roof = colorRoof;
+      }
+
       BlockState floor = switch (profile.archetype()) {
          case HOUSE, APARTMENT -> BUILDING_RESIDENTIAL_FLOOR_STATE;
          default -> BUILDING_FLOOR_STATE;
@@ -97,6 +130,145 @@ public final class TellusBuildingMaterials {
          ? BUILDING_TOWER_WINDOW_STATE
          : BUILDING_WINDOW_STATE;
       return new TellusBuildingMaterials.BuildingMaterialPalette(wall, trim, roof, window, floor, BUILDING_PARTITION_STATE, stair, slab, BUILDING_LIGHT_STATE);
+   }
+
+   private static BlockState wallBlockForMaterial(String material) {
+      if (material == null || material.isBlank()) {
+         return null;
+      }
+
+      if (containsAny(material, "brick", "masonry")) {
+         return BUILDING_BRICK_WALL_STATE;
+      }
+      if (containsAny(material, "concrete", "cement", "plaster", "stucco")) {
+         return BUILDING_COMMERCIAL_WALL_STATE;
+      }
+      if (containsAny(material, "stone", "limestone", "marble")) {
+         return BUILDING_PALE_STONE_WALL_STATE;
+      }
+      if (containsAny(material, "granite", "slate", "andesite")) {
+         return BUILDING_INDUSTRIAL_WALL_STATE;
+      }
+      if (containsAny(material, "wood", "timber", "log")) {
+         return BUILDING_TROPICAL_WALL_STATE;
+      }
+      if (containsAny(material, "glass")) {
+         return BUILDING_GLASS_WALL_STATE;
+      }
+      if (containsAny(material, "metal", "steel", "aluminium", "aluminum")) {
+         return BUILDING_METAL_WALL_STATE;
+      }
+      return null;
+   }
+
+   private static BlockState trimBlockForWallMaterial(String material, BlockState fallback) {
+      if (material == null || material.isBlank()) {
+         return fallback;
+      }
+
+      if (containsAny(material, "brick", "stone", "limestone", "marble", "granite", "slate")) {
+         return BUILDING_BRICK_TRIM_STATE;
+      }
+      if (containsAny(material, "concrete", "cement", "plaster", "stucco", "glass", "metal", "steel", "aluminium", "aluminum")) {
+         return BUILDING_TRIM_STATE;
+      }
+      if (containsAny(material, "wood", "timber", "log")) {
+         return BUILDING_WHITE_TRIM_STATE;
+      }
+      return fallback;
+   }
+
+   private static BlockState wallBlockForColor(String color) {
+      if (color == null || color.isBlank()) {
+         return null;
+      }
+
+      if (containsAny(color, "white", "cream", "ivory", "#fff", "#ffffff")) {
+         return BUILDING_RESIDENTIAL_WALL_STATE;
+      }
+      if (containsAny(color, "light gray", "light grey", "silver", "#ccc", "#cccccc")) {
+         return BUILDING_COLD_WALL_STATE;
+      }
+      if (containsAny(color, "gray", "grey")) {
+         return BUILDING_COMMERCIAL_WALL_STATE;
+      }
+      if (containsAny(color, "black", "dark")) {
+         return BUILDING_DARK_WALL_STATE;
+      }
+      if (containsAny(color, "red", "maroon")) {
+         return BUILDING_RED_WALL_STATE;
+      }
+      if (containsAny(color, "yellow", "gold", "beige")) {
+         return BUILDING_YELLOW_WALL_STATE;
+      }
+      if (containsAny(color, "brown", "tan")) {
+         return BUILDING_BROWN_WALL_STATE;
+      }
+      if (containsAny(color, "blue", "cyan")) {
+         return BUILDING_TOWER_WALL_STATE;
+      }
+      return null;
+   }
+
+   private static BlockState roofBlockForColor(String color) {
+      if (color == null || color.isBlank()) {
+         return null;
+      }
+
+      if (containsAny(color, "red", "maroon")) {
+         return BUILDING_RED_ROOF_STATE;
+      }
+      if (containsAny(color, "orange")) {
+         return BUILDING_ORANGE_ROOF_STATE;
+      }
+      if (containsAny(color, "brown", "tan")) {
+         return BUILDING_BROWN_ROOF_STATE;
+      }
+      if (containsAny(color, "black", "dark")) {
+         return BUILDING_DARK_ROOF_STATE;
+      }
+      if (containsAny(color, "gray", "grey", "silver")) {
+         return BUILDING_ROOF_STATE;
+      }
+      if (containsAny(color, "green")) {
+         return BUILDING_GREEN_ROOF_STATE;
+      }
+      return null;
+   }
+
+   private static BlockState roofBlockForMaterial(String material) {
+      if (material == null || material.isBlank()) {
+         return null;
+      }
+
+      if (containsAny(material, "tile", "clay", "terracotta", "brick")) {
+         return BUILDING_CLAY_TILE_ROOF_STATE;
+      }
+      if (containsAny(material, "slate", "shingle")) {
+         return BUILDING_SLATE_ROOF_STATE;
+      }
+      if (containsAny(material, "stone", "concrete", "cement")) {
+         return BUILDING_STONE_ROOF_STATE;
+      }
+      if (containsAny(material, "metal", "steel", "tin", "copper", "zinc", "aluminium", "aluminum")) {
+         return BUILDING_METAL_ROOF_STATE;
+      }
+      if (containsAny(material, "asphalt", "bitumen", "tar", "rubber")) {
+         return BUILDING_DARK_ROOF_STATE;
+      }
+      if (containsAny(material, "grass", "green", "vegetation", "moss")) {
+         return BUILDING_GREEN_ROOF_STATE;
+      }
+      return null;
+   }
+
+   private static boolean containsAny(String value, String... parts) {
+      for (String part : parts) {
+         if (value.contains(part)) {
+            return true;
+         }
+      }
+      return false;
    }
 
    public static BlockState resolveLodFacadeBlock(

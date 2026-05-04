@@ -463,16 +463,21 @@ public final class TellusOsmBuildingSource implements TellusCacheHandle {
          firstNonBlank(tags, "@name", "name"),
          floorCount,
          firstNonBlank(tags, "roof_shape", "roof:shape"),
-         firstNonBlank(tags, "roof_material", "roof:material", "roof:colour", "roof_color")
+         resolveRoofLevels(tags),
+         resolveRoofHeightMeters(tags),
+         firstNonBlank(tags, "roof_material", "roof:material"),
+         firstNonBlank(tags, "wall_material", "building_material", "building:material", "facade_material", "facade:material", "material"),
+         firstNonBlank(tags, "roof_color", "roof_colour", "roof:color", "roof:colour"),
+         firstNonBlank(tags, "wall_color", "wall_colour", "building_color", "building_colour", "building:color", "building:colour", "facade_color", "facade_colour", "facade:color", "facade:colour", "color", "colour")
       );
    }
 
    private static double resolveFootprintHeightMeters(Map<String, Object> tags) {
-      Double height = parseDouble(tags.get("height"));
+      Double height = parseDouble(firstNonBlank(tags, "height", "building_height", "building:height"));
       if (height != null && height > 0.0) {
          return height;
       } else {
-         Double floors = parseDouble(tags.get("num_floors"));
+         Double floors = parseDouble(firstNonBlank(tags, "num_floors", "floors", "building_levels", "building:levels", "level"));
          if (floors != null && floors > 0.0) {
             return floors * 3.2;
          } else {
@@ -482,11 +487,11 @@ public final class TellusOsmBuildingSource implements TellusCacheHandle {
    }
 
    private static double resolvePartHeightMeters(Map<String, Object> tags) {
-      Double height = parseDouble(tags.get("height"));
+      Double height = parseDouble(firstNonBlank(tags, "height", "building_height", "building:height"));
       if (height != null && height > 0.0) {
          return height;
       } else {
-         Double floors = parseDouble(tags.get("num_floors"));
+         Double floors = parseDouble(firstNonBlank(tags, "num_floors", "floors", "building_levels", "building:levels", "level"));
          if (floors != null && floors > 0.0) {
             return floors * 3.2;
          } else {
@@ -496,11 +501,11 @@ public final class TellusOsmBuildingSource implements TellusCacheHandle {
    }
 
    private static double resolveMinHeightMeters(Map<String, Object> tags) {
-      Double minHeight = parseDouble(tags.get("min_height"));
+      Double minHeight = parseDouble(firstNonBlank(tags, "min_height", "min:height", "building:min_height"));
       if (minHeight != null && minHeight > 0.0) {
          return minHeight;
       } else {
-         Double minFloor = parseDouble(tags.get("min_floor"));
+         Double minFloor = parseDouble(firstNonBlank(tags, "min_floor", "min_level", "building:min_level"));
          return minFloor != null && minFloor > 0.0 ? minFloor * 3.2 : 0.0;
       }
    }
@@ -518,6 +523,16 @@ public final class TellusOsmBuildingSource implements TellusCacheHandle {
       }
 
       return Math.max(1, (int)Math.round(heightMeters / 3.2));
+   }
+
+   private static int resolveRoofLevels(Map<String, Object> tags) {
+      Double levels = parseDouble(firstNonBlank(tags, "roof_levels", "roof:levels"));
+      return levels != null && levels > 0.0 ? Math.max(0, (int)Math.round(levels)) : 0;
+   }
+
+   private static double resolveRoofHeightMeters(Map<String, Object> tags) {
+      Double height = parseDouble(firstNonBlank(tags, "roof_height", "roof:height"));
+      return height != null && height > 0.0 ? height : 0.0;
    }
 
    private static List<List<TilePoint>> decodePolygonRings(List<Integer> geometry) {
@@ -777,12 +792,30 @@ public final class TellusOsmBuildingSource implements TellusCacheHandle {
             return null;
          } else {
             try {
-               return Double.parseDouble(text.trim());
+               return Double.parseDouble(extractNumericPrefix(text));
             } catch (NumberFormatException error) {
                return null;
             }
          }
       }
+   }
+
+   private static String extractNumericPrefix(String value) {
+      String normalized = value.trim().replace(',', '.');
+      StringBuilder number = new StringBuilder();
+      boolean seenDigit = false;
+      for (int index = 0; index < normalized.length(); index++) {
+         char ch = normalized.charAt(index);
+         if ((ch >= '0' && ch <= '9') || ch == '.' || (ch == '-' && number.isEmpty())) {
+            number.append(ch);
+            if (ch >= '0' && ch <= '9') {
+               seenDigit = true;
+            }
+         } else if (seenDigit) {
+            break;
+         }
+      }
+      return seenDigit ? number.toString() : normalized;
    }
 
    private static boolean isTruthy(String value) {

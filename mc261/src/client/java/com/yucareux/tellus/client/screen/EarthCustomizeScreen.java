@@ -409,7 +409,7 @@ public class EarthCustomizeScreen extends Screen {
       double terrestrialScale = this.findSliderValue("terrestrial_height_scale", EarthGeneratorSettings.DEFAULT.terrestrialHeightScale());
       double oceanicScale = this.findSliderValue("oceanic_height_scale", EarthGeneratorSettings.DEFAULT.oceanicHeightScale());
       int heightOffset = (int)Math.round(this.findSliderValue("height_offset", EarthGeneratorSettings.DEFAULT.heightOffset()));
-      int seaLevel = this.resolveSeaLevelSetting("sea_level", -64.0);
+      int seaLevel = this.resolveSeaLevelSetting("sea_level", 62.0);
       int maxAltitude = this.resolveAltitudeSetting("max_altitude", -1.0);
       int minAltitude = this.resolveAltitudeSetting("min_altitude", -2048.0);
       int riverLakeShorelineBlend = (int)Math.round(
@@ -557,7 +557,7 @@ public class EarthCustomizeScreen extends Screen {
       this.setSliderValue("terrestrial_height_scale", initialSettings.terrestrialHeightScale());
       this.setSliderValue("oceanic_height_scale", initialSettings.oceanicHeightScale());
       this.setSliderValue("height_offset", initialSettings.heightOffset());
-      this.setSliderValue("sea_level", initialSettings.seaLevel() == -2147483647 ? -64.0 : initialSettings.seaLevel());
+      this.setSliderValue("sea_level", initialSettings.seaLevel() == -2147483647 ? 62.0 : initialSettings.seaLevel());
       this.setSliderValue("max_altitude", initialSettings.maxAltitude() == Integer.MIN_VALUE ? -1.0 : initialSettings.maxAltitude());
       this.setSliderValue("min_altitude", initialSettings.minAltitude() == Integer.MIN_VALUE ? -2048.0 : initialSettings.minAltitude());
       this.setSliderValue("river_lake_shoreline_blend", initialSettings.riverLakeShorelineBlend());
@@ -766,7 +766,7 @@ public class EarthCustomizeScreen extends Screen {
       ).hideFromRoot().parent("world");
       List<EarthCustomizeScreen.SettingDefinition> worldSettings = new ArrayList<>(
          List.of(
-            slider("world_scale", 30.0, 1.0, 500.0, 5.0)
+            slider("world_scale", EarthGeneratorSettings.DEFAULT.worldScale(), 1.0, 500.0, 5.0)
                .withDisplay(EarthCustomizeScreen::formatWorldScale)
                .withScale(EarthCustomizeScreen.SliderScale.power(3.0)),
             this.categoryLink(demProvidersCategory)
@@ -789,7 +789,7 @@ public class EarthCustomizeScreen extends Screen {
                .withScale(EarthCustomizeScreen.SliderScale.power(3.0)),
             slider("height_offset", EarthGeneratorSettings.DEFAULT.heightOffset(), -2000.0, 128.0, 1.0)
                .withDisplay(EarthCustomizeScreen::formatHeightOffset),
-            slider("sea_level", -64.0, -64.0, 256.0, 1.0).withDisplay(EarthCustomizeScreen::formatSeaLevel),
+            slider("sea_level", 62.0, -64.0, 256.0, 1.0).withDisplay(EarthCustomizeScreen::formatSeaLevel),
             slider("max_altitude", -1.0, -1.0, 2031.0, 16.0).withDisplay(EarthCustomizeScreen::formatMaxAltitude),
             slider("min_altitude", EarthGeneratorSettings.DEFAULT.minAltitude(), -2048.0, 2031.0, 16.0).withDisplay(EarthCustomizeScreen::formatMinAltitude),
             slider("river_lake_shoreline_blend", EarthGeneratorSettings.DEFAULT.riverLakeShorelineBlend(), 0.0, 10.0, 1.0)

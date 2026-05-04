@@ -18,7 +18,7 @@ final class ParsedTileCodec {
    private static final int MAGIC_SAND = 1396787524;
    private static final int ROAD_VERSION = 3;
    private static final int WATER_VERSION = 1;
-   private static final int BUILDING_VERSION = 2;
+   private static final int BUILDING_VERSION = 5;
    private static final int SAND_VERSION = 1;
    private static final int MAX_FEATURES = 100000;
    private static final int MAX_POINTS_PER_FEATURE = 100000;
@@ -312,7 +312,12 @@ final class ParsedTileCodec {
             String name = readOptionalUtf(input);
             int floorCount = input.readInt();
             String roofShape = readOptionalUtf(input);
+            int roofLevels = input.readInt();
+            double roofHeightMeters = input.readDouble();
             String roofMaterial = readOptionalUtf(input);
+            String wallMaterial = readOptionalUtf(input);
+            String roofColor = readOptionalUtf(input);
+            String wallColor = readOptionalUtf(input);
             double heightMeters = input.readDouble();
             double minHeightMeters = input.readDouble();
             int partCount = boundedCount(input.readInt(), MAX_FEATURES, "building part");
@@ -344,7 +349,20 @@ final class ParsedTileCodec {
                   featureId,
                   buildingId,
                   hasParts,
-                  new OsmBuildingMetadata(buildingClass, subtype, use, name, floorCount, roofShape, roofMaterial),
+                  new OsmBuildingMetadata(
+                     buildingClass,
+                     subtype,
+                     use,
+                     name,
+                     floorCount,
+                     roofShape,
+                     roofLevels,
+                     roofHeightMeters,
+                     roofMaterial,
+                     wallMaterial,
+                     roofColor,
+                     wallColor
+                  ),
                   heightMeters,
                   minHeightMeters,
                   longitudes,
@@ -386,7 +404,12 @@ final class ParsedTileCodec {
             writeOptionalUtf(output, feature.metadata().name());
             output.writeInt(feature.metadata().floorCount());
             writeOptionalUtf(output, feature.metadata().roofShape());
+            output.writeInt(feature.metadata().roofLevels());
+            output.writeDouble(feature.metadata().roofHeightMeters());
             writeOptionalUtf(output, feature.metadata().roofMaterial());
+            writeOptionalUtf(output, feature.metadata().wallMaterial());
+            writeOptionalUtf(output, feature.metadata().roofColor());
+            writeOptionalUtf(output, feature.metadata().wallColor());
             output.writeDouble(feature.heightMeters());
             output.writeDouble(feature.minHeightMeters());
             output.writeInt(feature.partCount());

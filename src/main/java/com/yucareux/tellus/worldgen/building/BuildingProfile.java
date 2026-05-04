@@ -1,5 +1,7 @@
 package com.yucareux.tellus.worldgen.building;
 
+import java.util.Locale;
+
 public record BuildingProfile(
    BuildingProfile.Archetype archetype,
    BuildingProfile.RoofProfile roofProfile,
@@ -11,7 +13,12 @@ public record BuildingProfile(
    int roofRise,
    int setbackEveryFloors,
    int maxSetback,
-   int windowSpacing
+   int windowSpacing,
+   String primaryType,
+   String wallMaterial,
+   String roofMaterial,
+   String wallColor,
+   String roofColor
 ) {
    public BuildingProfile {
       floorCount = Math.max(1, floorCount);
@@ -21,6 +28,15 @@ public record BuildingProfile(
       setbackEveryFloors = Math.max(0, setbackEveryFloors);
       maxSetback = Math.max(0, maxSetback);
       windowSpacing = Math.max(2, windowSpacing);
+      primaryType = normalizeMaterial(primaryType);
+      wallMaterial = normalizeMaterial(wallMaterial);
+      roofMaterial = normalizeMaterial(roofMaterial);
+      wallColor = normalizeMaterial(wallColor);
+      roofColor = normalizeMaterial(roofColor);
+   }
+
+   private static String normalizeMaterial(String value) {
+      return value == null || value.isBlank() ? "" : value.trim().toLowerCase(Locale.ROOT);
    }
 
    public enum Archetype {

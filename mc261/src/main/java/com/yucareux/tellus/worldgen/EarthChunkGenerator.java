@@ -911,7 +911,7 @@ public final class EarthChunkGenerator extends ChunkGenerator {
       int[] convexities = new int[CHUNK_AREA];
       Holder<Biome>[] biomeCache = newBiomeCache(CHUNK_AREA);
       EarthBiomeSource earthBiomeSource = this.biomeSource instanceof EarthBiomeSource typedEarthBiomeSource ? typedEarthBiomeSource : null;
-      EarthChunkGenerator.ChunkBiomeClimateCache climateCache = useFastFullChunk && earthBiomeSource != null
+      EarthChunkGenerator.ChunkBiomeClimateCache climateCache = shouldUseChunkClimateCache(useFastFullChunk, earthBiomeSource, this.settings.worldScale())
          ? new EarthChunkGenerator.ChunkBiomeClimateCache(pos, this.settings.worldScale())
          : null;
       phaseStartNs = beginFullChunkProfiling();
@@ -5007,7 +5007,7 @@ public final class EarthChunkGenerator extends ChunkGenerator {
 
       this.repairAnomalousChunkTerrain(terrainSurfaces, waterSurfaces, waterFlags, coverClasses, heightGrid, gridSize, step, chunkMinY, shell.maxY());
       EarthBiomeSource earthBiomeSource = this.biomeSource instanceof EarthBiomeSource typedEarthBiomeSource ? typedEarthBiomeSource : null;
-      EarthChunkGenerator.ChunkBiomeClimateCache climateCache = FAST_FULL_CHUNK && earthBiomeSource != null
+      EarthChunkGenerator.ChunkBiomeClimateCache climateCache = shouldUseChunkClimateCache(FAST_FULL_CHUNK, earthBiomeSource, this.settings.worldScale())
          ? new EarthChunkGenerator.ChunkBiomeClimateCache(pos, this.settings.worldScale())
          : null;
       Holder<Biome>[] biomeCache = newBiomeCache(CHUNK_AREA);
@@ -5273,6 +5273,10 @@ public final class EarthChunkGenerator extends ChunkGenerator {
             }
          }
       }
+   }
+
+   private static boolean shouldUseChunkClimateCache(boolean fastFullChunk, EarthBiomeSource earthBiomeSource, double worldScale) {
+      return fastFullChunk && earthBiomeSource != null && worldScale > 1.5;
    }
 
    private void applyPreparedTerrainRefinement(ServerLevel level, ChunkAccess chunk, EarthChunkGenerator.PreparedTerrainRefinement refinement) {
