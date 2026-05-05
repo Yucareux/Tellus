@@ -9,7 +9,10 @@ import com.yucareux.tellus.config.HmaAccessConfig;
 import com.yucareux.tellus.client.preview.TerrainPreview;
 import com.yucareux.tellus.client.preview.TerrainPreviewWidget;
 import com.yucareux.tellus.client.widget.CustomizationList;
+import com.yucareux.tellus.world.data.integration.GeoBounds;
+import com.yucareux.tellus.world.data.integration.OverpassExternalFeatureSource;
 import com.yucareux.tellus.worldgen.EarthChunkGenerator;
+import com.yucareux.tellus.worldgen.EarthProjection;
 import com.yucareux.tellus.worldgen.EarthGeneratorSettings;
 import java.io.IOException;
 import java.net.HttpURLConnection;
@@ -103,6 +106,8 @@ public class EarthCustomizeScreen extends Screen {
       ResourceKey.create(Registries.DIMENSION_TYPE, DYNAMIC_DIMENSION_TYPE_ID), "dynamicDimensionTypeKey"
    );
    private static final double OSM_ROADS_AND_BUILDINGS_MAX_WORLD_SCALE = 15.0;
+   private static final int DEFAULT_OVERPASS_CACHE_RADIUS_CHUNKS = 96;
+   private static final int MIN_OVERPASS_CACHE_RADIUS_CHUNKS = 16;
    private final CreateWorldScreen parent;
    private final List<EarthCustomizeScreen.CategoryDefinition> categories;
    private CustomizationList list;
@@ -179,6 +184,45 @@ public class EarthCustomizeScreen extends Screen {
 
    public double getSpawnLongitude() {
       return this.spawnLongitude;
+   }
+
+   private EarthCustomizeScreen.OverpassCacheArea currentOverpassCacheArea() {
+      EarthGeneratorSettings settings = this.buildSettings();
+      double worldScale = Math.max(1.0E-4, settings.worldScale());
+      int radiusChunks = this.currentOverpassCacheRadiusChunks();
+      double radiusBlocks = Math.max(16.0, radiusChunks * 16.0);
+      double blocksPerDegree = Math.max(1.0E-4, EarthProjection.blocksPerDegree(worldScale));
+      double centerX = settings.spawnLongitude() * blocksPerDegree;
+      double centerZ = EarthProjection.latToBlockZ(settings.spawnLatitude(), worldScale);
+      double west = clampLongitude((centerX - radiusBlocks) / blocksPerDegree);
+      double east = clampLongitude((centerX + radiusBlocks) / blocksPerDegree);
+      double latA = EarthProjection.blockZToLat(centerZ - radiusBlocks, worldScale);
+      double latB = EarthProjection.blockZToLat(centerZ + radiusBlocks, worldScale);
+      double south = Math.max(-85.05112878, Math.min(latA, latB));
+      double north = Math.min(85.05112878, Math.max(latA, latB));
+      if (west > east) {
+         west = -180.0;
+         east = 180.0;
+      }
+      return new EarthCustomizeScreen.OverpassCacheArea(
+         new GeoBounds(south, west, north, east),
+         radiusChunks,
+         settings.spawnLatitude(),
+         settings.spawnLongitude(),
+         worldScale
+      );
+   }
+
+   private int currentOverpassCacheRadiusChunks() {
+      boolean voxyPregen = this.findToggleValue("voxy_chunk_pregen_enabled", EarthGeneratorSettings.DEFAULT.voxyChunkPregenEnabled());
+      int radius = voxyPregen
+         ? (int)Math.round(this.findSliderValue("voxy_chunk_pregen_max_radius", EarthGeneratorSettings.DEFAULT.voxyChunkPregenMaxRadius()))
+         : DEFAULT_OVERPASS_CACHE_RADIUS_CHUNKS;
+      return Mth.clamp(radius, MIN_OVERPASS_CACHE_RADIUS_CHUNKS, 4096);
+   }
+
+   private static double clampLongitude(double longitude) {
+      return Math.max(-180.0, Math.min(180.0, longitude));
    }
 
    private void openPreviewFullScreen() {
@@ -407,7 +451,7 @@ public class EarthCustomizeScreen extends Screen {
       double terrestrialScale = this.findSliderValue("terrestrial_height_scale", EarthGeneratorSettings.DEFAULT.terrestrialHeightScale());
       double oceanicScale = this.findSliderValue("oceanic_height_scale", EarthGeneratorSettings.DEFAULT.oceanicHeightScale());
       int heightOffset = (int)Math.round(this.findSliderValue("height_offset", EarthGeneratorSettings.DEFAULT.heightOffset()));
-      int seaLevel = this.resolveSeaLevelSetting("sea_level", -64.0);
+      int seaLevel = this.resolveSeaLevelSetting("sea_level", 62.0);
       int maxAltitude = this.resolveAltitudeSetting("max_altitude", -1.0);
       int minAltitude = this.resolveAltitudeSetting("min_altitude", -2048.0);
       int riverLakeShorelineBlend = (int)Math.round(
@@ -555,7 +599,7 @@ public class EarthCustomizeScreen extends Screen {
       this.setSliderValue("terrestrial_height_scale", initialSettings.terrestrialHeightScale());
       this.setSliderValue("oceanic_height_scale", initialSettings.oceanicHeightScale());
       this.setSliderValue("height_offset", initialSettings.heightOffset());
-      this.setSliderValue("sea_level", initialSettings.seaLevel() == -2147483647 ? -64.0 : initialSettings.seaLevel());
+      this.setSliderValue("sea_level", initialSettings.seaLevel() == -2147483647 ? 62.0 : initialSettings.seaLevel());
       this.setSliderValue("max_altitude", initialSettings.maxAltitude() == Integer.MIN_VALUE ? -1.0 : initialSettings.maxAltitude());
       this.setSliderValue("min_altitude", initialSettings.minAltitude() == Integer.MIN_VALUE ? -2048.0 : initialSettings.minAltitude());
       this.setSliderValue("river_lake_shoreline_blend", initialSettings.riverLakeShorelineBlend());
@@ -594,6 +638,25 @@ public class EarthCustomizeScreen extends Screen {
       this.setSliderValue("voxy_chunk_pregen_max_radius", initialSettings.voxyChunkPregenMaxRadius());
       this.setSliderValue("voxy_chunk_pregen_chunks_per_tick", initialSettings.voxyChunkPregenChunksPerTick());
       this.setRenderModeValue("distant_horizons_render_mode", initialSettings.distantHorizonsRenderMode());
+   }
+
+   private void applyWlbPreset() {
+      this.setSliderValue("world_scale", EarthGeneratorSettings.DEFAULT.worldScale());
+      this.setDemSelectionValue(EarthGeneratorSettings.DEFAULT.demSelection());
+      this.setSliderValue("terrestrial_height_scale", EarthGeneratorSettings.DEFAULT.terrestrialHeightScale());
+      this.setSliderValue("oceanic_height_scale", EarthGeneratorSettings.DEFAULT.oceanicHeightScale());
+      this.setSliderValue("height_offset", EarthGeneratorSettings.DEFAULT.heightOffset());
+      this.setSliderValue("sea_level", 62.0);
+      this.setSliderValue("max_altitude", -1.0);
+      this.setSliderValue("min_altitude", -2048.0);
+      this.setToggleValue("enable_roads", true);
+      this.setToggleValue("enable_buildings", true);
+      this.setToggleValue("enable_water", true);
+
+      EarthCustomizeScreen.CategoryDefinition structure = this.findCategoryById("structure");
+      if (structure != null) {
+         this.setCategoryToggleValues(structure, false);
+      }
    }
 
    private void setSliderValue(String key, double value) {
@@ -764,7 +827,7 @@ public class EarthCustomizeScreen extends Screen {
       ).hideFromRoot().parent("world");
       List<EarthCustomizeScreen.SettingDefinition> worldSettings = new ArrayList<>(
          List.of(
-            slider("world_scale", 30.0, 1.0, 500.0, 5.0)
+            slider("world_scale", EarthGeneratorSettings.DEFAULT.worldScale(), 1.0, 500.0, 5.0)
                .withDisplay(EarthCustomizeScreen::formatWorldScale)
                .withScale(EarthCustomizeScreen.SliderScale.power(3.0)),
             this.categoryLink(demProvidersCategory)
@@ -787,7 +850,7 @@ public class EarthCustomizeScreen extends Screen {
                .withScale(EarthCustomizeScreen.SliderScale.power(3.0)),
             slider("height_offset", EarthGeneratorSettings.DEFAULT.heightOffset(), -2000.0, 128.0, 1.0)
                .withDisplay(EarthCustomizeScreen::formatHeightOffset),
-            slider("sea_level", -64.0, -64.0, 256.0, 1.0).withDisplay(EarthCustomizeScreen::formatSeaLevel),
+            slider("sea_level", 62.0, -64.0, 256.0, 1.0).withDisplay(EarthCustomizeScreen::formatSeaLevel),
             slider("max_altitude", -1.0, -1.0, 2031.0, 16.0).withDisplay(EarthCustomizeScreen::formatMaxAltitude),
             slider("min_altitude", EarthGeneratorSettings.DEFAULT.minAltitude(), -2048.0, 2031.0, 16.0).withDisplay(EarthCustomizeScreen::formatMinAltitude),
             slider("river_lake_shoreline_blend", EarthGeneratorSettings.DEFAULT.riverLakeShorelineBlend(), 0.0, 10.0, 1.0)
@@ -1020,8 +1083,15 @@ public class EarthCustomizeScreen extends Screen {
       return new EarthCustomizeScreen.CacheActionDefinition(label, action);
    }
 
-   private static List<EarthCustomizeScreen.SettingDefinition> dataSourcesEntries() {
+   private List<EarthCustomizeScreen.SettingDefinition> dataSourcesEntries() {
       List<EarthCustomizeScreen.SettingDefinition> entries = new ArrayList<>();
+      entries.add(infoHeader("Arnis / OSM Overpass"));
+      entries.add(infoLine("Road and building details are cached locally and reused."));
+      entries.add(new EarthCustomizeScreen.OverpassProbeDefinition());
+      entries.add(new EarthCustomizeScreen.OverpassCacheStatusDefinition());
+      entries.add(new EarthCustomizeScreen.OverpassCacheActionDefinition(this, EarthCustomizeScreen.OverpassCacheAction.ESTIMATE));
+      entries.add(new EarthCustomizeScreen.OverpassCacheActionDefinition(this, EarthCustomizeScreen.OverpassCacheAction.PREFETCH));
+      entries.add(infoSpacer());
       entries.add(infoHeader("ESA WorldCover 2021 (land cover)"));
       entries.add(infoLine("ESA WorldCover 2021 (10 m land cover, v200)"));
       entries.add(infoLine("© ESA WorldCover project / Contains modified Copernicus Sentinel data (2021)"));
@@ -1522,15 +1592,19 @@ public class EarthCustomizeScreen extends Screen {
    private AbstractWidget createWorldHeaderActions(EarthCustomizeScreen.CategoryDefinition category) {
       EarthGeneratorSettings defaultSettings = Objects.requireNonNull(EarthGeneratorSettings.DEFAULT, "defaultSettings");
       Component restoreDefaultsLabel = Objects.requireNonNull(Component.translatable("gui.tellus.restore_defaults"), "restoreDefaultsLabel");
-      Component selectPresetLabel = Objects.requireNonNull(Component.translatable("gui.tellus.select_preset"), "selectPresetLabel");
-      Component comingSoonTooltip = Objects.requireNonNull(
-         Component.translatable("gui.tellus.coming_soon").withStyle(ChatFormatting.GRAY), "selectPresetTooltip"
+      Component wlbPresetLabel = Objects.requireNonNull(Component.translatable("gui.tellus.wlb_preset"), "wlbPresetLabel");
+      Component wlbPresetTooltip = Objects.requireNonNull(
+         Component.translatable("gui.tellus.wlb_preset.tooltip").withStyle(ChatFormatting.GRAY), "wlbPresetTooltip"
       );
       return new EarthCustomizeScreen.DualButtonWidget(restoreDefaultsLabel, btn -> {
          this.applySettingsToCategories(defaultSettings, true);
          this.onSettingsChanged();
          this.showCategory(category);
-      }, selectPresetLabel, btn -> {}, false, comingSoonTooltip);
+      }, wlbPresetLabel, btn -> {
+         this.applyWlbPreset();
+         this.onSettingsChanged();
+         this.showCategory(category);
+      }, true, wlbPresetTooltip);
    }
 
    
@@ -1762,6 +1836,476 @@ public class EarthCustomizeScreen extends Screen {
          }
 
          return button;
+      }
+   }
+
+   @Environment(EnvType.CLIENT)
+   private static final class OverpassProbeDefinition implements EarthCustomizeScreen.SettingDefinition {
+      @Override
+      public AbstractWidget createWidget(Runnable onChange) {
+         return new EarthCustomizeScreen.OverpassProbeWidget();
+      }
+   }
+
+   @Environment(EnvType.CLIENT)
+   private static final class OverpassProbeWidget extends AbstractWidget {
+      private final Button button;
+
+      private OverpassProbeWidget() {
+         super(0, 0, 0, 20, Component.empty());
+         this.button = Button.builder(EarthCustomizeScreen.OverpassProbeManager.state().message(), btn -> EarthCustomizeScreen.OverpassProbeManager.test())
+            .bounds(0, 0, 0, 20)
+            .build();
+      }
+
+      protected void renderWidget(GuiGraphics graphics, int mouseX, int mouseY, float delta) {
+         EarthCustomizeScreen.OverpassProbeState state = EarthCustomizeScreen.OverpassProbeManager.state();
+         this.button.active = !state.testing();
+         this.button.setMessage(state.message());
+         this.button.setTooltip(Tooltip.create(state.tooltip()));
+         this.button.setX(this.getX());
+         this.button.setY(this.getY());
+         this.button.setWidth(this.width);
+         this.button.setHeight(this.height);
+         this.button.render(graphics, mouseX, mouseY, delta);
+      }
+
+      public void onClick(double mouseX, double mouseY) {
+         this.button.mouseClicked(mouseX, mouseY, 0);
+      }
+
+      protected void onDrag(double mouseX, double mouseY, double deltaX, double deltaY) {
+         this.button.mouseDragged(mouseX, mouseY, 0, deltaX, deltaY);
+      }
+
+      public void onRelease(double mouseX, double mouseY) {
+         this.button.mouseReleased(mouseX, mouseY, 0);
+      }
+
+      protected void updateWidgetNarration(NarrationElementOutput narration) {
+      }
+   }
+
+   @Environment(EnvType.CLIENT)
+   private static final class OverpassProbeManager {
+      private static final AtomicReference<EarthCustomizeScreen.OverpassProbeState> STATE = new AtomicReference<>(EarthCustomizeScreen.OverpassProbeState.idle());
+      private static final ExecutorService EXECUTOR = Executors.newSingleThreadExecutor(new ThreadFactory() {
+         private int index;
+
+         @Override
+         public Thread newThread(Runnable runnable) {
+            Thread thread = new Thread(runnable, "tellus-overpass-probe-" + ++this.index);
+            thread.setDaemon(true);
+            return thread;
+         }
+      });
+
+      private OverpassProbeManager() {
+      }
+
+      private static EarthCustomizeScreen.OverpassProbeState state() {
+         return STATE.get();
+      }
+
+      private static void test() {
+         EarthCustomizeScreen.OverpassProbeState current = STATE.get();
+         if (current.testing()) {
+            return;
+         }
+
+         STATE.set(EarthCustomizeScreen.OverpassProbeState.testingState());
+         CompletableFuture.supplyAsync(OverpassExternalFeatureSource::probeConfiguredEndpoints, EXECUTOR)
+            .thenAccept(results -> STATE.set(EarthCustomizeScreen.OverpassProbeState.complete(results)))
+            .exceptionally(error -> {
+               Tellus.LOGGER.warn("Failed to test Arnis Overpass sources", error);
+               STATE.set(EarthCustomizeScreen.OverpassProbeState.failed(error));
+               return null;
+            });
+      }
+   }
+
+   private record OverpassProbeState(boolean testing, Component message, Component tooltip) {
+      private static OverpassProbeState idle() {
+         return new OverpassProbeState(
+            false,
+            Component.translatable("tellus.datasource.overpass.test"),
+            Component.translatable("tellus.datasource.overpass.test.tooltip")
+         );
+      }
+
+      private static OverpassProbeState testingState() {
+         return new OverpassProbeState(
+            true,
+            Component.translatable("tellus.datasource.overpass.testing"),
+            Component.translatable("tellus.datasource.overpass.testing.tooltip")
+         );
+      }
+
+      private static OverpassProbeState failed(Throwable error) {
+         String message = error.getMessage();
+         return new OverpassProbeState(
+            false,
+            Component.translatable("tellus.datasource.overpass.failed"),
+            Component.literal(message == null || message.isBlank() ? error.getClass().getSimpleName() : message)
+         );
+      }
+
+      private static OverpassProbeState complete(List<OverpassExternalFeatureSource.EndpointProbeResult> results) {
+         int ok = 0;
+         for (OverpassExternalFeatureSource.EndpointProbeResult result : results) {
+            if (result.ok()) {
+               ok++;
+            }
+         }
+
+         Component message = ok > 0
+            ? Component.translatable("tellus.datasource.overpass.ok", ok, results.size())
+            : Component.translatable("tellus.datasource.overpass.none", results.size());
+         return new OverpassProbeState(false, message, Component.literal(describe(results)));
+      }
+
+      private static String describe(List<OverpassExternalFeatureSource.EndpointProbeResult> results) {
+         if (results.isEmpty()) {
+            return "No endpoints configured.";
+         }
+
+         StringBuilder builder = new StringBuilder();
+         for (OverpassExternalFeatureSource.EndpointProbeResult result : results) {
+            if (builder.length() > 0) {
+               builder.append('\n');
+            }
+            builder.append(result.ok() ? "OK " : "FAIL ")
+               .append(hostLabel(result.endpoint()))
+               .append(" ")
+               .append(result.elapsedMs())
+               .append("ms");
+            if (!result.ok() && result.message() != null && !result.message().isBlank()) {
+               builder.append(" - ").append(result.message());
+            }
+         }
+         return builder.toString();
+      }
+
+      private static String hostLabel(String endpoint) {
+         try {
+            URI uri = URI.create(endpoint);
+            return uri.getHost() == null ? endpoint : uri.getHost();
+         } catch (IllegalArgumentException error) {
+            return endpoint;
+         }
+      }
+   }
+
+   private record OverpassCacheArea(GeoBounds bounds, int radiusChunks, double centerLatitude, double centerLongitude, double worldScale) {
+   }
+
+   private enum OverpassCacheAction {
+      ESTIMATE,
+      PREFETCH
+   }
+
+   @Environment(EnvType.CLIENT)
+   private static final class OverpassCacheStatusDefinition implements EarthCustomizeScreen.SettingDefinition {
+      @Override
+      public AbstractWidget createWidget(Runnable onChange) {
+         return new EarthCustomizeScreen.OverpassCacheStatusWidget();
+      }
+   }
+
+   @Environment(EnvType.CLIENT)
+   private static final class OverpassCacheStatusWidget extends AbstractWidget {
+      private OverpassCacheStatusWidget() {
+         super(0, 0, 0, 20, Component.empty());
+      }
+
+      protected void renderWidget(GuiGraphics graphics, int mouseX, int mouseY, float delta) {
+         EarthCustomizeScreen.OverpassCacheState state = EarthCustomizeScreen.OverpassCacheManager.state();
+         this.setTooltip(Tooltip.create(state.tooltip()));
+         Font font = Minecraft.getInstance().font;
+         int textWidth = font.width(state.message());
+         int availableWidth = Math.max(1, this.width - 8);
+         float scale = textWidth > availableWidth ? (float)availableWidth / (float)textWidth : 1.0F;
+         float scaledWidth = textWidth * scale;
+         float scaledHeight = 9.0F * scale;
+         float textX = this.getX() + (this.width - scaledWidth) * 0.5F;
+         float textY = this.getY() + (this.height - scaledHeight) * 0.5F;
+         graphics.pose().pushPose();
+         graphics.pose().translate(textX, textY, 0.0F);
+         graphics.pose().scale(scale, scale, 1.0F);
+         graphics.drawString(font, state.message(), 0, 0, -4605511, true);
+         graphics.pose().popPose();
+      }
+
+      protected void updateWidgetNarration(NarrationElementOutput narration) {
+      }
+   }
+
+   @Environment(EnvType.CLIENT)
+   private static final class OverpassCacheActionDefinition implements EarthCustomizeScreen.SettingDefinition {
+      private final EarthCustomizeScreen screen;
+      private final EarthCustomizeScreen.OverpassCacheAction action;
+
+      private OverpassCacheActionDefinition(EarthCustomizeScreen screen, EarthCustomizeScreen.OverpassCacheAction action) {
+         this.screen = Objects.requireNonNull(screen, "screen");
+         this.action = Objects.requireNonNull(action, "action");
+      }
+
+      @Override
+      public AbstractWidget createWidget(Runnable onChange) {
+         return new EarthCustomizeScreen.OverpassCacheActionWidget(this.screen, this.action);
+      }
+   }
+
+   @Environment(EnvType.CLIENT)
+   private static final class OverpassCacheActionWidget extends AbstractWidget {
+      private final EarthCustomizeScreen screen;
+      private final EarthCustomizeScreen.OverpassCacheAction action;
+      private final Button button;
+
+      private OverpassCacheActionWidget(EarthCustomizeScreen screen, EarthCustomizeScreen.OverpassCacheAction action) {
+         super(0, 0, 0, 20, Component.empty());
+         this.screen = Objects.requireNonNull(screen, "screen");
+         this.action = Objects.requireNonNull(action, "action");
+         this.button = Button.builder(this.label(), btn -> this.runAction()).bounds(0, 0, 0, 20).build();
+      }
+
+      protected void renderWidget(GuiGraphics graphics, int mouseX, int mouseY, float delta) {
+         EarthCustomizeScreen.OverpassCacheState state = EarthCustomizeScreen.OverpassCacheManager.state();
+         this.button.active = this.action == EarthCustomizeScreen.OverpassCacheAction.ESTIMATE ? !state.busy() : state.canPrefetch();
+         this.button.setMessage(this.label());
+         this.button.setTooltip(Tooltip.create(this.tooltip(state)));
+         this.button.setX(this.getX());
+         this.button.setY(this.getY());
+         this.button.setWidth(this.width);
+         this.button.setHeight(this.height);
+         this.button.render(graphics, mouseX, mouseY, delta);
+      }
+
+      public void onClick(double mouseX, double mouseY) {
+         this.button.mouseClicked(mouseX, mouseY, 0);
+      }
+
+      protected void onDrag(double mouseX, double mouseY, double deltaX, double deltaY) {
+         this.button.mouseDragged(mouseX, mouseY, 0, deltaX, deltaY);
+      }
+
+      public void onRelease(double mouseX, double mouseY) {
+         this.button.mouseReleased(mouseX, mouseY, 0);
+      }
+
+      private void runAction() {
+         EarthCustomizeScreen.OverpassCacheArea area = this.screen.currentOverpassCacheArea();
+         if (this.action == EarthCustomizeScreen.OverpassCacheAction.ESTIMATE) {
+            EarthCustomizeScreen.OverpassCacheManager.estimate(area);
+         } else {
+            EarthCustomizeScreen.OverpassCacheManager.prefetch(area);
+         }
+      }
+
+      private Component label() {
+         return this.action == EarthCustomizeScreen.OverpassCacheAction.ESTIMATE
+            ? Component.translatable("tellus.datasource.overpass.cache.estimate")
+            : Component.translatable("tellus.datasource.overpass.cache.prefetch");
+      }
+
+      private Component tooltip(EarthCustomizeScreen.OverpassCacheState state) {
+         if (this.action == EarthCustomizeScreen.OverpassCacheAction.ESTIMATE) {
+            return Component.translatable("tellus.datasource.overpass.cache.estimate.tooltip");
+         }
+         if (state.busy()) {
+            return Component.translatable("tellus.datasource.overpass.cache.busy.tooltip");
+         }
+         if (!state.canPrefetch()) {
+            return Component.translatable("tellus.datasource.overpass.cache.prefetch.unavailable.tooltip");
+         }
+         return Component.translatable("tellus.datasource.overpass.cache.prefetch.tooltip");
+      }
+
+      protected void updateWidgetNarration(NarrationElementOutput narration) {
+      }
+   }
+
+   @Environment(EnvType.CLIENT)
+   private static final class OverpassCacheManager {
+      private static final AtomicReference<EarthCustomizeScreen.OverpassCacheState> STATE = new AtomicReference<>(EarthCustomizeScreen.OverpassCacheState.idle());
+      private static final ExecutorService EXECUTOR = Executors.newSingleThreadExecutor(new ThreadFactory() {
+         private int index;
+
+         @Override
+         public Thread newThread(Runnable runnable) {
+            Thread thread = new Thread(runnable, "tellus-overpass-cache-" + ++this.index);
+            thread.setDaemon(true);
+            return thread;
+         }
+      });
+
+      private OverpassCacheManager() {
+      }
+
+      private static EarthCustomizeScreen.OverpassCacheState state() {
+         return STATE.get();
+      }
+
+      private static void estimate(EarthCustomizeScreen.OverpassCacheArea area) {
+         EarthCustomizeScreen.OverpassCacheState current = STATE.get();
+         if (current.busy()) {
+            return;
+         }
+
+         STATE.set(EarthCustomizeScreen.OverpassCacheState.estimating(area));
+         CompletableFuture.supplyAsync(() -> OverpassExternalFeatureSource.estimateConfiguredCache(area.bounds()), EXECUTOR)
+            .thenAccept(estimate -> STATE.set(EarthCustomizeScreen.OverpassCacheState.estimated(area, estimate)))
+            .exceptionally(error -> {
+               Tellus.LOGGER.warn("Failed to estimate Arnis Overpass cache", error);
+               STATE.set(EarthCustomizeScreen.OverpassCacheState.failed(error));
+               return null;
+            });
+      }
+
+      private static void prefetch(EarthCustomizeScreen.OverpassCacheArea area) {
+         EarthCustomizeScreen.OverpassCacheState current = STATE.get();
+         if (current.busy() || !current.canPrefetch()) {
+            return;
+         }
+
+         STATE.set(EarthCustomizeScreen.OverpassCacheState.prefetching(area, current.estimate()));
+         CompletableFuture.supplyAsync(() -> OverpassExternalFeatureSource.prefetchConfiguredBounds(area.bounds()), EXECUTOR)
+            .thenAccept(result -> STATE.set(EarthCustomizeScreen.OverpassCacheState.prefetched(area, result)))
+            .exceptionally(error -> {
+               Tellus.LOGGER.warn("Failed to prefetch Arnis Overpass cache", error);
+               STATE.set(EarthCustomizeScreen.OverpassCacheState.failed(error));
+               return null;
+            });
+      }
+   }
+
+   private record OverpassCacheState(
+      boolean busy,
+      Component message,
+      Component tooltip,
+      EarthCustomizeScreen.OverpassCacheArea area,
+      OverpassExternalFeatureSource.CacheEstimate estimate
+   ) {
+      private static OverpassCacheState idle() {
+         return new OverpassCacheState(
+            false,
+            Component.translatable("tellus.datasource.overpass.cache.idle"),
+            Component.translatable("tellus.datasource.overpass.cache.idle.tooltip"),
+            null,
+            null
+         );
+      }
+
+      private static OverpassCacheState estimating(EarthCustomizeScreen.OverpassCacheArea area) {
+         return new OverpassCacheState(
+            true,
+            Component.translatable("tellus.datasource.overpass.cache.estimating"),
+            Component.literal(describeArea(area)),
+            area,
+            null
+         );
+      }
+
+      private static OverpassCacheState estimated(EarthCustomizeScreen.OverpassCacheArea area, OverpassExternalFeatureSource.CacheEstimate estimate) {
+         Component message = estimate.enabled()
+            ? Component.translatable(
+               "tellus.datasource.overpass.cache.summary",
+               estimate.cachedTiles(),
+               estimate.totalTiles(),
+               estimate.missingTiles()
+            )
+            : Component.translatable("tellus.datasource.overpass.cache.disabled");
+         return new OverpassCacheState(false, message, Component.literal(describeEstimate(area, estimate)), area, estimate);
+      }
+
+      private static OverpassCacheState prefetching(
+         EarthCustomizeScreen.OverpassCacheArea area, OverpassExternalFeatureSource.CacheEstimate estimate
+      ) {
+         return new OverpassCacheState(
+            true,
+            Component.translatable("tellus.datasource.overpass.cache.prefetching"),
+            Component.literal(describeEstimate(area, estimate)),
+            area,
+            estimate
+         );
+      }
+
+      private static OverpassCacheState prefetched(EarthCustomizeScreen.OverpassCacheArea area, OverpassExternalFeatureSource.PrefetchResult result) {
+         OverpassExternalFeatureSource.CacheEstimate after = result.after();
+         int beforeReady = result.before().cityDetailsEnabled() ? result.before().cityDetailCachedTiles() : result.before().cachedTiles();
+         int afterReady = after.cityDetailsEnabled() ? after.cityDetailCachedTiles() : after.cachedTiles();
+         int gained = Math.max(0, afterReady - beforeReady);
+         Component message = Component.translatable("tellus.datasource.overpass.cache.prefetched", gained, afterReady, after.totalTiles());
+         return new OverpassCacheState(false, message, Component.literal(describePrefetch(area, result)), area, after);
+      }
+
+      private static OverpassCacheState failed(Throwable error) {
+         String message = error.getMessage();
+         return new OverpassCacheState(
+            false,
+            Component.translatable("tellus.datasource.overpass.cache.failed"),
+            Component.literal(message == null || message.isBlank() ? error.getClass().getSimpleName() : message),
+            null,
+            null
+         );
+      }
+
+      private boolean canPrefetch() {
+         return !this.busy
+            && this.estimate != null
+            && this.estimate.enabled()
+            && this.estimate.networkEnabled()
+            && this.estimate.missingTiles() > 0;
+      }
+
+      private static String describeArea(EarthCustomizeScreen.OverpassCacheArea area) {
+         return String.format(
+            Locale.ROOT,
+            "Spawn %.5f, %.5f\nRadius: %d chunks\nWorld scale: 1:%.1fm",
+            area.centerLatitude(),
+            area.centerLongitude(),
+            area.radiusChunks(),
+            area.worldScale()
+         );
+      }
+
+      private static String describeEstimate(EarthCustomizeScreen.OverpassCacheArea area, OverpassExternalFeatureSource.CacheEstimate estimate) {
+         if (estimate == null) {
+            return describeArea(area);
+         }
+         if (!estimate.enabled()) {
+            return "Overpass source is disabled.";
+         }
+
+         return describeArea(area)
+            + "\nTiles: "
+            + estimate.cachedTiles()
+            + " cached / "
+            + estimate.totalTiles()
+            + " total"
+            + "\nMissing: "
+            + estimate.missingTiles()
+            + "\nCached size: "
+            + EarthCustomizeScreen.formatBytes(estimate.cachedBytes())
+            + (estimate.cityDetailsEnabled()
+               ? "\nCity details: " + estimate.cityDetailCachedTiles() + " ready / " + estimate.totalTiles() + " total"
+               : "")
+            + "\nNetwork: "
+            + (estimate.networkEnabled() ? "cache-first" : "cache-only")
+            + "\nSession budget: "
+            + estimate.sessionNetworkTileBudget()
+            + " tiles"
+            + "\nRouting: WLB 18127 rule proxy.";
+      }
+
+      private static String describePrefetch(EarthCustomizeScreen.OverpassCacheArea area, OverpassExternalFeatureSource.PrefetchResult result) {
+         return describeEstimate(area, result.after())
+            + "\nAttempted: "
+            + result.attemptedTiles()
+            + "\nNew cached: "
+            + result.cachedTiles()
+            + "\nFailed/skipped: "
+            + result.failedTiles();
       }
    }
 

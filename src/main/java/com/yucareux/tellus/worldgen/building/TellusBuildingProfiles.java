@@ -25,11 +25,12 @@ public final class TellusBuildingProfiles {
          case TOWER -> 2;
          case GENERIC -> 1;
       };
+      int taggedRoofRise = resolveTaggedRoofRise(metadata, worldScale, storeyHeightBlocks);
       int roofRise = switch (roofProfile) {
-         case GABLED_X, GABLED_Z, HIPPED -> Math.max(1, Math.min(4, (int)Math.round(feature.heightMeters() / 12.0)));
-         case FLAT_CROWN -> 2;
-         case FLAT_SKYLIGHT -> 1;
-         case FLAT -> 0;
+         case GABLED_X, GABLED_Z, HIPPED -> taggedRoofRise > 0 ? taggedRoofRise : Math.max(1, Math.min(4, (int)Math.round(feature.heightMeters() / 12.0)));
+         case FLAT_CROWN -> taggedRoofRise > 0 ? taggedRoofRise : 2;
+         case FLAT_SKYLIGHT -> taggedRoofRise > 0 ? taggedRoofRise : 1;
+         case FLAT -> taggedRoofRise;
       };
       int setbackEveryFloors = archetype == BuildingProfile.Archetype.TOWER && floorCount >= 12 ? 8 : 0;
       int maxSetback = archetype == BuildingProfile.Archetype.TOWER ? 3 : 0;
@@ -41,11 +42,38 @@ public final class TellusBuildingProfiles {
          case TOWER -> 4;
          case GENERIC -> 4;
       };
-      return new BuildingProfile(archetype, roofProfile, climate, floorCount, storeyHeightBlocks, interiorsEnabled, parapetHeight, roofRise, setbackEveryFloors, maxSetback, windowSpacing);
+      return new BuildingProfile(
+         archetype,
+         roofProfile,
+         climate,
+         floorCount,
+         storeyHeightBlocks,
+         interiorsEnabled,
+         parapetHeight,
+         roofRise,
+         setbackEveryFloors,
+         maxSetback,
+         windowSpacing,
+         metadata.primaryType(),
+         metadata.wallMaterial(),
+         metadata.roofMaterial(),
+         metadata.wallColor(),
+         metadata.roofColor()
+      );
    }
 
    public static int inferFloorCount(double heightMeters) {
       return Math.max(1, (int)Math.round(heightMeters / DEFAULT_STOREY_METERS));
+   }
+
+   private static int resolveTaggedRoofRise(OsmBuildingMetadata metadata, double worldScale, int storeyHeightBlocks) {
+      if (metadata.roofHeightMeters() > 0.0) {
+         return Math.max(1, (int)Math.round(metadata.roofHeightMeters() / Math.max(1.0, worldScale)));
+      }
+      if (metadata.roofLevels() > 0) {
+         return Math.max(1, metadata.roofLevels() * Math.max(1, storeyHeightBlocks));
+      }
+      return 0;
    }
 
    private static BuildingProfile.Archetype resolveArchetype(OsmBuildingMetadata metadata, double areaSquareMeters, int floorCount, double heightMeters) {

@@ -6,6 +6,7 @@ import com.google.common.cache.LoadingCache;
 import com.google.common.util.concurrent.ThreadFactoryBuilder;
 import com.mojang.blaze3d.platform.NativeImage;
 import com.yucareux.tellus.Tellus;
+import com.yucareux.tellus.util.TellusDiagnostics;
 import java.io.BufferedInputStream;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
@@ -14,10 +15,12 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.net.HttpURLConnection;
 import java.net.URI;
-import java.net.URL;
 import java.nio.channels.ClosedByInterruptException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Locale;
 import java.util.Objects;
 import java.util.Queue;
 import java.util.concurrent.ExecutorService;
@@ -31,6 +34,16 @@ import net.minecraft.client.Minecraft;
 @Environment(EnvType.CLIENT)
 public class SlippyMapTileCache {
    private static final int CACHE_SIZE = 1024;
+   private static final String TILE_ENDPOINTS_PROPERTY = "tellus.map.tile.endpoints";
+   private static final String DEFAULT_TILE_ENDPOINTS = String.join(
+      ",",
+      "https://tile.openstreetmap.org/%d/%d/%d.png",
+      "https://a.tile.openstreetmap.org/%d/%d/%d.png",
+      "https://b.tile.openstreetmap.org/%d/%d/%d.png",
+      "https://c.tile.openstreetmap.org/%d/%d/%d.png",
+      "https://tile.openstreetmap.de/%d/%d/%d.png"
+   );
+   private static final String[] TILE_ENDPOINTS = parseTileEndpoints(System.getProperty(TILE_ENDPOINTS_PROPERTY, DEFAULT_TILE_ENDPOINTS));
    private final ExecutorService loadingService = Executors.newFixedThreadPool(
       4, new ThreadFactoryBuilder().setDaemon(true).setNameFormat("tellus-map-load-%d").build()
    );
@@ -113,16 +126,34 @@ public class SlippyMapTileCache {
       if (Files.exists(cachePath)) {
          return Files.readAllBytes(cachePath);
       } else {
-         URI uri = URI.create(String.format("https://tile.openstreetmap.org/%s/%s/%s.png", pos.getZoom(), pos.getX(), pos.getY()));
-         URL url = uri.toURL();
-         HttpURLConnection connection = (HttpURLConnection)url.openConnection();
+         byte[] data = this.fetchTileData(pos);
+         if (!this.shuttingDown && !Thread.currentThread().isInterrupted()) {
+            this.cacheData(cachePath, data);
+         }
+         return data;
+      }
+   }
+
+   private byte[] fetchTileData(SlippyMapTilePos pos) throws IOException {
+      IOException lastError = null;
+      for (String endpoint : TILE_ENDPOINTS) {
+         String requestUrl;
+         try {
+            requestUrl = String.format(Locale.ROOT, endpoint, pos.getZoom(), pos.getX(), pos.getY());
+         } catch (RuntimeException error) {
+            lastError = new IOException("Invalid map tile endpoint template: " + endpoint, error);
+            TellusDiagnostics.traffic("Slippy map tile endpoint invalid endpoint=%s error=%s", endpoint, lastError.getMessage());
+            continue;
+         }
+
+         HttpURLConnection connection = (HttpURLConnection)URI.create(requestUrl).toURL().openConnection();
          try {
             connection.setConnectTimeout(5000);
             connection.setReadTimeout(5000);
             connection.setRequestProperty("User-Agent", "Tellus/2.0.0 (Minecraft Mod)");
             int responseCode = connection.getResponseCode();
             if (responseCode != 200) {
-               throw new IOException("OpenStreetMap tile request failed with HTTP " + responseCode + " for " + pos);
+               throw new IOException("HTTP " + responseCode);
             }
 
             InputStream stream = Objects.requireNonNull(connection.getInputStream(), "tileStream");
@@ -130,17 +161,32 @@ public class SlippyMapTileCache {
 
             try (InputStream input = new BufferedInputStream(stream)) {
                byte[] data = input.readAllBytes();
-               if (!this.shuttingDown && !Thread.currentThread().isInterrupted()) {
-                  this.cacheData(cachePath, data);
-               }
+               TellusDiagnostics.traffic("Slippy map tile ok tile=%s endpoint=%s bytes=%d", pos, requestUrl, data.length);
                return data;
             } finally {
                this.loadingStreams.remove(stream);
             }
+         } catch (IOException error) {
+            lastError = error;
+            TellusDiagnostics.traffic("Slippy map tile failed tile=%s endpoint=%s error=%s", pos, requestUrl, error.getMessage());
          } finally {
             connection.disconnect();
          }
       }
+
+      throw new IOException("all map tile endpoints failed for " + pos, lastError);
+   }
+
+   private static String[] parseTileEndpoints(String config) {
+      String[] parts = Objects.requireNonNull(config, "tileEndpoints").split(",");
+      List<String> parsed = new ArrayList<>(parts.length);
+      for (String part : parts) {
+         String trimmed = part == null ? "" : part.trim();
+         if (!trimmed.isEmpty()) {
+            parsed.add(trimmed);
+         }
+      }
+      return parsed.isEmpty() ? new String[]{"https://tile.openstreetmap.org/%d/%d/%d.png"} : parsed.toArray(String[]::new);
    }
 
    private boolean isCancelledLoad(IOException error) {

@@ -3,6 +3,15 @@ package com.yucareux.tellus.worldgen;
 import com.mojang.serialization.MapCodec;
 import com.mojang.serialization.codecs.RecordCodecBuilder;
 import com.yucareux.tellus.Tellus;
+import com.yucareux.tellus.util.TellusDiagnostics;
+import com.yucareux.tellus.world.data.integration.ExternalAreaFeature;
+import com.yucareux.tellus.world.data.integration.ExternalAreaKind;
+import com.yucareux.tellus.world.data.integration.TellusExternalFeatureSource;
+import com.yucareux.tellus.world.data.integration.ExternalLineFeature;
+import com.yucareux.tellus.world.data.integration.ExternalLineKind;
+import com.yucareux.tellus.world.data.integration.ExternalPointFeature;
+import com.yucareux.tellus.world.data.integration.ExternalPointKind;
+import com.yucareux.tellus.world.data.integration.GeoPoint;
 import com.yucareux.tellus.world.data.cover.TellusLandCoverSource;
 import com.yucareux.tellus.world.data.elevation.TellusElevationSource;
 import com.yucareux.tellus.world.data.koppen.TellusKoppenSource;
@@ -27,6 +36,8 @@ import com.yucareux.tellus.worldgen.building.BuildingPlacementSupport;
 import com.yucareux.tellus.worldgen.building.TellusBuildingProfiles;
 import com.yucareux.tellus.worldgen.caves.TellusNoiseSettingsAdapter;
 import com.yucareux.tellus.worldgen.caves.TellusVanillaCarverRunner;
+import com.yucareux.tellus.worldgen.vegetation.ArnisTreeGenerator;
+import com.yucareux.tellus.worldgen.vegetation.ArnisTreeType;
 import it.unimi.dsi.fastutil.ints.IntArrayList;
 import it.unimi.dsi.fastutil.longs.Long2ObjectOpenHashMap;
 import it.unimi.dsi.fastutil.longs.LongSet;
@@ -145,6 +156,7 @@ public final class EarthChunkGenerator extends ChunkGenerator {
    private static final TellusLandMaskSource LAND_MASK_SOURCE = TellusWorldgenSources.landMask();
    private static final TellusOsmRoadSource OSM_ROAD_SOURCE = TellusWorldgenSources.osmRoads();
    private static final TellusOsmBuildingSource OSM_BUILDING_SOURCE = TellusWorldgenSources.osmBuildings();
+   private static final TellusExternalFeatureSource EXTERNAL_FEATURE_SOURCE = TellusExternalFeatureSource.createDefault();
    private static final TellusOsmSandSource OSM_SAND_SOURCE = TellusWorldgenSources.osmSand();
    private static final double ESA_WORLD_COVER_RESOLUTION_METERS = 10.0;
    private static final int ESA_NO_DATA = 0;
@@ -161,12 +173,18 @@ public final class EarthChunkGenerator extends ChunkGenerator {
    private static final int OSM_ROAD_QUERY_MARGIN = 64;
    private static final int OSM_BUILDING_MAX_SCALE = 15;
    private static final int OSM_BUILDING_QUERY_MARGIN = 8;
+   private static final int OSM_CITY_DETAIL_MAX_SCALE = 15;
+   private static final int OSM_CITY_DETAIL_QUERY_MARGIN = 32;
    private static final int OSM_ROAD_CLASS_SEPARATION = 0;
    private static final int OSM_ROAD_BRIDGE_LEVEL_HEIGHT = intProperty("tellus.osm.roads.bridgeLevelHeight", 3, 1, 16);
    private static final int OSM_ROAD_BRIDGE_MAX_RISE = intProperty("tellus.osm.roads.bridgeMaxRise", 10, 1, 64);
    private static final int OSM_ROAD_BRIDGE_RAMP_HORIZONTAL_PER_VERTICAL = intProperty("tellus.osm.roads.bridgeRampHorizontalPerVertical", 4, 1, 32);
    private static final int OSM_TUNNEL_SIDE_CLEARANCE = 3;
    private static final int OSM_TUNNEL_INTERNAL_HEIGHT = 7;
+   private static final int OSM_ROAD_MAX_TAGGED_WIDTH = intProperty("tellus.osm.roads.maxTaggedWidth", 18, 1, 64);
+   private static final byte ROAD_SURFACE_DEFAULT = 0;
+   private static final byte ROAD_SURFACE_UNPAVED = 1;
+   private static final byte ROAD_SURFACE_PAVED_PATH = 2;
    private static final int OCEAN_MONUMENT_SAMPLE_STEP = 8;
    private static final int OCEAN_MONUMENT_MARGIN = 8;
    private static final int OCEAN_MONUMENT_CORE_INSET = 8;
@@ -180,11 +198,31 @@ public final class EarthChunkGenerator extends ChunkGenerator {
    private static final BlockState ROAD_NORMAL_STATE = Blocks.CYAN_TERRACOTTA.defaultBlockState();
 
    private static final BlockState ROAD_DIRT_STATE = Blocks.DIRT_PATH.defaultBlockState();
+   private static final BlockState ROAD_LANE_MARK_STATE = Blocks.WHITE_CONCRETE.defaultBlockState();
+   private static final BlockState ROAD_SIDEWALK_STATE = Blocks.SMOOTH_STONE.defaultBlockState();
    private static final BlockState BRIDGE_SUPPORT_SHAFT_STATE = Blocks.QUARTZ_PILLAR.defaultBlockState();
    private static final BlockState BRIDGE_SUPPORT_CAP_STATE = Blocks.QUARTZ_BRICKS.defaultBlockState();
    private static final BlockState ROAD_LIGHT_BASE_STATE = Blocks.STONE_BRICK_WALL.defaultBlockState();
    private static final BlockState ROAD_LIGHT_FENCE_STATE = Blocks.OAK_FENCE.defaultBlockState();
    private static final BlockState ROAD_LIGHT_GLOW_STATE = Blocks.GLOWSTONE.defaultBlockState();
+   private static final BlockState CITY_PARKING_STATE = Blocks.LIGHT_GRAY_CONCRETE.defaultBlockState();
+   private static final BlockState CITY_PARKING_DRIVE_STATE = Blocks.GRAY_CONCRETE.defaultBlockState();
+   private static final BlockState CITY_PARKING_MARK_STATE = Blocks.WHITE_CONCRETE.defaultBlockState();
+   private static final BlockState CITY_TRACK_STATE = Blocks.RED_TERRACOTTA.defaultBlockState();
+   private static final BlockState CITY_PLAYGROUND_STATE = Blocks.ORANGE_TERRACOTTA.defaultBlockState();
+   private static final BlockState CITY_BARRIER_FENCE_STATE = Blocks.OAK_FENCE.defaultBlockState();
+   private static final BlockState CITY_BARRIER_WALL_STATE = Blocks.COBBLESTONE_WALL.defaultBlockState();
+   private static final BlockState CITY_BARRIER_HEDGE_STATE = Blocks.OAK_LEAVES.defaultBlockState();
+   private static final BlockState CITY_BARRIER_RAIL_STATE = Blocks.IRON_BARS.defaultBlockState();
+   private static final BlockState CITY_RAIL_STATE = Blocks.RAIL.defaultBlockState();
+   private static final BlockState CITY_TRAFFIC_POLE_STATE = Blocks.IRON_BARS.defaultBlockState();
+   private static final BlockState CITY_TRAFFIC_LIGHT_STATE = Blocks.REDSTONE_LAMP.defaultBlockState();
+   private static final BlockState CITY_BENCH_STATE = Blocks.OAK_SLAB.defaultBlockState();
+   private static final BlockState CITY_FOUNTAIN_BASE_STATE = Blocks.STONE_BRICKS.defaultBlockState();
+   private static final BlockState CITY_SHRUB_STATE = Blocks.OAK_LEAVES.defaultBlockState();
+   private static final BlockState CITY_FERN_STATE = Blocks.FERN.defaultBlockState();
+   private static final BlockState CITY_ROCK_STATE = Blocks.COBBLESTONE.defaultBlockState();
+   private static final BlockState CITY_DEAD_BUSH_STATE = Blocks.DEAD_BUSH.defaultBlockState();
    private static final BlockState BUILDING_BOOKSHELF_STATE = Blocks.BOOKSHELF.defaultBlockState();
    private static final BlockState BUILDING_BARREL_STATE = Blocks.BARREL.defaultBlockState();
    private static final BlockState BUILDING_CRAFTING_STATE = Blocks.CRAFTING_TABLE.defaultBlockState();
@@ -388,6 +426,17 @@ public final class EarthChunkGenerator extends ChunkGenerator {
                }
             );
       }
+      TellusDiagnostics.worldgen(
+         "EarthChunkGenerator init: scale=%s minAltitude=%d maxAltitude=%d heightOffset=%d limits=[minY=%d,height=%d,logicalHeight=%d] seaLevel=%d",
+         settings.worldScale(),
+         settings.minAltitude(),
+         settings.maxAltitude(),
+         settings.heightOffset(),
+         limits.minY(),
+         limits.height(),
+         limits.logicalHeight(),
+         this.seaLevel
+      );
    }
 
    public static EarthChunkGenerator create(Provider registries, EarthGeneratorSettings settings) {
@@ -554,7 +603,7 @@ public final class EarthChunkGenerator extends ChunkGenerator {
       return !CHUNK_DETAIL_LEGACY_BLOCKING
          && CHUNK_DETAIL_DEFER_BUILDINGS
          && this.settings.enableBuildings()
-         && OSM_BUILDING_SOURCE.available()
+         && this.buildingSourcesAvailable()
          && worldScale > 0.0
          && worldScale <= OSM_BUILDING_MAX_SCALE;
    }
@@ -569,6 +618,14 @@ public final class EarthChunkGenerator extends ChunkGenerator {
 
    private boolean shouldUseStructureOsmSyncFallback() {
       return CHUNK_DETAIL_LEGACY_BLOCKING;
+   }
+
+   private boolean roadSourcesAvailable() {
+      return OSM_ROAD_SOURCE.available() || EXTERNAL_FEATURE_SOURCE.roadsAvailable();
+   }
+
+   private boolean buildingSourcesAvailable() {
+      return OSM_BUILDING_SOURCE.available() || EXTERNAL_FEATURE_SOURCE.buildingsAvailable();
    }
 
 
@@ -680,6 +737,12 @@ public final class EarthChunkGenerator extends ChunkGenerator {
             phaseStartNs = beginFullChunkProfiling();
             this.placePreparedBuildings(level, chunk);
             endFullChunkProfiling(EarthChunkGenerator.FullChunkPhase.DECORATION_BUILDINGS, phaseStartNs);
+         }
+
+         if (!delayTellusDecoration && !this.shouldDeferRoadDetails() && !this.shouldDeferBuildingDetails()) {
+            phaseStartNs = beginFullChunkProfiling();
+            this.applyExternalCityDetails(level, chunk);
+            endFullChunkProfiling(EarthChunkGenerator.FullChunkPhase.DECORATION_CITY_DETAILS, phaseStartNs);
          }
 
          phaseStartNs = beginFullChunkProfiling();
@@ -816,6 +879,19 @@ public final class EarthChunkGenerator extends ChunkGenerator {
                   this.settings.maxAltitude()
                }
             );
+         TellusDiagnostics.worldgen(
+            "fillFromNoise layout: chunkPos=%s minY=%d height=%d maxY=%d sections=%d genMinY=%d genHeight=%d seaLevel=%d settingsMinAlt=%d settingsMaxAlt=%d",
+            pos,
+            chunkMinY,
+            chunkHeight,
+            chunkMinY + chunkHeight - 1,
+            chunkHeight >> 4,
+            this.minY,
+            this.height,
+            this.seaLevel,
+            this.settings.minAltitude(),
+            this.settings.maxAltitude()
+         );
       }
 
       int deepslateStart = this.minY + 64;
@@ -915,7 +991,7 @@ public final class EarthChunkGenerator extends ChunkGenerator {
       int[] convexities = new int[CHUNK_AREA];
       Holder<Biome>[] biomeCache = newBiomeCache(CHUNK_AREA);
       EarthBiomeSource earthBiomeSource = this.biomeSource instanceof EarthBiomeSource typedEarthBiomeSource ? typedEarthBiomeSource : null;
-      EarthChunkGenerator.ChunkBiomeClimateCache climateCache = useFastFullChunk && earthBiomeSource != null
+      EarthChunkGenerator.ChunkBiomeClimateCache climateCache = shouldUseChunkClimateCache(useFastFullChunk, earthBiomeSource, this.settings.worldScale())
          ? new EarthChunkGenerator.ChunkBiomeClimateCache(pos, this.settings.worldScale())
          : null;
       phaseStartNs = beginFullChunkProfiling();
@@ -1029,8 +1105,8 @@ public final class EarthChunkGenerator extends ChunkGenerator {
          }
          endFullChunkProfiling(EarthChunkGenerator.FullChunkPhase.FILL_BLOCKS_SOLID_SECTIONS, solidSectionsStartNs);
 
-         for (int localZ = 0; localZ < CHUNK_SIDE; localZ++) {
-            int worldZ = chunkMinZ + localZ;
+	                  for (int localZ = 0; localZ < CHUNK_SIDE; localZ++) {
+	                     int worldZ = chunkMinZ + localZ;
             int rowIndex = localZ * CHUNK_SIDE;
 
             for (int localX = 0; localX < CHUNK_SIDE; localX++) {
@@ -1299,12 +1375,16 @@ public final class EarthChunkGenerator extends ChunkGenerator {
                   scratch.ensureRoadExtCapacity(extArea);
                   byte[] resolvedClass = scratch.resolvedClass;
                   byte[] resolvedMode = scratch.resolvedMode;
+                  byte[] resolvedSurface = scratch.resolvedSurface;
                   int[] resolvedDeckY = scratch.resolvedDeckY;
+                  int[] resolvedWidth = scratch.resolvedWidth;
                   boolean[] resolvedTunnelCarve = scratch.resolvedTunnelCarve;
                   boolean[] blockedByHigherClass = scratch.blockedByHigherClass;
                   boolean[] bridgeOverlayPresent = scratch.bridgeOverlayPresent;
                   int[] bridgeOverlayDeckY = scratch.bridgeOverlayDeckY;
                   byte[] bridgeOverlayClass = scratch.bridgeOverlayClass;
+                  byte[] bridgeOverlaySurface = scratch.bridgeOverlaySurface;
+                  int[] bridgeOverlayWidth = scratch.bridgeOverlayWidth;
                   boolean[] bridgeSupportShaftPresent = scratch.bridgeSupportShaftPresent;
                   int[] bridgeSupportShaftBottomY = scratch.bridgeSupportShaftBottomY;
                   int[] bridgeSupportShaftTopY = scratch.bridgeSupportShaftTopY;
@@ -1333,12 +1413,16 @@ public final class EarthChunkGenerator extends ChunkGenerator {
                      edgeColumnCache,
                      resolvedClass,
                      resolvedMode,
+                     resolvedSurface,
                      resolvedDeckY,
+                     resolvedWidth,
                      resolvedTunnelCarve,
                      blockedByHigherClass,
                      bridgeOverlayPresent,
                      bridgeOverlayDeckY,
                      bridgeOverlayClass,
+                     bridgeOverlaySurface,
+                     bridgeOverlayWidth,
                      scratch,
                      extArea
                   );
@@ -1360,12 +1444,16 @@ public final class EarthChunkGenerator extends ChunkGenerator {
                      edgeColumnCache,
                      resolvedClass,
                      resolvedMode,
+                     resolvedSurface,
                      resolvedDeckY,
+                     resolvedWidth,
                      resolvedTunnelCarve,
                      blockedByHigherClass,
                      bridgeOverlayPresent,
                      bridgeOverlayDeckY,
                      bridgeOverlayClass,
+                     bridgeOverlaySurface,
+                     bridgeOverlayWidth,
                      scratch,
                      extArea
                   );
@@ -1387,12 +1475,16 @@ public final class EarthChunkGenerator extends ChunkGenerator {
                      edgeColumnCache,
                      resolvedClass,
                      resolvedMode,
+                     resolvedSurface,
                      resolvedDeckY,
+                     resolvedWidth,
                      resolvedTunnelCarve,
                      blockedByHigherClass,
                      bridgeOverlayPresent,
                      bridgeOverlayDeckY,
                      bridgeOverlayClass,
+                     bridgeOverlaySurface,
+                     bridgeOverlayWidth,
                      scratch,
                      extArea
                   );
@@ -1480,10 +1572,12 @@ public final class EarthChunkGenerator extends ChunkGenerator {
                   byte[] chunkRoadClass = scratch.chunkRoadClass;
                   byte[] chunkRoadMode = scratch.chunkRoadMode;
                   int[] chunkRoadDeckY = scratch.chunkRoadDeckY;
+                  int[] chunkRoadWidth = scratch.chunkRoadWidth;
                   boolean[] chunkTunnelNeedsCarve = scratch.chunkTunnelNeedsCarve;
                   Arrays.fill(chunkRoadClass, (byte)0);
                   Arrays.fill(chunkRoadMode, (byte)0);
                   Arrays.fill(chunkRoadDeckY, 0);
+                  Arrays.fill(chunkRoadWidth, 0);
                   Arrays.fill(chunkTunnelNeedsCarve, false);
                   MutableBlockPos cursor = new MutableBlockPos();
 
@@ -1500,11 +1594,12 @@ public final class EarthChunkGenerator extends ChunkGenerator {
                               int worldX = chunkMinX + localX;
                               int worldZ = chunkMinZ + localZ;
                               cursor.set(worldX, deckY, worldZ);
-                              this.setChunkBlock(level, chunk, cursor, roadStateForClass(roadClassFromId(classId)));
+                              this.setChunkBlock(level, chunk, cursor, roadStateForOverlay(roadClassFromId(classId), resolvedSurface[extIndex]));
                               int chunkIndex = chunkIndex(localX, localZ);
                               chunkRoadClass[chunkIndex] = (byte)classId;
                               chunkRoadMode[chunkIndex] = resolvedMode[extIndex];
                            chunkRoadDeckY[chunkIndex] = deckY;
+                           chunkRoadWidth[chunkIndex] = resolvedWidth[extIndex];
                            chunkTunnelNeedsCarve[chunkIndex] = resolvedTunnelCarve[extIndex];
                         }
                      }
@@ -1524,11 +1619,64 @@ public final class EarthChunkGenerator extends ChunkGenerator {
                               int worldX = chunkMinX + localXx;
                               int worldZ = chunkMinZ + localZ;
                               cursor.set(worldX, deckY, worldZ);
-                              this.setChunkBlock(level, chunk, cursor, roadStateForClass(roadClassFromId(classId)));
+                              this.setChunkBlock(level, chunk, cursor, roadStateForOverlay(roadClassFromId(classId), bridgeOverlaySurface[extIndex]));
                            }
                         }
                      }
                   }
+
+                  this.paintRoadSidewalks(
+                     level,
+                     chunk,
+                     roads,
+                     widths,
+                     chunkMinX,
+                     chunkMinZ,
+                     chunkMinY,
+                     chunkMaxY,
+                     padding,
+                     extSide,
+                     chunkRoadClass,
+                     chunkRoadMode,
+                     chunkRoadDeckY,
+                     bridgeOverlayPresent,
+                     bridgeOverlayDeckY,
+                     bridgeOverlayClass
+                  );
+
+                  this.paintRoadLaneMarkings(
+                     level,
+                     chunk,
+                     roads,
+                     widths,
+                     chunkMinX,
+                     chunkMinZ,
+                     chunkMinY,
+                     chunkMaxY,
+                     padding,
+                     extSide,
+                     chunkRoadClass,
+                     chunkRoadMode,
+                     chunkRoadDeckY,
+                     bridgeOverlayPresent,
+                     bridgeOverlayDeckY,
+                     bridgeOverlayClass
+                  );
+
+                  this.paintBridgeEdgeRails(
+                     level,
+                     chunk,
+                     chunkMinX,
+                     chunkMinZ,
+                     chunkMinY,
+                     chunkMaxY,
+                     padding,
+                     extSide,
+                     bridgeOverlayPresent,
+                     bridgeOverlayDeckY,
+                     bridgeOverlayClass,
+                     bridgeOverlayWidth
+                  );
 
                   for (int localZ = 0; localZ < CHUNK_SIDE; localZ++) {
                      for (int localX = 0; localX < CHUNK_SIDE; localX++) {
@@ -1574,7 +1722,7 @@ public final class EarthChunkGenerator extends ChunkGenerator {
                      for (int localXxx = 0; localXxx < CHUNK_SIDE; localXxx++) {
                         int centerIndex = chunkIndex(localXxx, localZ);
                         if (chunkRoadClass[centerIndex] > 0 && chunkRoadMode[centerIndex] == tunnelModeId && chunkTunnelNeedsCarve[centerIndex]) {
-                           int roadWidth = classWidths[chunkRoadClass[centerIndex]];
+                           int roadWidth = chunkRoadWidth[centerIndex] > 0 ? chunkRoadWidth[centerIndex] : classWidths[chunkRoadClass[centerIndex]];
                            int carveWidth = roadWidth + OSM_TUNNEL_SIDE_CLEARANCE * 2;
                            double carveRadius = Math.max(0.5, (carveWidth - 1) * 0.5);
                            int radius = Mth.ceil(carveRadius);
@@ -1632,10 +1780,21 @@ public final class EarthChunkGenerator extends ChunkGenerator {
                               }
                            }
                         }
-                     }
-                  }
+	                     }
+	                  }
 
-                  EarthChunkGenerator.PreparedChunkRoadLights preparedRoadLights = this.prepareRoadLightsForChunk(
+	                  this.paintTunnelShell(
+	                     level,
+	                     chunk,
+	                     chunkMinX,
+	                     chunkMinZ,
+	                     chunkMinY,
+	                     chunkMaxY,
+	                     tunnelCarveMask,
+	                     tunnelCarveDeckY
+	                  );
+
+	                  EarthChunkGenerator.PreparedChunkRoadLights preparedRoadLights = this.prepareRoadLightsForChunk(
                      pos,
                      roads,
                      widths,
@@ -1680,29 +1839,40 @@ public final class EarthChunkGenerator extends ChunkGenerator {
       Long2ObjectOpenHashMap<EarthChunkGenerator.RoadColumnSample> edgeColumnCache,
       byte[] resolvedClass,
       byte[] resolvedMode,
+      byte[] resolvedSurface,
       int[] resolvedDeckY,
+      int[] resolvedWidth,
       boolean[] resolvedTunnelCarve,
       boolean[] blockedByHigherClass,
       boolean[] bridgeOverlayPresent,
       int[] bridgeOverlayDeckY,
       byte[] bridgeOverlayClass,
+      byte[] bridgeOverlaySurface,
+      int[] bridgeOverlayWidth,
       EarthChunkGenerator.OsmOverlayScratch scratch,
       int extArea
    ) {
       if (!roads.isEmpty() && roadWidth > 0) {
          boolean[] candidatePresent = scratch.candidatePresent;
          int[] candidateDeckY = scratch.candidateDeckY;
+         int[] candidateWidth = scratch.candidateWidth;
          byte[] candidateMode = scratch.candidateMode;
+         byte[] candidateSurface = scratch.candidateSurface;
          boolean[] candidateTunnelCarve = scratch.candidateTunnelCarve;
          boolean[] bridgeCandidatePresent = scratch.bridgeCandidatePresent;
          int[] bridgeCandidateDeckY = scratch.bridgeCandidateDeckY;
+         int[] bridgeCandidateWidth = scratch.bridgeCandidateWidth;
+         byte[] bridgeCandidateSurface = scratch.bridgeCandidateSurface;
          scratch.clearRoadCandidateState(extArea);
 
          for (RoadFeature road : roads) {
+            int featureRoadWidth = roadWidthForFeature(road, roadWidth);
+            byte featureSurface = roadSurfaceId(road);
             if (road.mode() == RoadMode.BRIDGE) {
                this.rasterizeRoadFeature(
                   road,
-                  roadWidth,
+                  featureRoadWidth,
+                  featureSurface,
                   blocksPerDegree,
                   extMinX,
                   extMinZ,
@@ -1717,13 +1887,16 @@ public final class EarthChunkGenerator extends ChunkGenerator {
                   edgeColumnCache,
                   bridgeCandidatePresent,
                   bridgeCandidateDeckY,
+                  bridgeCandidateWidth,
                   null,
+                  bridgeCandidateSurface,
                   null
                );
             } else {
                this.rasterizeRoadFeature(
                   road,
-                  roadWidth,
+                  featureRoadWidth,
+                  featureSurface,
                   blocksPerDegree,
                   extMinX,
                   extMinZ,
@@ -1738,7 +1911,9 @@ public final class EarthChunkGenerator extends ChunkGenerator {
                   edgeColumnCache,
                   candidatePresent,
                   candidateDeckY,
+                  candidateWidth,
                   candidateMode,
+                  candidateSurface,
                   candidateTunnelCarve
                );
             }
@@ -1748,7 +1923,18 @@ public final class EarthChunkGenerator extends ChunkGenerator {
 
          for (int index = 0; index < extArea; index++) {
             if (bridgeCandidatePresent[index]) {
-               mergeBridgeOverlay(index, classId, bridgeCandidateDeckY[index], bridgeOverlayPresent, bridgeOverlayDeckY, bridgeOverlayClass);
+               mergeBridgeOverlay(
+                  index,
+                  classId,
+                  bridgeCandidateSurface[index],
+                  bridgeCandidateWidth[index],
+                  bridgeCandidateDeckY[index],
+                  bridgeOverlayPresent,
+                  bridgeOverlayDeckY,
+                  bridgeOverlayClass,
+                  bridgeOverlaySurface,
+                  bridgeOverlayWidth
+               );
             }
          }
 
@@ -1759,7 +1945,9 @@ public final class EarthChunkGenerator extends ChunkGenerator {
             if (candidatePresent[indexx] && !blockedByHigherClass[indexx]) {
                resolvedClass[indexx] = (byte)classId;
                resolvedMode[indexx] = candidateMode[indexx];
+               resolvedSurface[indexx] = candidateSurface[indexx];
                resolvedDeckY[indexx] = candidateDeckY[indexx];
+               resolvedWidth[indexx] = candidateWidth[indexx];
                resolvedTunnelCarve[indexx] = candidateTunnelCarve[indexx];
                placed[placedCount++] = indexx;
             }
@@ -1788,6 +1976,7 @@ public final class EarthChunkGenerator extends ChunkGenerator {
    private void rasterizeRoadFeature(
       RoadFeature road,
       int roadWidth,
+      byte roadSurface,
       double blocksPerDegree,
       int extMinX,
       int extMinZ,
@@ -1802,7 +1991,9 @@ public final class EarthChunkGenerator extends ChunkGenerator {
       Long2ObjectOpenHashMap<EarthChunkGenerator.RoadColumnSample> edgeColumnCache,
       boolean[] candidatePresent,
       int[] candidateDeckY,
+      int[] candidateWidth,
       byte[] candidateMode,
+      byte[] candidateSurface,
       boolean[] candidateTunnelCarve
    ) {
       int pointCount = road.pointCount();
@@ -1924,6 +2115,8 @@ public final class EarthChunkGenerator extends ChunkGenerator {
                            if (replaceCandidate) {
                               candidatePresent[extIndex] = true;
                               candidateDeckY[extIndex] = deckY;
+                              candidateWidth[extIndex] = roadWidth;
+                              candidateSurface[extIndex] = roadSurface;
                               if (candidateMode != null && candidateTunnelCarve != null) {
                                  candidateMode[extIndex] = (byte)(road.mode().ordinal() + 1);
                                  candidateTunnelCarve[extIndex] = tunnelNeedsCarve;
@@ -1939,6 +2132,448 @@ public final class EarthChunkGenerator extends ChunkGenerator {
                }
             }
          }
+      }
+   }
+
+   private void paintRoadSidewalks(
+      WorldGenLevel level,
+      ChunkAccess chunk,
+      List<RoadFeature> roads,
+      EarthChunkGenerator.RoadWidths widths,
+      int chunkMinX,
+      int chunkMinZ,
+      int chunkMinY,
+      int chunkMaxY,
+      int padding,
+      int extSide,
+      byte[] chunkRoadClass,
+      byte[] chunkRoadMode,
+      int[] chunkRoadDeckY,
+      boolean[] bridgeOverlayPresent,
+      int[] bridgeOverlayDeckY,
+      byte[] bridgeOverlayClass
+   ) {
+      double worldScale = this.settings.worldScale();
+      double blocksPerDegree = blocksPerDegree(worldScale);
+      MutableBlockPos cursor = new MutableBlockPos();
+
+      for (RoadFeature road : roads) {
+         if (!road.hasSidewalk() || road.roadClass() == RoadClass.DIRT || road.isUnpavedSurface() || road.mode() == RoadMode.TUNNEL || road.pointCount() < 2) {
+            continue;
+         }
+
+         int roadWidth = roadWidthForFeature(road, roadWidthForClass(road.roadClass(), widths));
+         if (roadWidth < 3) {
+            continue;
+         }
+
+         int roadClassId = roadClassId(road.roadClass());
+         int roadModeId = road.mode().ordinal() + 1;
+         double sidewalkOffset = Math.max(0.5, roadWidth * 0.5 - 0.5);
+         double previousX = road.lonAt(0) * blocksPerDegree;
+         double previousZ = EarthProjection.latToBlockZ(road.latAt(0), worldScale);
+         for (int point = 1; point < road.pointCount(); point++) {
+            double currentX = road.lonAt(point) * blocksPerDegree;
+            double currentZ = EarthProjection.latToBlockZ(road.latAt(point), worldScale);
+            double dx = currentX - previousX;
+            double dz = currentZ - previousZ;
+            double segmentLength = Math.sqrt(dx * dx + dz * dz);
+            if (segmentLength <= 1.0E-6) {
+               previousX = currentX;
+               previousZ = currentZ;
+               continue;
+            }
+
+            double tangentX = dx / segmentLength;
+            double tangentZ = dz / segmentLength;
+            double normalX = -tangentZ;
+            double normalZ = tangentX;
+            for (double station = 0.0; station <= segmentLength; station += 0.75) {
+               double centerX = previousX + tangentX * station;
+               double centerZ = previousZ + tangentZ * station;
+               if (road.hasLeftSidewalk()) {
+                  this.paintRoadEdgeBlock(
+                     level,
+                     chunk,
+                     centerX,
+                     centerZ,
+                     normalX,
+                     normalZ,
+                     -sidewalkOffset,
+                     road.mode(),
+                     roadClassId,
+                     roadModeId,
+                     chunkMinX,
+                     chunkMinZ,
+                     chunkMinY,
+                     chunkMaxY,
+                     padding,
+                     extSide,
+                     chunkRoadClass,
+                     chunkRoadMode,
+                     chunkRoadDeckY,
+                     bridgeOverlayPresent,
+                     bridgeOverlayDeckY,
+                     bridgeOverlayClass,
+                     cursor,
+                     ROAD_SIDEWALK_STATE
+                  );
+               }
+               if (road.hasRightSidewalk()) {
+                  this.paintRoadEdgeBlock(
+                     level,
+                     chunk,
+                     centerX,
+                     centerZ,
+                     normalX,
+                     normalZ,
+                     sidewalkOffset,
+                     road.mode(),
+                     roadClassId,
+                     roadModeId,
+                     chunkMinX,
+                     chunkMinZ,
+                     chunkMinY,
+                     chunkMaxY,
+                     padding,
+                     extSide,
+                     chunkRoadClass,
+                     chunkRoadMode,
+                     chunkRoadDeckY,
+                     bridgeOverlayPresent,
+                     bridgeOverlayDeckY,
+                     bridgeOverlayClass,
+                     cursor,
+                     ROAD_SIDEWALK_STATE
+                  );
+               }
+            }
+
+            previousX = currentX;
+            previousZ = currentZ;
+         }
+      }
+   }
+
+   private void paintBridgeEdgeRails(
+      WorldGenLevel level,
+      ChunkAccess chunk,
+      int chunkMinX,
+      int chunkMinZ,
+      int chunkMinY,
+      int chunkMaxY,
+      int padding,
+      int extSide,
+      boolean[] bridgeOverlayPresent,
+      int[] bridgeOverlayDeckY,
+      byte[] bridgeOverlayClass,
+      int[] bridgeOverlayWidth
+   ) {
+      MutableBlockPos cursor = new MutableBlockPos();
+      int flags = this.detailApplyFlags(level);
+      for (int localZ = 0; localZ < CHUNK_SIDE; localZ++) {
+         for (int localX = 0; localX < CHUNK_SIDE; localX++) {
+            int extIndex = extIndex(localX + padding, localZ + padding, extSide);
+            if (!bridgeOverlayPresent[extIndex] || bridgeOverlayClass[extIndex] <= 0 || bridgeOverlayWidth[extIndex] < 3) {
+               continue;
+            }
+
+            int deckY = bridgeOverlayDeckY[extIndex];
+            boolean edge = false;
+            for (Direction direction : Direction.Plane.HORIZONTAL) {
+               int neighborLocalX = localX + padding + direction.getStepX();
+               int neighborLocalZ = localZ + padding + direction.getStepZ();
+               if (neighborLocalX < 0 || neighborLocalX >= extSide || neighborLocalZ < 0 || neighborLocalZ >= extSide) {
+                  edge = true;
+                  break;
+               }
+
+               int neighborExt = extIndex(neighborLocalX, neighborLocalZ, extSide);
+               if (!bridgeOverlayPresent[neighborExt]
+                  || bridgeOverlayClass[neighborExt] <= 0
+                  || Math.abs(bridgeOverlayDeckY[neighborExt] - deckY) > 1) {
+                  edge = true;
+                  break;
+               }
+            }
+            if (!edge) {
+               continue;
+            }
+
+            int railY = Mth.clamp(deckY + 1, chunkMinY, chunkMaxY);
+            int worldX = chunkMinX + localX;
+            int worldZ = chunkMinZ + localZ;
+            cursor.set(worldX, railY, worldZ);
+            if (isRoadLightReplaceable(chunk.getBlockState(cursor))) {
+               this.setChunkBlock(level, chunk, cursor, CITY_BARRIER_RAIL_STATE);
+               if (Math.floorMod(worldX + worldZ, 6) == 0 && railY + 1 <= chunkMaxY) {
+                  cursor.set(worldX, railY + 1, worldZ);
+                  if (isRoadLightReplaceable(chunk.getBlockState(cursor))) {
+                     this.setChunkBlock(level, chunk, cursor, Blocks.STONE_BRICK_SLAB.defaultBlockState());
+                  }
+               }
+            }
+         }
+      }
+   }
+
+   private void paintTunnelShell(
+      WorldGenLevel level,
+      ChunkAccess chunk,
+      int chunkMinX,
+      int chunkMinZ,
+      int chunkMinY,
+      int chunkMaxY,
+      boolean[] tunnelCarveMask,
+      int[] tunnelCarveDeckY
+   ) {
+      MutableBlockPos cursor = new MutableBlockPos();
+      for (int localZ = 0; localZ < CHUNK_SIDE; localZ++) {
+         for (int localX = 0; localX < CHUNK_SIDE; localX++) {
+            int chunkIndex = chunkIndex(localX, localZ);
+            if (!tunnelCarveMask[chunkIndex]) {
+               continue;
+            }
+
+            int deckY = tunnelCarveDeckY[chunkIndex];
+            if (deckY < chunkMinY || deckY >= chunkMaxY) {
+               continue;
+            }
+
+            int worldX = chunkMinX + localX;
+            int worldZ = chunkMinZ + localZ;
+            int topY = Math.min(chunkMaxY, deckY + OSM_TUNNEL_INTERNAL_HEIGHT);
+            for (Direction direction : Direction.Plane.HORIZONTAL) {
+               int neighborLocalX = localX + direction.getStepX();
+               int neighborLocalZ = localZ + direction.getStepZ();
+               if (neighborLocalX < 0 || neighborLocalX >= CHUNK_SIDE || neighborLocalZ < 0 || neighborLocalZ >= CHUNK_SIDE) {
+                  continue;
+               }
+               int neighborIndex = chunkIndex(neighborLocalX, neighborLocalZ);
+               if (tunnelCarveMask[neighborIndex] && Math.abs(tunnelCarveDeckY[neighborIndex] - deckY) <= 1) {
+                  continue;
+               }
+
+               int wallX = worldX + direction.getStepX();
+               int wallZ = worldZ + direction.getStepZ();
+               for (int y = deckY + 1; y <= topY; y++) {
+                  cursor.set(wallX, y, wallZ);
+                  if (isTunnelCarveReplaceable(chunk.getBlockState(cursor))) {
+                     this.setChunkBlock(level, chunk, cursor, tunnelShellState(wallX, y, wallZ));
+                  }
+               }
+            }
+
+            if (Math.floorMod(worldX * 31 + worldZ * 17, 13) == 0) {
+               cursor.set(worldX, topY, worldZ);
+               if (isRoadLightReplaceable(chunk.getBlockState(cursor))) {
+                  this.setChunkBlock(level, chunk, cursor, Blocks.SEA_LANTERN.defaultBlockState());
+               }
+            }
+         }
+      }
+   }
+
+   private static BlockState tunnelShellState(int worldX, int y, int worldZ) {
+      int roll = seededRandomInt(seedFromCoords(worldX, y, worldZ), 100);
+      if (roll < 12) {
+         return Blocks.CRACKED_STONE_BRICKS.defaultBlockState();
+      }
+      if (roll < 16) {
+         return Blocks.MOSSY_STONE_BRICKS.defaultBlockState();
+      }
+      return Blocks.STONE_BRICKS.defaultBlockState();
+   }
+
+   private void paintRoadLaneMarkings(
+      WorldGenLevel level,
+      ChunkAccess chunk,
+      List<RoadFeature> roads,
+      EarthChunkGenerator.RoadWidths widths,
+      int chunkMinX,
+      int chunkMinZ,
+      int chunkMinY,
+      int chunkMaxY,
+      int padding,
+      int extSide,
+      byte[] chunkRoadClass,
+      byte[] chunkRoadMode,
+      int[] chunkRoadDeckY,
+      boolean[] bridgeOverlayPresent,
+      int[] bridgeOverlayDeckY,
+      byte[] bridgeOverlayClass
+   ) {
+      double worldScale = this.settings.worldScale();
+      double blocksPerDegree = blocksPerDegree(worldScale);
+      MutableBlockPos cursor = new MutableBlockPos();
+
+      for (RoadFeature road : roads) {
+         int lanes = road.laneCount();
+         if (lanes < 2 || road.roadClass() == RoadClass.DIRT || road.isUnpavedSurface() || road.mode() == RoadMode.TUNNEL || road.pointCount() < 2) {
+            continue;
+         }
+
+         int roadWidth = roadWidthForFeature(road, roadWidthForClass(road.roadClass(), widths));
+         if (roadWidth < 3) {
+            continue;
+         }
+
+         int roadClassId = roadClassId(road.roadClass());
+         int roadModeId = road.mode().ordinal() + 1;
+         double laneWidth = roadWidth / (double)lanes;
+         if (laneWidth < 1.0) {
+            continue;
+         }
+
+         double previousX = road.lonAt(0) * blocksPerDegree;
+         double previousZ = EarthProjection.latToBlockZ(road.latAt(0), worldScale);
+         double stationBase = 0.0;
+         for (int point = 1; point < road.pointCount(); point++) {
+            double currentX = road.lonAt(point) * blocksPerDegree;
+            double currentZ = EarthProjection.latToBlockZ(road.latAt(point), worldScale);
+            double dx = currentX - previousX;
+            double dz = currentZ - previousZ;
+            double segmentLength = Math.sqrt(dx * dx + dz * dz);
+            if (segmentLength <= 1.0E-6) {
+               previousX = currentX;
+               previousZ = currentZ;
+               continue;
+            }
+
+            double tangentX = dx / segmentLength;
+            double tangentZ = dz / segmentLength;
+            double normalX = -tangentZ;
+            double normalZ = tangentX;
+            for (double station = 0.0; station <= segmentLength; station += 1.0) {
+               double globalStation = stationBase + station;
+               if (((int)Math.floor(globalStation / 5.0)) % 2 != 0) {
+                  continue;
+               }
+
+               double centerX = previousX + tangentX * station;
+               double centerZ = previousZ + tangentZ * station;
+               for (int laneBoundary = 1; laneBoundary < lanes; laneBoundary++) {
+                  double offset = -roadWidth * 0.5 + laneWidth * laneBoundary;
+                  int worldX = Mth.floor(centerX + normalX * offset + 0.5);
+                  int worldZ = Mth.floor(centerZ + normalZ * offset + 0.5);
+                  int localX = worldX - chunkMinX;
+                  int localZ = worldZ - chunkMinZ;
+                  if (localX < 0 || localX >= CHUNK_SIDE || localZ < 0 || localZ >= CHUNK_SIDE) {
+                     continue;
+                  }
+
+                  int deckY = laneMarkDeckY(
+                     road.mode(),
+                     roadClassId,
+                     roadModeId,
+                     localX,
+                     localZ,
+                     padding,
+                     extSide,
+                     chunkRoadClass,
+                     chunkRoadMode,
+                     chunkRoadDeckY,
+                     bridgeOverlayPresent,
+                     bridgeOverlayDeckY,
+                     bridgeOverlayClass
+                  );
+                  if (deckY < chunkMinY || deckY > chunkMaxY) {
+                     continue;
+                  }
+
+                  this.paintRoadDeckBlock(level, chunk, cursor, worldX, deckY, worldZ, ROAD_LANE_MARK_STATE);
+               }
+            }
+
+            stationBase += segmentLength;
+            previousX = currentX;
+            previousZ = currentZ;
+         }
+      }
+   }
+
+   private static int laneMarkDeckY(
+      RoadMode roadMode,
+      int roadClassId,
+      int roadModeId,
+      int localX,
+      int localZ,
+      int padding,
+      int extSide,
+      byte[] chunkRoadClass,
+      byte[] chunkRoadMode,
+      int[] chunkRoadDeckY,
+      boolean[] bridgeOverlayPresent,
+      int[] bridgeOverlayDeckY,
+      byte[] bridgeOverlayClass
+   ) {
+      if (roadMode == RoadMode.BRIDGE) {
+         int extIndex = extIndex(localX + padding, localZ + padding, extSide);
+         return bridgeOverlayPresent[extIndex] && bridgeOverlayClass[extIndex] == roadClassId ? bridgeOverlayDeckY[extIndex] : Integer.MIN_VALUE;
+      }
+
+      int chunkIndex = chunkIndex(localX, localZ);
+      return chunkRoadClass[chunkIndex] == roadClassId && chunkRoadMode[chunkIndex] == roadModeId ? chunkRoadDeckY[chunkIndex] : Integer.MIN_VALUE;
+   }
+
+   private void paintRoadEdgeBlock(
+      WorldGenLevel level,
+      ChunkAccess chunk,
+      double centerX,
+      double centerZ,
+      double normalX,
+      double normalZ,
+      double offset,
+      RoadMode roadMode,
+      int roadClassId,
+      int roadModeId,
+      int chunkMinX,
+      int chunkMinZ,
+      int chunkMinY,
+      int chunkMaxY,
+      int padding,
+      int extSide,
+      byte[] chunkRoadClass,
+      byte[] chunkRoadMode,
+      int[] chunkRoadDeckY,
+      boolean[] bridgeOverlayPresent,
+      int[] bridgeOverlayDeckY,
+      byte[] bridgeOverlayClass,
+      MutableBlockPos cursor,
+      BlockState state
+   ) {
+      int worldX = Mth.floor(centerX + normalX * offset + 0.5);
+      int worldZ = Mth.floor(centerZ + normalZ * offset + 0.5);
+      int localX = worldX - chunkMinX;
+      int localZ = worldZ - chunkMinZ;
+      if (localX < 0 || localX >= CHUNK_SIDE || localZ < 0 || localZ >= CHUNK_SIDE) {
+         return;
+      }
+
+      int deckY = laneMarkDeckY(
+         roadMode,
+         roadClassId,
+         roadModeId,
+         localX,
+         localZ,
+         padding,
+         extSide,
+         chunkRoadClass,
+         chunkRoadMode,
+         chunkRoadDeckY,
+         bridgeOverlayPresent,
+         bridgeOverlayDeckY,
+         bridgeOverlayClass
+      );
+      if (deckY >= chunkMinY && deckY <= chunkMaxY) {
+         this.paintRoadDeckBlock(level, chunk, cursor, worldX, deckY, worldZ, state);
+      }
+   }
+
+   private void paintRoadDeckBlock(WorldGenLevel level, ChunkAccess chunk, MutableBlockPos cursor, int worldX, int deckY, int worldZ, BlockState state) {
+      cursor.set(worldX, deckY, worldZ);
+      if (isRoadDeckState(chunk.getBlockState(cursor))) {
+         this.setChunkBlock(level, chunk, cursor, state);
       }
    }
 
@@ -2149,18 +2784,31 @@ public final class EarthChunkGenerator extends ChunkGenerator {
    }
 
    private static void mergeBridgeOverlay(
-      int index, int classId, int deckY, boolean[] bridgeOverlayPresent, int[] bridgeOverlayDeckY, byte[] bridgeOverlayClass
+      int index,
+      int classId,
+      byte surfaceId,
+      int roadWidth,
+      int deckY,
+      boolean[] bridgeOverlayPresent,
+      int[] bridgeOverlayDeckY,
+      byte[] bridgeOverlayClass,
+      byte[] bridgeOverlaySurface,
+      int[] bridgeOverlayWidth
    ) {
       if (!bridgeOverlayPresent[index]) {
          bridgeOverlayPresent[index] = true;
          bridgeOverlayDeckY[index] = deckY;
          bridgeOverlayClass[index] = (byte)classId;
+         bridgeOverlaySurface[index] = surfaceId;
+         bridgeOverlayWidth[index] = roadWidth;
       } else {
          int existingDeck = bridgeOverlayDeckY[index];
          int existingClass = bridgeOverlayClass[index];
          if (deckY > existingDeck || deckY == existingDeck && classId < existingClass) {
             bridgeOverlayDeckY[index] = deckY;
             bridgeOverlayClass[index] = (byte)classId;
+            bridgeOverlaySurface[index] = surfaceId;
+            bridgeOverlayWidth[index] = roadWidth;
          }
       }
    }
@@ -2198,6 +2846,7 @@ public final class EarthChunkGenerator extends ChunkGenerator {
 
       double worldScale = EarthProjection.worldScaleFromBlocksPerDegree(blocksPerDegree);
       for (RoadFeature road : roads) {
+         int featureRoadWidth = roadWidthForFeature(road, roadWidth);
          EarthChunkGenerator.RoadColumnSample startColumn = this.sampleRoadColumnForOverlay(
             Mth.floor(road.lonAt(0) * blocksPerDegree),
             Mth.floor(EarthProjection.latToBlockZ(road.latAt(0), worldScale)),
@@ -2220,8 +2869,8 @@ public final class EarthChunkGenerator extends ChunkGenerator {
          );
          int startSurface = startColumn.roadSurface();
          int endSurface = endColumn.roadSurface();
-         BridgeSupportLayout.SupportStyle style = BridgeSupportLayout.styleFor(road.roadClass(), roadWidth);
-         BridgeSupportLayout.forEachSupport(road, blocksPerDegree, worldScale, roadWidth, placement -> {
+         BridgeSupportLayout.SupportStyle style = BridgeSupportLayout.styleFor(road.roadClass(), featureRoadWidth);
+         BridgeSupportLayout.forEachSupport(road, blocksPerDegree, worldScale, featureRoadWidth, placement -> {
             IntArrayList capCells = new IntArrayList();
             IntArrayList[] shaftCells = new IntArrayList[style.shaftCount()];
             int[] minTerrain = new int[style.shaftCount()];
@@ -2514,6 +3163,28 @@ public final class EarthChunkGenerator extends ChunkGenerator {
       };
    }
 
+   private static BlockState roadStateForOverlay(RoadClass roadClass, int surfaceId) {
+      return switch (surfaceId) {
+         case ROAD_SURFACE_UNPAVED -> ROAD_DIRT_STATE;
+         case ROAD_SURFACE_PAVED_PATH -> ROAD_SIDEWALK_STATE;
+         default -> roadStateForClass(roadClass);
+      };
+   }
+
+   private static byte roadSurfaceId(RoadFeature road) {
+      if (road.isUnpavedSurface()) {
+         return ROAD_SURFACE_UNPAVED;
+      }
+      return isPavedPedestrianRoad(road) ? ROAD_SURFACE_PAVED_PATH : ROAD_SURFACE_DEFAULT;
+   }
+
+   private static boolean isPavedPedestrianRoad(RoadFeature road) {
+      boolean pedestrian = road.matchesHighwayTag("footway")
+         || road.matchesHighwayTag("pedestrian")
+         || road.matchesHighwayTag("cycleway");
+      return pedestrian && (road.isPavedSurface() || road.surfaceTag().isEmpty());
+   }
+
 
    private static RoadClass roadClassFromId(int classId) {
       return switch (classId) {
@@ -2537,6 +3208,21 @@ public final class EarthChunkGenerator extends ChunkGenerator {
          case NORMAL -> widths.normal();
          case DIRT -> widths.dirt();
       };
+   }
+
+   private static int roadWidthForFeature(RoadFeature road, int classWidth) {
+      int width = classWidth;
+      int lanes = road.laneCount();
+      if (lanes > 0) {
+         int laneWidth = road.roadClass() == RoadClass.MAIN ? 3 : 2;
+         width = Math.max(width, lanes * laneWidth);
+      }
+
+      if (road.hasSidewalk() && road.roadClass() != RoadClass.DIRT) {
+         width += 2;
+      }
+
+      return Mth.clamp(width, 1, OSM_ROAD_MAX_TAGGED_WIDTH);
    }
 
    private static int roadLightSpacingBlocks(double worldScale) {
@@ -2708,7 +3394,11 @@ public final class EarthChunkGenerator extends ChunkGenerator {
    }
 
    private static boolean isRoadDeckState(BlockState state) {
-      return state.is(Blocks.GRAY_CONCRETE) || state.is(Blocks.CYAN_TERRACOTTA) || state.is(Blocks.DIRT_PATH);
+      return state.is(Blocks.GRAY_CONCRETE)
+         || state.is(Blocks.CYAN_TERRACOTTA)
+         || state.is(Blocks.DIRT_PATH)
+         || state.is(Blocks.WHITE_CONCRETE)
+         || state.is(Blocks.SMOOTH_STONE);
    }
 
    private static boolean isRoadLightReplaceable(BlockState state) {
@@ -3454,8 +4144,8 @@ public final class EarthChunkGenerator extends ChunkGenerator {
 
    private void filterStartsCollidingWithOsm(RegistryAccess registryAccess, ChunkAccess chunk) {
       double worldScale = this.settings.worldScale();
-      boolean roadsActive = this.settings.enableRoads() && OSM_ROAD_SOURCE.available() && worldScale > 0.0 && worldScale <= OSM_ROAD_MAX_SCALE;
-      boolean buildingsActive = this.settings.enableBuildings() && OSM_BUILDING_SOURCE.available() && worldScale > 0.0 && worldScale <= OSM_BUILDING_MAX_SCALE;
+      boolean roadsActive = this.settings.enableRoads() && this.roadSourcesAvailable() && worldScale > 0.0 && worldScale <= OSM_ROAD_MAX_SCALE;
+      boolean buildingsActive = this.settings.enableBuildings() && this.buildingSourcesAvailable() && worldScale > 0.0 && worldScale <= OSM_BUILDING_MAX_SCALE;
       if (roadsActive || buildingsActive) {
          Map<Structure, StructureStart> starts = chunk.getAllStarts();
          if (!starts.isEmpty()) {
@@ -3513,7 +4203,7 @@ public final class EarthChunkGenerator extends ChunkGenerator {
    }
 
    private boolean structureCollidesWithRoads(BoundingBox box, EarthChunkGenerator.RoadWidths roadWidths) {
-      int marginBlocks = Math.max(roadWidths.main(), Math.max(roadWidths.normal(), roadWidths.dirt())) + 2;
+      int marginBlocks = Math.max(OSM_ROAD_MAX_TAGGED_WIDTH, Math.max(roadWidths.main(), Math.max(roadWidths.normal(), roadWidths.dirt()))) + 2;
       OsmQueryMode queryMode = this.shouldUseStructureOsmSyncFallback() ? OsmQueryMode.BLOCKING : OsmQueryMode.NON_BLOCKING;
       EarthChunkGenerator.OsmRoadQueryResult query = this.fetchOsmRoadsForAreaDetailed(
          box.minX(), box.minZ(), box.maxX(), box.maxZ(), marginBlocks, queryMode
@@ -3576,11 +4266,7 @@ public final class EarthChunkGenerator extends ChunkGenerator {
    private boolean structureIntersectsRoad(
       BoundingBox box, RoadFeature road, EarthChunkGenerator.RoadWidths roadWidths, double blocksPerDegree, double worldScale
    ) {
-      int roadWidth = switch (road.roadClass()) {
-         case MAIN -> roadWidths.main();
-         case NORMAL -> roadWidths.normal();
-         case DIRT -> roadWidths.dirt();
-      };
+      int roadWidth = roadWidthForFeature(road, roadWidthForClass(road.roadClass(), roadWidths));
       double halfWidth = Math.max(0.5, (roadWidth - 1) * 0.5);
       double minX = structureFootprintMinX(box) - halfWidth;
       double maxX = structureFootprintMaxX(box) + halfWidth;
@@ -3885,8 +4571,8 @@ public final class EarthChunkGenerator extends ChunkGenerator {
                                     level.setBlock(ground, GRASS_BLOCK_STATE, 260);
                                  }
 
-                                 ConfiguredFeature<?, ?> feature = features.get(random.nextInt(features.size()));
-                                 feature.place(level, this, random, position);
+                                 ArnisTreeType treeType = wildTreeTypeForBiome(biome, seed);
+                                 ArnisTreeGenerator.place(level, position, treeType, level.getMinBuildHeight(), level.getMaxBuildHeight() - 1, this.detailApplyFlags(level));
                               }
                            }
                         }
@@ -4005,13 +4691,1286 @@ public final class EarthChunkGenerator extends ChunkGenerator {
       }
 
       BlockPos position = ground.above();
-      RandomSource random = RandomSource.create(placement.seed());
       if (!groundState.is(BlockTags.DIRT)) {
          level.setBlock(ground, GRASS_BLOCK_STATE, 260);
       }
 
-      ConfiguredFeature<?, ?> feature = features.get(random.nextInt(features.size()));
-      feature.place(level, this, random, position);
+      ArnisTreeType treeType = wildTreeTypeForBiome(biome, placement.seed());
+      ArnisTreeGenerator.place(level, position, treeType, level.getMinBuildHeight(), level.getMaxBuildHeight() - 1, this.detailApplyFlags(level));
+   }
+
+   private void applyExternalCityDetails(WorldGenLevel level, ChunkAccess chunk) {
+      double worldScale = this.settings.worldScale();
+      if (!(worldScale > 0.0) || worldScale > OSM_CITY_DETAIL_MAX_SCALE || !EXTERNAL_FEATURE_SOURCE.cityDetailsAvailable()) {
+         return;
+      }
+
+      ChunkPos pos = chunk.getPos();
+      int chunkMinX = pos.getMinBlockX();
+      int chunkMinZ = pos.getMinBlockZ();
+      int chunkMaxX = chunkMinX + CHUNK_MASK;
+      int chunkMaxZ = chunkMinZ + CHUNK_MASK;
+      List<ExternalAreaFeature> areas = EXTERNAL_FEATURE_SOURCE.cityAreasForArea(
+         chunkMinX, chunkMinZ, chunkMaxX, chunkMaxZ, worldScale, OSM_CITY_DETAIL_QUERY_MARGIN
+      );
+      if (!areas.isEmpty()) {
+         this.applyExternalCityAreas(level, chunk, areas, worldScale);
+      }
+
+      List<ExternalLineFeature> lines = EXTERNAL_FEATURE_SOURCE.cityLinesForArea(
+         chunkMinX, chunkMinZ, chunkMaxX, chunkMaxZ, worldScale, OSM_CITY_DETAIL_QUERY_MARGIN
+      );
+      if (!lines.isEmpty()) {
+         this.applyExternalCityLines(level, chunk, lines, worldScale);
+      }
+
+      List<ExternalPointFeature> points = EXTERNAL_FEATURE_SOURCE.cityPointsForArea(
+         chunkMinX, chunkMinZ, chunkMaxX, chunkMaxZ, worldScale, OSM_CITY_DETAIL_QUERY_MARGIN
+      );
+      if (!points.isEmpty()) {
+         this.applyExternalCityPoints(level, chunk, points, worldScale);
+      }
+   }
+
+   private void applyExternalCityAreas(WorldGenLevel level, ChunkAccess chunk, List<ExternalAreaFeature> areas, double worldScale) {
+      int chunkMinX = chunk.getPos().getMinBlockX();
+      int chunkMinZ = chunk.getPos().getMinBlockZ();
+      int chunkMaxX = chunkMinX + CHUNK_MASK;
+      int chunkMaxZ = chunkMinZ + CHUNK_MASK;
+      double blocksPerDegree = blocksPerDegree(worldScale);
+      MutableBlockPos cursor = new MutableBlockPos();
+      int minY = level.getMinBuildHeight();
+      int maxY = level.getMaxBuildHeight() - 1;
+
+      for (ExternalAreaFeature area : areas) {
+         int partCount = area.rings().size();
+         if (partCount == 0) {
+            continue;
+         }
+
+         double[][] xs = new double[partCount][];
+         double[][] zs = new double[partCount][];
+         int minX = Integer.MAX_VALUE;
+         int maxX = Integer.MIN_VALUE;
+         int minZ = Integer.MAX_VALUE;
+         int maxZ = Integer.MIN_VALUE;
+         for (int part = 0; part < partCount; part++) {
+            List<GeoPoint> ring = area.rings().get(part);
+            xs[part] = new double[ring.size()];
+            zs[part] = new double[ring.size()];
+            for (int point = 0; point < ring.size(); point++) {
+               GeoPoint geoPoint = ring.get(point);
+               double worldX = geoPoint.longitude() * blocksPerDegree - 0.5;
+               double worldZ = EarthProjection.latToBlockZ(geoPoint.latitude(), worldScale) - 0.5;
+               xs[part][point] = worldX;
+               zs[part][point] = worldZ;
+               minX = Math.min(minX, Mth.floor(worldX));
+               maxX = Math.max(maxX, Mth.ceil(worldX));
+               minZ = Math.min(minZ, Mth.floor(worldZ));
+               maxZ = Math.max(maxZ, Mth.ceil(worldZ));
+            }
+         }
+
+         int clampedMinX = Math.max(chunkMinX, minX);
+         int clampedMaxX = Math.min(chunkMaxX, maxX);
+         int clampedMinZ = Math.max(chunkMinZ, minZ);
+         int clampedMaxZ = Math.min(chunkMaxZ, maxZ);
+         if (clampedMaxX < clampedMinX || clampedMaxZ < clampedMinZ) {
+            continue;
+         }
+
+         ScanlinePolygonRasterizer.fill(xs, zs, clampedMinX, clampedMinZ, clampedMaxX, clampedMaxZ, (worldX, worldZ) -> {
+            int surfaceY = level.getHeight(Types.MOTION_BLOCKING_NO_LEAVES, worldX, worldZ) - 1;
+            if (surfaceY < minY) {
+               return;
+            }
+            cursor.set(worldX, surfaceY, worldZ);
+            BlockState current = level.getBlockState(cursor);
+            if (!canReplaceCitySurface(current)) {
+               return;
+            }
+            BlockState state = cityAreaSurfaceState(area, worldX, worldZ);
+            if (state == null) {
+               return;
+            }
+            level.setBlock(cursor, state, this.detailApplyFlags(level));
+            this.decorateExternalAreaFeature(level, cursor, area, worldX, surfaceY, worldZ, maxY);
+            this.decorateExternalAreaVegetation(level, cursor, area, worldX, surfaceY, worldZ, maxY);
+         });
+      }
+   }
+
+   private void decorateExternalAreaFeature(
+      WorldGenLevel level, MutableBlockPos cursor, ExternalAreaFeature area, int worldX, int surfaceY, int worldZ, int maxY
+   ) {
+      if (surfaceY + 1 > maxY) {
+         return;
+      }
+
+      String type = area.typeTag().trim().toLowerCase(Locale.ROOT);
+      long seed = areaVegetationSeed(area, worldX, worldZ, 73);
+      int roll = seededRandomInt(seed ^ 1469598103934665603L, 1000);
+      int flags = this.detailApplyFlags(level);
+
+      switch (area.kind()) {
+         case PARKING -> {
+            if (Math.floorMod(worldX, 18) == 0 && Math.floorMod(worldZ, 20) == 0) {
+               this.placeCityBlock(level, cursor, worldX, surfaceY + 1, worldZ, Blocks.COBBLESTONE_WALL.defaultBlockState(), maxY, flags);
+               this.placeCityStack(level, cursor, worldX, surfaceY + 2, worldZ, Blocks.OAK_FENCE.defaultBlockState(), 3, maxY, flags);
+               this.placeCityBlock(level, cursor, worldX, surfaceY + 5, worldZ, Blocks.GLOWSTONE.defaultBlockState(), maxY, flags);
+            }
+         }
+         case LANDUSE -> {
+            switch (type) {
+               case "farmland" -> {
+                  if (Math.floorMod(worldX, 9) == 0 && Math.floorMod(worldZ, 9) == 0) {
+                     cursor.set(worldX, surfaceY, worldZ);
+                     level.setBlock(cursor, WATER_STATE, flags);
+                  } else if (roll < 760) {
+                     BlockState crop = switch (roll % 4) {
+                        case 0 -> Blocks.CARROTS.defaultBlockState();
+                        case 1 -> Blocks.POTATOES.defaultBlockState();
+                        case 2 -> Blocks.WHEAT.defaultBlockState();
+                        default -> Blocks.HAY_BLOCK.defaultBlockState();
+                     };
+                     this.placeCityBlock(level, cursor, worldX, surfaceY + 1, worldZ, crop, maxY, flags);
+                  }
+               }
+               case "cemetery" -> {
+                  if (Math.floorMod(worldX, 4) == 0 && Math.floorMod(worldZ, 5) == 0 && roll < 350) {
+                     this.placeCityBlock(level, cursor, worldX, surfaceY + 1, worldZ, Blocks.COBBLESTONE.defaultBlockState(), maxY, flags);
+                     this.placeCityBlock(level, cursor, worldX + 1, surfaceY + 1, worldZ, Blocks.STONE_BRICK_SLAB.defaultBlockState(), maxY, flags);
+                     this.placeCityBlock(level, cursor, worldX - 1, surfaceY + 1, worldZ, Blocks.STONE_BRICK_SLAB.defaultBlockState(), maxY, flags);
+                     this.placeCityBlock(level, cursor, worldX, surfaceY + 2, worldZ, Blocks.STONE_BRICK_SLAB.defaultBlockState(), maxY, flags);
+                  } else if (roll < 430) {
+                     this.placeCityBlock(level, cursor, worldX, surfaceY + 1, worldZ, Blocks.POPPY.defaultBlockState(), maxY, flags);
+                  }
+               }
+               case "construction" -> {
+                  if (roll < 12) {
+                     this.placeCityStack(level, cursor, worldX, surfaceY + 1, worldZ, Blocks.SCAFFOLDING.defaultBlockState(), 4 + roll % 3, maxY, flags);
+                     this.placeCityBlock(level, cursor, worldX + 1, surfaceY + 1, worldZ, Blocks.SCAFFOLDING.defaultBlockState(), maxY, flags);
+                  } else if (roll < 55) {
+                     BlockState material = switch (roll % 8) {
+                        case 0 -> Blocks.OAK_LOG.defaultBlockState();
+                        case 1 -> Blocks.COBBLESTONE.defaultBlockState();
+                        case 2 -> Blocks.GRAVEL.defaultBlockState();
+                        case 3 -> Blocks.BRICKS.defaultBlockState();
+                        case 4 -> Blocks.IRON_BLOCK.defaultBlockState();
+                        case 5 -> Blocks.SAND.defaultBlockState();
+                        case 6 -> Blocks.CRAFTING_TABLE.defaultBlockState();
+                        default -> Blocks.FURNACE.defaultBlockState();
+                     };
+                     this.placeCityBlock(level, cursor, worldX, surfaceY + 1, worldZ, material, maxY, flags);
+                  }
+               }
+               case "vineyard" -> {
+                  if (Math.floorMod(worldX, 6) == 0 && roll < 720) {
+                     this.placeCityBlock(level, cursor, worldX, surfaceY + 1, worldZ, Blocks.OAK_FENCE.defaultBlockState(), maxY, flags);
+                     if (Math.floorMod(worldZ, 3) != 0) {
+                        this.placeCityBlock(level, cursor, worldX, surfaceY + 2, worldZ, Blocks.OAK_LEAVES.defaultBlockState(), maxY, flags);
+                     }
+                  }
+               }
+               case "quarry", "brownfield", "landfill" -> {
+                  if (roll < 60) {
+                     this.placeCityBlock(level, cursor, worldX, surfaceY + 1, worldZ, roll < 25 ? Blocks.COBBLESTONE.defaultBlockState() : Blocks.GRAVEL.defaultBlockState(), maxY, flags);
+                  } else if (roll < 85) {
+                     this.placeCityBlock(level, cursor, worldX, surfaceY + 1, worldZ, CITY_DEAD_BUSH_STATE, maxY, flags);
+                  }
+               }
+               default -> {
+               }
+            }
+         }
+         case LEISURE -> {
+            switch (type) {
+               case "playground", "recreation_ground", "dog_park" -> {
+                  if (Math.floorMod(worldX, 13) == 0 && Math.floorMod(worldZ, 11) == 0 && roll < 450) {
+                     if (roll < 150) {
+                        this.placeCityBlock(level, cursor, worldX - 1, surfaceY + 1, worldZ, Blocks.OAK_FENCE.defaultBlockState(), maxY, flags);
+                        this.placeCityBlock(level, cursor, worldX + 1, surfaceY + 1, worldZ, Blocks.OAK_FENCE.defaultBlockState(), maxY, flags);
+                        this.placeCityBlock(level, cursor, worldX - 1, surfaceY + 2, worldZ, Blocks.OAK_FENCE.defaultBlockState(), maxY, flags);
+                        this.placeCityBlock(level, cursor, worldX + 1, surfaceY + 2, worldZ, Blocks.OAK_FENCE.defaultBlockState(), maxY, flags);
+                        this.placeCityBlock(level, cursor, worldX, surfaceY + 3, worldZ, Blocks.OAK_SLAB.defaultBlockState(), maxY, flags);
+                     } else if (roll < 300) {
+                        this.placeCityBlock(level, cursor, worldX, surfaceY + 1, worldZ, Blocks.OAK_SLAB.defaultBlockState(), maxY, flags);
+                        this.placeCityBlock(level, cursor, worldX + 1, surfaceY + 2, worldZ, Blocks.OAK_SLAB.defaultBlockState(), maxY, flags);
+                        this.placeCityBlock(level, cursor, worldX + 2, surfaceY + 3, worldZ, Blocks.OAK_SLAB.defaultBlockState(), maxY, flags);
+                        this.placeCityBlock(level, cursor, worldX + 2, surfaceY + 1, worldZ, Blocks.OAK_PLANKS.defaultBlockState(), maxY, flags);
+                     } else {
+                        for (int dx = -2; dx <= 2; dx++) {
+                           for (int dz = -2; dz <= 2; dz++) {
+                              this.placeCityBlock(level, cursor, worldX + dx, surfaceY + 1, worldZ + dz, Blocks.SAND.defaultBlockState(), maxY, flags);
+                           }
+                        }
+                     }
+                  }
+               }
+               case "pitch" -> {
+                  if (Math.floorMod(worldX, 16) == 0 || Math.floorMod(worldZ, 16) == 0) {
+                     cursor.set(worldX, surfaceY, worldZ);
+                     level.setBlock(cursor, CITY_PARKING_MARK_STATE, flags);
+                  }
+               }
+               case "track" -> {
+                  if (Math.floorMod(worldX + worldZ, 8) == 0) {
+                     cursor.set(worldX, surfaceY, worldZ);
+                     level.setBlock(cursor, CITY_PARKING_MARK_STATE, flags);
+                  }
+               }
+               default -> {
+               }
+            }
+         }
+         case NATURAL -> {
+            if ("wetland".equals(type) && roll < 120) {
+               cursor.set(worldX, surfaceY, worldZ);
+               level.setBlock(cursor, WATER_STATE, flags);
+            } else if (("bare_rock".equals(type) || "scree".equals(type) || "blockfield".equals(type) || "cliff".equals(type)) && roll < 90) {
+               this.placeCityBlock(level, cursor, worldX, surfaceY + 1, worldZ, CITY_ROCK_STATE, maxY, flags);
+            }
+         }
+         case WATER, AMENITY -> {
+         }
+      }
+   }
+
+   private void decorateExternalAreaVegetation(
+      WorldGenLevel level, MutableBlockPos cursor, ExternalAreaFeature area, int worldX, int surfaceY, int worldZ, int maxY
+   ) {
+      if (surfaceY + 1 > maxY) {
+         return;
+      }
+      String type = area.typeTag().trim().toLowerCase(Locale.ROOT);
+      if (!isVegetationArea(area, type)) {
+         return;
+      }
+
+      cursor.set(worldX, surfaceY, worldZ);
+      BlockState ground = level.getBlockState(cursor);
+      if (!canDecorateAreaVegetationSurface(area, type, ground)) {
+         return;
+      }
+
+      long seed = areaVegetationSeed(area, worldX, worldZ, 31);
+      if (shouldPlaceAreaTree(area, type, worldX, worldZ)) {
+         ArnisTreeType treeType = ArnisTreeType.chooseForAreaTags(area.tags(), type, seed);
+         ArnisTreeGenerator.place(level, new BlockPos(worldX, surfaceY + 1, worldZ), treeType, level.getMinBuildHeight(), maxY, this.detailApplyFlags(level));
+         return;
+      }
+
+      BlockState detail = areaVegetationDetailState(area, type, seed);
+      if (detail == null) {
+         return;
+      }
+      cursor.set(worldX, surfaceY + 1, worldZ);
+      if (isRoadLightReplaceable(level.getBlockState(cursor))) {
+         level.setBlock(cursor, detail, this.detailApplyFlags(level));
+      }
+   }
+
+   private static boolean isVegetationArea(ExternalAreaFeature area, String type) {
+      return switch (area.kind()) {
+         case NATURAL -> switch (type) {
+            case "wood", "tree_row", "scrub", "heath", "grassland", "wetland", "beach", "sand", "dune", "shoal", "bare_rock", "scree", "blockfield", "mud", "mountain_range", "saddle", "ridge", "shrubbery", "tundra", "hill", "cliff" -> true;
+            default -> false;
+         };
+         case LANDUSE -> switch (type) {
+            case "forest", "orchard", "greenfield", "meadow", "grass", "cemetery", "vineyard", "brownfield", "landfill" -> true;
+            default -> false;
+         };
+         case LEISURE -> switch (type) {
+            case "park", "garden", "recreation_ground", "nature_reserve", "golf_course", "disc_golf_course", "dog_park" -> true;
+            default -> false;
+         };
+         case PARKING, WATER, AMENITY -> false;
+      };
+   }
+
+   private static boolean canDecorateAreaVegetationSurface(ExternalAreaFeature area, String type, BlockState ground) {
+      if (ground.isAir() || !ground.getFluidState().isEmpty() || isRoadDeckState(ground) || ground.is(BlockTags.LOGS) || ground.is(BlockTags.LEAVES)) {
+         return false;
+      }
+      if ("beach".equals(type) || "sand".equals(type) || "dune".equals(type) || "shoal".equals(type)) {
+         return ground.is(Blocks.SAND) || ground.is(Blocks.RED_SAND) || ground.is(Blocks.GRAVEL);
+      }
+      if ("bare_rock".equals(type) || "scree".equals(type)) {
+         return ground.is(Blocks.STONE) || ground.is(Blocks.ANDESITE) || ground.is(Blocks.COBBLESTONE) || ground.is(Blocks.GRAVEL);
+      }
+      return ground.is(BlockTags.DIRT) || ground.is(Blocks.MOSS_BLOCK) || ground.is(Blocks.MUD);
+   }
+
+   private static boolean shouldPlaceAreaTree(ExternalAreaFeature area, String type, int worldX, int worldZ) {
+      int spacing = areaTreeSpacing(area, type);
+      if (spacing <= 0) {
+         return false;
+      }
+      int cellX = Math.floorDiv(worldX, spacing);
+      int cellZ = Math.floorDiv(worldZ, spacing);
+      long seed = areaVegetationSeed(area, cellX, cellZ, 47);
+      if (seededRandomInt(seed, 100) >= areaTreeChancePercent(area, type)) {
+         return false;
+      }
+      int targetX = cellX * spacing + seededRandomInt(seed ^ 3405691582L, spacing);
+      int targetZ = cellZ * spacing + seededRandomInt(seed ^ 3735928559L, spacing);
+      return worldX == targetX && worldZ == targetZ;
+   }
+
+   private static int areaTreeSpacing(ExternalAreaFeature area, String type) {
+      return switch (area.kind()) {
+         case NATURAL -> switch (type) {
+            case "tree_row" -> 4;
+            case "wood" -> 6;
+            case "scrub", "heath" -> 12;
+            default -> -1;
+         };
+         case LANDUSE -> switch (type) {
+            case "forest" -> 7;
+            case "orchard" -> 8;
+            case "cemetery" -> 11;
+            default -> -1;
+         };
+         case LEISURE -> switch (type) {
+            case "park", "garden", "recreation_ground" -> 10;
+            default -> -1;
+         };
+         case PARKING, WATER, AMENITY -> -1;
+      };
+   }
+
+   private static int areaTreeChancePercent(ExternalAreaFeature area, String type) {
+      return switch (area.kind()) {
+         case NATURAL -> switch (type) {
+            case "tree_row" -> 95;
+            case "wood" -> 80;
+            case "scrub", "heath" -> 25;
+            default -> 0;
+         };
+         case LANDUSE -> switch (type) {
+            case "forest" -> 75;
+            case "orchard" -> 60;
+            case "cemetery" -> 20;
+            default -> 0;
+         };
+         case LEISURE -> 35;
+         case PARKING, WATER, AMENITY -> 0;
+      };
+   }
+
+   private static BlockState areaVegetationDetailState(ExternalAreaFeature area, String type, long seed) {
+      int roll = seededRandomInt(seed ^ 81985529216486895L, 100);
+      return switch (area.kind()) {
+         case NATURAL -> switch (type) {
+            case "wood", "tree_row" -> roll < 28 ? CITY_FERN_STATE : roll < 36 ? CITY_SHRUB_STATE : null;
+            case "scrub" -> roll < 30 ? CITY_SHRUB_STATE : roll < 55 ? CITY_FERN_STATE : roll < 61 ? CITY_ROCK_STATE : null;
+            case "heath" -> roll < 18 ? CITY_SHRUB_STATE : roll < 45 ? CITY_FERN_STATE : roll < 50 ? CITY_ROCK_STATE : null;
+            case "grassland" -> roll < 42 ? CITY_FERN_STATE : roll < 46 ? CITY_SHRUB_STATE : null;
+            case "wetland" -> roll < 32 ? CITY_FERN_STATE : null;
+            case "beach", "sand", "dune", "shoal" -> roll < 4 ? CITY_DEAD_BUSH_STATE : null;
+            case "bare_rock", "scree", "blockfield", "mountain_range", "saddle", "ridge", "cliff" -> roll < 10 ? CITY_ROCK_STATE : null;
+            case "mud", "tundra", "hill" -> roll < 22 ? CITY_FERN_STATE : roll < 28 ? CITY_DEAD_BUSH_STATE : null;
+            case "shrubbery" -> roll < 60 ? CITY_SHRUB_STATE : null;
+            default -> null;
+         };
+         case LANDUSE -> switch (type) {
+            case "forest", "orchard" -> roll < 25 ? CITY_FERN_STATE : roll < 33 ? CITY_SHRUB_STATE : null;
+            case "cemetery" -> roll < 10 ? CITY_FERN_STATE : roll < 15 ? CITY_SHRUB_STATE : null;
+            case "greenfield", "meadow", "grass" -> roll < 35 ? CITY_FERN_STATE : null;
+            case "vineyard", "brownfield", "landfill" -> roll < 18 ? CITY_FERN_STATE : roll < 24 ? CITY_DEAD_BUSH_STATE : null;
+            default -> null;
+         };
+         case LEISURE -> roll < 20 ? CITY_FERN_STATE : roll < 26 ? CITY_SHRUB_STATE : null;
+         case PARKING, WATER, AMENITY -> null;
+      };
+   }
+
+   private static long areaVegetationSeed(ExternalAreaFeature area, int x, int z, int salt) {
+      long featureSeed = (long)area.sourceId().hashCode() * 7046029254386353131L ^ (long)area.typeTag().hashCode() * 2862933555777941757L;
+      return seedFromCoords(x, salt, z) ^ featureSeed;
+   }
+
+   private void applyExternalCityLines(WorldGenLevel level, ChunkAccess chunk, List<ExternalLineFeature> lines, double worldScale) {
+      int chunkMinX = chunk.getPos().getMinBlockX();
+      int chunkMinZ = chunk.getPos().getMinBlockZ();
+      int chunkMaxX = chunkMinX + CHUNK_MASK;
+      int chunkMaxZ = chunkMinZ + CHUNK_MASK;
+      double blocksPerDegree = blocksPerDegree(worldScale);
+      MutableBlockPos cursor = new MutableBlockPos();
+      int minY = level.getMinBuildHeight();
+      int maxY = level.getMaxBuildHeight() - 1;
+
+      for (ExternalLineFeature line : lines) {
+         if (line.points().size() < 2) {
+            continue;
+         }
+         for (int index = 1; index < line.points().size(); index++) {
+            GeoPoint previous = line.points().get(index - 1);
+            GeoPoint current = line.points().get(index);
+            double startX = previous.longitude() * blocksPerDegree;
+            double startZ = EarthProjection.latToBlockZ(previous.latitude(), worldScale);
+            double endX = current.longitude() * blocksPerDegree;
+            double endZ = EarthProjection.latToBlockZ(current.latitude(), worldScale);
+            int steps = Math.max(1, Mth.ceil(Math.max(Math.abs(endX - startX), Math.abs(endZ - startZ)) * 2.0));
+            for (int step = 0; step <= steps; step++) {
+               double t = step / (double)steps;
+               int worldX = Mth.floor(Mth.lerp(t, startX, endX) + 0.5);
+               int worldZ = Mth.floor(Mth.lerp(t, startZ, endZ) + 0.5);
+               if (worldX < chunkMinX || worldX > chunkMaxX || worldZ < chunkMinZ || worldZ > chunkMaxZ) {
+                  continue;
+               }
+               this.placeExternalCityLineColumn(level, cursor, line, worldX, worldZ, minY, maxY);
+            }
+         }
+      }
+   }
+
+   private void placeExternalCityLineColumn(
+      WorldGenLevel level, MutableBlockPos cursor, ExternalLineFeature line, int worldX, int worldZ, int minY, int maxY
+   ) {
+      int surfaceY = level.getHeight(Types.MOTION_BLOCKING_NO_LEAVES, worldX, worldZ) - 1;
+      if (surfaceY < minY || surfaceY >= maxY) {
+         return;
+      }
+      if (!cityFeatureVisible(line.tags())) {
+         return;
+      }
+      if (line.kind() == ExternalLineKind.POWER) {
+         this.placePowerLineColumn(level, cursor, line, worldX, surfaceY, worldZ, maxY);
+         return;
+      }
+      if (line.kind() == ExternalLineKind.MAN_MADE) {
+         this.placeManMadeLineColumn(level, cursor, line, worldX, surfaceY, worldZ, maxY);
+         return;
+      }
+      cursor.set(worldX, surfaceY, worldZ);
+      BlockState ground = level.getBlockState(cursor);
+      if (!canAnchorCityLine(ground)) {
+         return;
+      }
+
+      if (line.kind() == ExternalLineKind.RAILWAY) {
+         cursor.set(worldX, surfaceY + 1, worldZ);
+         if (isRoadLightReplaceable(level.getBlockState(cursor))) {
+            level.setBlock(cursor, CITY_RAIL_STATE, this.detailApplyFlags(level));
+         }
+         return;
+      }
+      if (line.kind() == ExternalLineKind.WATERWAY) {
+         cursor.set(worldX, surfaceY, worldZ);
+         if (canReplaceCitySurface(level.getBlockState(cursor))) {
+            level.setBlock(cursor, WATER_STATE, this.detailApplyFlags(level));
+         }
+         return;
+      }
+      if (line.kind() != ExternalLineKind.BARRIER) {
+         return;
+      }
+
+      BlockState state = cityBarrierState(line);
+      int height = cityBarrierHeight(line);
+      for (int offset = 1; offset <= height; offset++) {
+         int y = surfaceY + offset;
+         if (y > maxY) {
+            break;
+         }
+         cursor.set(worldX, y, worldZ);
+         if (isRoadLightReplaceable(level.getBlockState(cursor))) {
+            level.setBlock(cursor, state, this.detailApplyFlags(level));
+         }
+      }
+   }
+
+   private void placePowerLineColumn(
+      WorldGenLevel level, MutableBlockPos cursor, ExternalLineFeature line, int worldX, int surfaceY, int worldZ, int maxY
+   ) {
+      if (!"line".equals(line.typeTag()) && !"minor_line".equals(line.typeTag())) {
+         return;
+      }
+      int y = surfaceY + powerLineHeight(line);
+      if (y > maxY) {
+         return;
+      }
+      cursor.set(worldX, y, worldZ);
+      if (isRoadLightReplaceable(level.getBlockState(cursor))) {
+         level.setBlock(cursor, Blocks.IRON_BARS.defaultBlockState(), this.detailApplyFlags(level));
+      }
+   }
+
+   private static int powerLineHeight(ExternalLineFeature line) {
+      int voltage = intFromTag(line.tags().get("voltage"), 0);
+      if (voltage >= 220000) {
+         return 22;
+      }
+      if (voltage >= 110000) {
+         return 18;
+      }
+      if (voltage >= 33000) {
+         return 14;
+      }
+      return "minor_line".equals(line.typeTag()) ? 8 : 12;
+   }
+
+   private void placeManMadeLineColumn(
+      WorldGenLevel level, MutableBlockPos cursor, ExternalLineFeature line, int worldX, int surfaceY, int worldZ, int maxY
+   ) {
+      if (!"pier".equals(line.typeTag()) || surfaceY + 1 > maxY) {
+         return;
+      }
+      int flags = this.detailApplyFlags(level);
+      cursor.set(worldX, surfaceY + 1, worldZ);
+      if (isRoadLightReplaceable(level.getBlockState(cursor))) {
+         level.setBlock(cursor, Blocks.OAK_SLAB.defaultBlockState(), flags);
+      }
+      cursor.set(worldX, surfaceY, worldZ);
+      BlockState supportTarget = level.getBlockState(cursor);
+      if (supportTarget.getFluidState().isEmpty() && !isRoadLightReplaceable(supportTarget)) {
+         return;
+      }
+      level.setBlock(cursor, Blocks.OAK_FENCE.defaultBlockState(), flags);
+   }
+
+   private void applyExternalCityPoints(WorldGenLevel level, ChunkAccess chunk, List<ExternalPointFeature> points, double worldScale) {
+      int chunkMinX = chunk.getPos().getMinBlockX();
+      int chunkMinZ = chunk.getPos().getMinBlockZ();
+      int chunkMaxX = chunkMinX + CHUNK_MASK;
+      int chunkMaxZ = chunkMinZ + CHUNK_MASK;
+      double blocksPerDegree = blocksPerDegree(worldScale);
+      MutableBlockPos cursor = new MutableBlockPos();
+      int minY = level.getMinBuildHeight();
+      int maxY = level.getMaxBuildHeight() - 1;
+
+      for (ExternalPointFeature point : points) {
+         int worldX = Mth.floor(point.point().longitude() * blocksPerDegree + 0.5);
+         int worldZ = Mth.floor(EarthProjection.latToBlockZ(point.point().latitude(), worldScale) + 0.5);
+         if (worldX < chunkMinX || worldX > chunkMaxX || worldZ < chunkMinZ || worldZ > chunkMaxZ) {
+            continue;
+         }
+         this.placeExternalCityPoint(level, cursor, point, worldX, worldZ, minY, maxY);
+      }
+   }
+
+   private void placeExternalCityPoint(
+      WorldGenLevel level, MutableBlockPos cursor, ExternalPointFeature point, int worldX, int worldZ, int minY, int maxY
+   ) {
+      if (!cityFeatureVisible(point.tags())) {
+         return;
+      }
+      if (point.kind() == ExternalPointKind.CROSSING) {
+         this.paintCrossingPoint(level, cursor, worldX, worldZ);
+         return;
+      }
+      if (point.kind() == ExternalPointKind.ENTRANCE) {
+         this.placeEntrancePoint(level, cursor, worldX, worldZ, minY, maxY);
+         return;
+      }
+
+      int surfaceY = level.getHeight(Types.MOTION_BLOCKING_NO_LEAVES, worldX, worldZ) - 1;
+      if (surfaceY < minY || surfaceY >= maxY) {
+         return;
+      }
+      cursor.set(worldX, surfaceY, worldZ);
+      BlockState ground = level.getBlockState(cursor);
+      if (!canAnchorCityLine(ground)) {
+         int[] anchor = this.findCityPointAnchor(level, cursor, worldX, worldZ, minY, maxY);
+         if (anchor == null) {
+            return;
+         }
+         worldX = anchor[0];
+         surfaceY = anchor[1];
+         worldZ = anchor[2];
+      }
+
+      switch (point.kind()) {
+         case TRAFFIC_SIGNAL -> this.placeTrafficSignal(level, cursor, worldX, surfaceY, worldZ, maxY);
+         case HIGHWAY -> this.placeHighwayPoint(level, cursor, point, worldX, surfaceY, worldZ, maxY);
+         case AMENITY -> this.placeAmenityPoint(level, cursor, point, worldX, surfaceY, worldZ, maxY);
+         case NATURAL -> this.placeNaturalPoint(level, cursor, point, worldX, surfaceY, worldZ, maxY);
+         case ADVERTISING -> this.placeAdvertisingPoint(level, cursor, point, worldX, surfaceY, worldZ, maxY);
+         case EMERGENCY -> this.placeEmergencyPoint(level, cursor, point, worldX, surfaceY, worldZ, maxY);
+         case HISTORIC -> this.placeHistoricPoint(level, cursor, point, worldX, surfaceY, worldZ, maxY);
+         case TOURISM -> this.placeTourismPoint(level, cursor, point, worldX, surfaceY, worldZ, maxY);
+         case MAN_MADE -> this.placeManMadePoint(level, cursor, point, worldX, surfaceY, worldZ, maxY);
+         case POWER -> this.placePowerPoint(level, cursor, point, worldX, surfaceY, worldZ, maxY);
+         case BARRIER -> this.placeBarrierPoint(level, cursor, point, worldX, surfaceY, worldZ, maxY);
+         case RAILWAY -> this.placeRailwayPoint(level, cursor, point, worldX, surfaceY, worldZ, maxY);
+         case ENTRANCE, CROSSING -> {
+         }
+      }
+   }
+
+   private int[] findCityPointAnchor(WorldGenLevel level, MutableBlockPos cursor, int worldX, int worldZ, int minY, int maxY) {
+      for (int radius = 1; radius <= 3; radius++) {
+         for (int dz = -radius; dz <= radius; dz++) {
+            for (int dx = -radius; dx <= radius; dx++) {
+               if (Math.max(Math.abs(dx), Math.abs(dz)) != radius) {
+                  continue;
+               }
+
+               int targetX = worldX + dx;
+               int targetZ = worldZ + dz;
+               int surfaceY = level.getHeight(Types.MOTION_BLOCKING_NO_LEAVES, targetX, targetZ) - 1;
+               if (surfaceY < minY || surfaceY >= maxY) {
+                  continue;
+               }
+               cursor.set(targetX, surfaceY, targetZ);
+               if (canAnchorCityLine(level.getBlockState(cursor))) {
+                  return new int[]{targetX, surfaceY, targetZ};
+               }
+            }
+         }
+      }
+      return null;
+   }
+
+   private void placeEntrancePoint(WorldGenLevel level, MutableBlockPos cursor, int worldX, int worldZ, int minY, int maxY) {
+      int flags = this.detailApplyFlags(level);
+      for (int radius = 0; radius <= 1; radius++) {
+         for (int dz = -radius; dz <= radius; dz++) {
+            for (int dx = -radius; dx <= radius; dx++) {
+               if (Math.max(Math.abs(dx), Math.abs(dz)) != radius) {
+                  continue;
+               }
+               int targetX = worldX + dx;
+               int targetZ = worldZ + dz;
+               for (Direction facing : Direction.Plane.HORIZONTAL) {
+                  int outsideX = targetX + facing.getStepX();
+                  int outsideZ = targetZ + facing.getStepZ();
+                  int outsideSurfaceY = level.getHeight(Types.MOTION_BLOCKING_NO_LEAVES, outsideX, outsideZ) - 1;
+                  int lowerY = outsideSurfaceY + 1;
+                  int upperY = lowerY + 1;
+                  if (lowerY < minY || upperY > maxY) {
+                     continue;
+                  }
+
+                  cursor.set(targetX, lowerY, targetZ);
+                  BlockState lowerTarget = level.getBlockState(cursor);
+                  cursor.set(targetX, upperY, targetZ);
+                  BlockState upperTarget = level.getBlockState(cursor);
+                  cursor.set(outsideX, lowerY, outsideZ);
+                  BlockState lowerOutside = level.getBlockState(cursor);
+                  cursor.set(outsideX, upperY, outsideZ);
+                  BlockState upperOutside = level.getBlockState(cursor);
+                  if (!isBuildingDoorTarget(lowerTarget)
+                     || !isBuildingDoorTarget(upperTarget)
+                     || !isRoadLightReplaceable(lowerOutside)
+                     || !isRoadLightReplaceable(upperOutside)) {
+                     continue;
+                  }
+
+                  BlockState lower = Blocks.OAK_DOOR.defaultBlockState()
+                     .setValue(BlockStateProperties.HORIZONTAL_FACING, facing)
+                     .setValue(BlockStateProperties.DOUBLE_BLOCK_HALF, DoubleBlockHalf.LOWER);
+                  BlockState upper = lower.setValue(BlockStateProperties.DOUBLE_BLOCK_HALF, DoubleBlockHalf.UPPER);
+                  cursor.set(targetX, lowerY, targetZ);
+                  level.setBlock(cursor, lower, flags);
+                  cursor.set(targetX, upperY, targetZ);
+                  level.setBlock(cursor, upper, flags);
+                  return;
+               }
+            }
+         }
+      }
+   }
+
+   private void paintCrossingPoint(WorldGenLevel level, MutableBlockPos cursor, int worldX, int worldZ) {
+      int flags = this.detailApplyFlags(level);
+      for (int dz = -2; dz <= 2; dz++) {
+         for (int dx = -2; dx <= 2; dx++) {
+            if (Math.floorMod(dx + dz, 2) != 0) {
+               continue;
+            }
+            int targetX = worldX + dx;
+            int targetZ = worldZ + dz;
+            int surfaceY = level.getHeight(Types.MOTION_BLOCKING_NO_LEAVES, targetX, targetZ) - 1;
+            if (surfaceY < level.getMinBuildHeight()) {
+               continue;
+            }
+            cursor.set(targetX, surfaceY, targetZ);
+            if (isRoadDeckState(level.getBlockState(cursor))) {
+               level.setBlock(cursor, CITY_PARKING_MARK_STATE, flags);
+            }
+         }
+      }
+   }
+
+   private void placeTrafficSignal(WorldGenLevel level, MutableBlockPos cursor, int worldX, int surfaceY, int worldZ, int maxY) {
+      int flags = this.detailApplyFlags(level);
+      if (surfaceY + 3 > maxY) {
+         return;
+      }
+      cursor.set(worldX, surfaceY + 1, worldZ);
+      if (!isRoadLightReplaceable(level.getBlockState(cursor))) {
+         return;
+      }
+      level.setBlock(cursor, CITY_TRAFFIC_POLE_STATE, flags);
+      cursor.set(worldX, surfaceY + 2, worldZ);
+      if (isRoadLightReplaceable(level.getBlockState(cursor))) {
+         level.setBlock(cursor, CITY_TRAFFIC_POLE_STATE, flags);
+      }
+      cursor.set(worldX, surfaceY + 3, worldZ);
+      if (isRoadLightReplaceable(level.getBlockState(cursor))) {
+         level.setBlock(cursor, CITY_TRAFFIC_LIGHT_STATE, flags);
+      }
+   }
+
+   private void placeHighwayPoint(
+      WorldGenLevel level, MutableBlockPos cursor, ExternalPointFeature point, int worldX, int surfaceY, int worldZ, int maxY
+   ) {
+      String type = point.typeTag().trim().toLowerCase(Locale.ROOT);
+      int flags = this.detailApplyFlags(level);
+      switch (type) {
+         case "street_lamp" -> {
+            if (surfaceY + 5 > maxY) {
+               return;
+            }
+            this.placeCityBlock(level, cursor, worldX, surfaceY + 1, worldZ, Blocks.COBBLESTONE_WALL.defaultBlockState(), maxY, flags);
+            this.placeCityStack(level, cursor, worldX, surfaceY + 2, worldZ, Blocks.OAK_FENCE.defaultBlockState(), 3, maxY, flags);
+            this.placeCityBlock(level, cursor, worldX, surfaceY + 5, worldZ, Blocks.GLOWSTONE.defaultBlockState(), maxY, flags);
+         }
+         case "bus_stop" -> {
+            if (surfaceY + 4 > maxY) {
+               return;
+            }
+            this.placeCityStack(level, cursor, worldX, surfaceY + 1, worldZ, Blocks.COBBLESTONE_WALL.defaultBlockState(), 3, maxY, flags);
+            this.placeCityBlock(level, cursor, worldX, surfaceY + 4, worldZ, Blocks.WHITE_WOOL.defaultBlockState(), maxY, flags);
+            this.placeCityBlock(level, cursor, worldX + 1, surfaceY + 4, worldZ, Blocks.WHITE_WOOL.defaultBlockState(), maxY, flags);
+         }
+         default -> {
+         }
+      }
+   }
+
+   private void placeAmenityPoint(
+      WorldGenLevel level, MutableBlockPos cursor, ExternalPointFeature point, int worldX, int surfaceY, int worldZ, int maxY
+   ) {
+      if (surfaceY + 1 > maxY) {
+         return;
+      }
+      String type = point.typeTag().trim().toLowerCase(Locale.ROOT);
+      int flags = this.detailApplyFlags(level);
+      cursor.set(worldX, surfaceY + 1, worldZ);
+      if (!isRoadLightReplaceable(level.getBlockState(cursor))) {
+         return;
+      }
+      switch (type) {
+         case "bench" -> level.setBlock(cursor, CITY_BENCH_STATE, flags);
+         case "bicycle_parking", "shelter" -> level.setBlock(cursor, CITY_BARRIER_RAIL_STATE, flags);
+         case "recycling" -> level.setBlock(cursor, Blocks.BARREL.defaultBlockState(), flags);
+         case "waste_disposal", "waste_basket" -> level.setBlock(cursor, Blocks.CAULDRON.defaultBlockState(), flags);
+         case "vending_machine", "atm" -> {
+            level.setBlock(cursor, Blocks.IRON_BLOCK.defaultBlockState(), flags);
+            this.placeCityBlock(level, cursor, worldX, surfaceY + 2, worldZ, Blocks.IRON_BLOCK.defaultBlockState(), maxY, flags);
+         }
+         case "drinking_water" -> {
+            level.setBlock(cursor, Blocks.COBBLESTONE_WALL.defaultBlockState(), flags);
+            this.placeCityBlock(level, cursor, worldX + 1, surfaceY + 1, worldZ, Blocks.CAULDRON.defaultBlockState(), maxY, flags);
+         }
+         case "fountain" -> {
+            level.setBlock(cursor, WATER_STATE, flags);
+            for (Direction direction : Direction.Plane.HORIZONTAL) {
+               cursor.set(worldX + direction.getStepX(), surfaceY + 1, worldZ + direction.getStepZ());
+               if (isRoadLightReplaceable(level.getBlockState(cursor))) {
+                  level.setBlock(cursor, CITY_FOUNTAIN_BASE_STATE, flags);
+               }
+            }
+         }
+         case "fuel" -> level.setBlock(cursor, CITY_TRAFFIC_LIGHT_STATE, flags);
+         default -> {
+         }
+      }
+   }
+
+   private void placeNaturalPoint(
+      WorldGenLevel level, MutableBlockPos cursor, ExternalPointFeature point, int worldX, int surfaceY, int worldZ, int maxY
+   ) {
+      if (!"tree".equals(point.typeTag())) {
+         return;
+      }
+      long seed = seedFromCoords(worldX, 5, worldZ) ^ this.worldSeed ^ (long)point.sourceId().hashCode() * 7046029254386353131L;
+      ArnisTreeType treeType = ArnisTreeType.chooseForPointTags(point.tags(), seed);
+      ArnisTreeGenerator.place(level, new BlockPos(worldX, surfaceY + 1, worldZ), treeType, level.getMinBuildHeight(), maxY, this.detailApplyFlags(level));
+   }
+
+   private void placeAdvertisingPoint(
+      WorldGenLevel level, MutableBlockPos cursor, ExternalPointFeature point, int worldX, int surfaceY, int worldZ, int maxY
+   ) {
+      String type = point.typeTag().trim().toLowerCase(Locale.ROOT);
+      int flags = this.detailApplyFlags(level);
+      switch (type) {
+         case "column" -> {
+            this.placeCityStack(level, cursor, worldX, surfaceY + 1, worldZ, Blocks.GREEN_CONCRETE.defaultBlockState(), 2, maxY, flags);
+            this.placeCityBlock(level, cursor, worldX, surfaceY + 3, worldZ, Blocks.STONE_BRICK_SLAB.defaultBlockState(), maxY, flags);
+         }
+         case "flag" -> {
+            int height = Math.max(4, Math.min(12, intFromTag(point.tags().get("height"), 6)));
+            this.placeCityStack(level, cursor, worldX, surfaceY + 1, worldZ, Blocks.IRON_BARS.defaultBlockState(), height, maxY, flags);
+            BlockState flag = cityFlagState(point.sourceId());
+            for (int dx = 1; dx <= 3; dx++) {
+               this.placeCityBlock(level, cursor, worldX + dx, surfaceY + height, worldZ, flag, maxY, flags);
+               this.placeCityBlock(level, cursor, worldX + dx, surfaceY + height - 1, worldZ, flag, maxY, flags);
+            }
+            this.placeCityBlock(level, cursor, worldX, surfaceY + height + 1, worldZ, Blocks.IRON_BLOCK.defaultBlockState(), maxY, flags);
+         }
+         case "poster_box" -> {
+            this.placeCityBlock(level, cursor, worldX, surfaceY + 1, worldZ, Blocks.IRON_BARS.defaultBlockState(), maxY, flags);
+            this.placeCityBlock(level, cursor, worldX + 1, surfaceY + 1, worldZ, Blocks.IRON_BARS.defaultBlockState(), maxY, flags);
+            for (int y = surfaceY + 2; y <= surfaceY + 3; y++) {
+               this.placeCityBlock(level, cursor, worldX, y, worldZ, Blocks.SEA_LANTERN.defaultBlockState(), maxY, flags);
+               this.placeCityBlock(level, cursor, worldX + 1, y, worldZ, Blocks.SEA_LANTERN.defaultBlockState(), maxY, flags);
+            }
+            this.placeCityBlock(level, cursor, worldX, surfaceY + 4, worldZ, Blocks.STONE_BRICK_SLAB.defaultBlockState(), maxY, flags);
+            this.placeCityBlock(level, cursor, worldX + 1, surfaceY + 4, worldZ, Blocks.STONE_BRICK_SLAB.defaultBlockState(), maxY, flags);
+         }
+         default -> {
+         }
+      }
+   }
+
+   private void placeEmergencyPoint(
+      WorldGenLevel level, MutableBlockPos cursor, ExternalPointFeature point, int worldX, int surfaceY, int worldZ, int maxY
+   ) {
+      if (!"fire_hydrant".equals(point.typeTag())) {
+         return;
+      }
+      String hydrantType = point.tags().getOrDefault("fire_hydrant:type", "pillar").trim().toLowerCase(Locale.ROOT);
+      if ("underground".equals(hydrantType) || "wall".equals(hydrantType) || "pond".equals(hydrantType)) {
+         return;
+      }
+      int flags = this.detailApplyFlags(level);
+      this.placeCityBlock(level, cursor, worldX, surfaceY + 1, worldZ, Blocks.BRICK_WALL.defaultBlockState(), maxY, flags);
+      this.placeCityBlock(level, cursor, worldX, surfaceY + 2, worldZ, Blocks.REDSTONE_BLOCK.defaultBlockState(), maxY, flags);
+   }
+
+   private void placeHistoricPoint(
+      WorldGenLevel level, MutableBlockPos cursor, ExternalPointFeature point, int worldX, int surfaceY, int worldZ, int maxY
+   ) {
+      String type = point.typeTag().trim().toLowerCase(Locale.ROOT);
+      String subtype = point.tags().getOrDefault("memorial", "").trim().toLowerCase(Locale.ROOT);
+      int flags = this.detailApplyFlags(level);
+      if ("wayside_cross".equals(type) || "cross".equals(subtype) || "war_memorial".equals(subtype)) {
+         this.placeCityCross(level, cursor, worldX, surfaceY, worldZ, 5, maxY, flags);
+      } else if ("monument".equals(type)) {
+         for (int dx = -1; dx <= 1; dx++) {
+            for (int dz = -1; dz <= 1; dz++) {
+               this.placeCityBlock(level, cursor, worldX + dx, surfaceY + 1, worldZ + dz, Blocks.STONE_BRICKS.defaultBlockState(), maxY, flags);
+            }
+         }
+         this.placeCityStack(level, cursor, worldX, surfaceY + 2, worldZ, Blocks.POLISHED_ANDESITE.defaultBlockState(), 6, maxY, flags);
+         this.placeCityBlock(level, cursor, worldX, surfaceY + 8, worldZ, Blocks.CHISELED_STONE_BRICKS.defaultBlockState(), maxY, flags);
+      } else if ("obelisk".equals(subtype)) {
+         this.placeCityBlock(level, cursor, worldX, surfaceY + 1, worldZ, Blocks.STONE_BRICKS.defaultBlockState(), maxY, flags);
+         this.placeCityStack(level, cursor, worldX, surfaceY + 2, worldZ, Blocks.SMOOTH_QUARTZ.defaultBlockState(), 5, maxY, flags);
+         this.placeCityBlock(level, cursor, worldX, surfaceY + 7, worldZ, Blocks.STONE_BRICK_SLAB.defaultBlockState(), maxY, flags);
+      } else if ("stone".equals(subtype) || "stolperstein".equals(subtype)) {
+         cursor.set(worldX, surfaceY, worldZ);
+         level.setBlock(cursor, "stolperstein".equals(subtype) ? Blocks.GOLD_BLOCK.defaultBlockState() : Blocks.STONE.defaultBlockState(), flags);
+      } else {
+         this.placeCityBlock(level, cursor, worldX, surfaceY + 1, worldZ, Blocks.STONE_BRICKS.defaultBlockState(), maxY, flags);
+         this.placeCityBlock(level, cursor, worldX, surfaceY + 2, worldZ, Blocks.CHISELED_STONE_BRICKS.defaultBlockState(), maxY, flags);
+         if ("statue".equals(subtype) || "sculpture".equals(subtype) || "bust".equals(subtype)) {
+            this.placeCityBlock(level, cursor, worldX, surfaceY + 3, worldZ, Blocks.POLISHED_ANDESITE.defaultBlockState(), maxY, flags);
+            this.placeCityBlock(level, cursor, worldX, surfaceY + 4, worldZ, Blocks.STONE_BRICK_WALL.defaultBlockState(), maxY, flags);
+         } else {
+            this.placeCityBlock(level, cursor, worldX, surfaceY + 3, worldZ, Blocks.STONE_BRICK_SLAB.defaultBlockState(), maxY, flags);
+         }
+      }
+   }
+
+   private void placeTourismPoint(
+      WorldGenLevel level, MutableBlockPos cursor, ExternalPointFeature point, int worldX, int surfaceY, int worldZ, int maxY
+   ) {
+      if (!"information".equals(point.typeTag())) {
+         return;
+      }
+      String information = point.tags().getOrDefault("information", "").trim().toLowerCase(Locale.ROOT);
+      if ("office".equals(information) || "visitor_centre".equals(information)) {
+         return;
+      }
+      int flags = this.detailApplyFlags(level);
+      this.placeCityBlock(level, cursor, worldX, surfaceY + 1, worldZ, Blocks.COBBLESTONE_WALL.defaultBlockState(), maxY, flags);
+      this.placeCityBlock(level, cursor, worldX, surfaceY + 2, worldZ, Blocks.OAK_PLANKS.defaultBlockState(), maxY, flags);
+      this.placeCityBlock(level, cursor, worldX, surfaceY + 3, worldZ, Blocks.BLUE_WOOL.defaultBlockState(), maxY, flags);
+   }
+
+   private void placeManMadePoint(
+      WorldGenLevel level, MutableBlockPos cursor, ExternalPointFeature point, int worldX, int surfaceY, int worldZ, int maxY
+   ) {
+      String type = point.typeTag().trim().toLowerCase(Locale.ROOT);
+      int flags = this.detailApplyFlags(level);
+      switch (type) {
+         case "antenna", "mast" -> {
+            int height = Math.max(10, Math.min(30, intFromTag(point.tags().get("height"), 18)));
+            this.placeCityBlock(level, cursor, worldX, surfaceY + 1, worldZ, Blocks.GRAY_CONCRETE.defaultBlockState(), maxY, flags);
+            this.placeCityStack(level, cursor, worldX, surfaceY + 2, worldZ, Blocks.IRON_BARS.defaultBlockState(), height, maxY, flags);
+            for (int y = surfaceY + 7; y <= surfaceY + height; y += 7) {
+               this.placeCityBlock(level, cursor, worldX + 1, y, worldZ, Blocks.IRON_BLOCK.defaultBlockState(), maxY, flags);
+               this.placeCityBlock(level, cursor, worldX - 1, y, worldZ, Blocks.IRON_BLOCK.defaultBlockState(), maxY, flags);
+               this.placeCityBlock(level, cursor, worldX, y, worldZ + 1, Blocks.IRON_BLOCK.defaultBlockState(), maxY, flags);
+               this.placeCityBlock(level, cursor, worldX, y, worldZ - 1, Blocks.IRON_BLOCK.defaultBlockState(), maxY, flags);
+            }
+            this.placeCityBlock(level, cursor, worldX, surfaceY + height + 2, worldZ, Blocks.LIGHTNING_ROD.defaultBlockState(), maxY, flags);
+         }
+         case "chimney" -> {
+            int height = Math.max(10, Math.min(25, intFromTag(point.tags().get("height"), 18)));
+            this.placeCityStack(level, cursor, worldX, surfaceY + 1, worldZ, Blocks.BRICKS.defaultBlockState(), height, maxY, flags);
+         }
+         case "water_well" -> {
+            for (int dx = -1; dx <= 1; dx++) {
+               for (int dz = -1; dz <= 1; dz++) {
+                  if (dx == 0 && dz == 0) {
+                     this.placeCityBlock(level, cursor, worldX, surfaceY + 1, worldZ, WATER_STATE, maxY, flags);
+                  } else {
+                     this.placeCityBlock(level, cursor, worldX + dx, surfaceY + 1, worldZ + dz, Blocks.STONE_BRICKS.defaultBlockState(), maxY, flags);
+                  }
+               }
+            }
+            this.placeCityBlock(level, cursor, worldX - 1, surfaceY + 2, worldZ, Blocks.OAK_FENCE.defaultBlockState(), maxY, flags);
+            this.placeCityBlock(level, cursor, worldX + 1, surfaceY + 2, worldZ, Blocks.OAK_FENCE.defaultBlockState(), maxY, flags);
+            this.placeCityBlock(level, cursor, worldX, surfaceY + 3, worldZ, Blocks.OAK_SLAB.defaultBlockState(), maxY, flags);
+         }
+         case "water_tower" -> this.placeCompactWaterTower(level, cursor, worldX, surfaceY, worldZ, maxY, flags);
+         default -> {
+         }
+      }
+   }
+
+   private void placePowerPoint(
+      WorldGenLevel level, MutableBlockPos cursor, ExternalPointFeature point, int worldX, int surfaceY, int worldZ, int maxY
+   ) {
+      String type = point.typeTag().trim().toLowerCase(Locale.ROOT);
+      int flags = this.detailApplyFlags(level);
+      if ("pole".equals(type)) {
+         int height = Math.max(6, Math.min(15, intFromTag(point.tags().get("height"), 10)));
+         BlockState pole = switch (point.tags().getOrDefault("material", "wood").trim().toLowerCase(Locale.ROOT)) {
+            case "concrete" -> Blocks.LIGHT_GRAY_CONCRETE.defaultBlockState();
+            case "steel", "metal" -> Blocks.IRON_BARS.defaultBlockState();
+            default -> Blocks.OAK_LOG.defaultBlockState();
+         };
+         this.placeCityStack(level, cursor, worldX, surfaceY + 1, worldZ, pole, height, maxY, flags);
+         for (int dx = -2; dx <= 2; dx++) {
+            this.placeCityBlock(level, cursor, worldX + dx, surfaceY + height, worldZ, Blocks.OAK_FENCE.defaultBlockState(), maxY, flags);
+         }
+         this.placeCityBlock(level, cursor, worldX - 2, surfaceY + height + 1, worldZ, Blocks.END_ROD.defaultBlockState(), maxY, flags);
+         this.placeCityBlock(level, cursor, worldX + 2, surfaceY + height + 1, worldZ, Blocks.END_ROD.defaultBlockState(), maxY, flags);
+      } else if ("tower".equals(type)) {
+         int height = Math.max(14, Math.min(28, intFromTag(point.tags().get("height"), 20)));
+         for (int y = 1; y <= height; y++) {
+            int radius = y < height / 2 ? 2 : 1;
+            this.placeCityBlock(level, cursor, worldX - radius, surfaceY + y, worldZ - radius, Blocks.IRON_BLOCK.defaultBlockState(), maxY, flags);
+            this.placeCityBlock(level, cursor, worldX + radius, surfaceY + y, worldZ - radius, Blocks.IRON_BLOCK.defaultBlockState(), maxY, flags);
+            this.placeCityBlock(level, cursor, worldX - radius, surfaceY + y, worldZ + radius, Blocks.IRON_BLOCK.defaultBlockState(), maxY, flags);
+            this.placeCityBlock(level, cursor, worldX + radius, surfaceY + y, worldZ + radius, Blocks.IRON_BLOCK.defaultBlockState(), maxY, flags);
+            if (y % 5 == 0) {
+               this.placeCityBlock(level, cursor, worldX, surfaceY + y, worldZ, Blocks.IRON_BARS.defaultBlockState(), maxY, flags);
+            }
+         }
+         int armY = surfaceY + height - 3;
+         for (int d = -4; d <= 4; d++) {
+            this.placeCityBlock(level, cursor, worldX + d, armY, worldZ, Blocks.IRON_BLOCK.defaultBlockState(), maxY, flags);
+            this.placeCityBlock(level, cursor, worldX, armY, worldZ + d, Blocks.IRON_BLOCK.defaultBlockState(), maxY, flags);
+         }
+         this.placeCityBlock(level, cursor, worldX, surfaceY + height + 1, worldZ, Blocks.LIGHTNING_ROD.defaultBlockState(), maxY, flags);
+      }
+   }
+
+   private void placeBarrierPoint(
+      WorldGenLevel level, MutableBlockPos cursor, ExternalPointFeature point, int worldX, int surfaceY, int worldZ, int maxY
+   ) {
+      String type = point.typeTag().trim().toLowerCase(Locale.ROOT);
+      int flags = this.detailApplyFlags(level);
+      switch (type) {
+         case "bollard" -> this.placeCityBlockReplacingBarrier(level, cursor, worldX, surfaceY + 1, worldZ, Blocks.COBBLESTONE_WALL.defaultBlockState(), maxY, flags);
+         case "block" -> this.placeCityBlockReplacingBarrier(level, cursor, worldX, surfaceY + 1, worldZ, Blocks.STONE.defaultBlockState(), maxY, flags);
+         case "entrance" -> {
+            this.placeCityBlockReplacingBarrier(level, cursor, worldX, surfaceY + 1, worldZ, Blocks.AIR.defaultBlockState(), maxY, flags);
+            this.placeCityBlockReplacingBarrier(level, cursor, worldX, surfaceY + 2, worldZ, Blocks.AIR.defaultBlockState(), maxY, flags);
+         }
+         case "gate", "swing_gate", "lift_gate", "stile" -> {
+            this.placeCityBlockReplacingBarrier(level, cursor, worldX, surfaceY + 1, worldZ, Blocks.OAK_FENCE_GATE.defaultBlockState(), maxY, flags);
+            this.placeCityBlockReplacingBarrier(level, cursor, worldX, surfaceY + 2, worldZ, Blocks.AIR.defaultBlockState(), maxY, flags);
+         }
+         default -> {
+         }
+      }
+   }
+
+   private void placeRailwayPoint(
+      WorldGenLevel level, MutableBlockPos cursor, ExternalPointFeature point, int worldX, int surfaceY, int worldZ, int maxY
+   ) {
+      String type = point.typeTag().trim().toLowerCase(Locale.ROOT);
+      int flags = this.detailApplyFlags(level);
+      switch (type) {
+         case "level_crossing", "crossing" -> {
+            this.paintCrossingPoint(level, cursor, worldX, worldZ);
+            this.placeCityStack(level, cursor, worldX, surfaceY + 1, worldZ, Blocks.COBBLESTONE_WALL.defaultBlockState(), 2, maxY, flags);
+            this.placeCityBlock(level, cursor, worldX - 1, surfaceY + 3, worldZ, Blocks.WHITE_WOOL.defaultBlockState(), maxY, flags);
+            this.placeCityBlock(level, cursor, worldX + 1, surfaceY + 3, worldZ, Blocks.WHITE_WOOL.defaultBlockState(), maxY, flags);
+            this.placeCityBlock(level, cursor, worldX, surfaceY + 3, worldZ - 1, Blocks.WHITE_WOOL.defaultBlockState(), maxY, flags);
+            this.placeCityBlock(level, cursor, worldX, surfaceY + 3, worldZ + 1, Blocks.WHITE_WOOL.defaultBlockState(), maxY, flags);
+            this.placeCityBlock(level, cursor, worldX, surfaceY + 4, worldZ, Blocks.REDSTONE_LAMP.defaultBlockState(), maxY, flags);
+         }
+         case "tram_stop" -> {
+            this.placeCityStack(level, cursor, worldX, surfaceY + 1, worldZ, Blocks.IRON_BARS.defaultBlockState(), 3, maxY, flags);
+            this.placeCityBlock(level, cursor, worldX, surfaceY + 4, worldZ, Blocks.YELLOW_WOOL.defaultBlockState(), maxY, flags);
+            this.placeCityBlock(level, cursor, worldX + 1, surfaceY + 1, worldZ, CITY_BENCH_STATE, maxY, flags);
+         }
+         default -> {
+         }
+      }
+   }
+
+   private void placeCompactWaterTower(
+      WorldGenLevel level, MutableBlockPos cursor, int worldX, int surfaceY, int worldZ, int maxY, int flags
+   ) {
+      int legHeight = 12;
+      int[][] legs = {{-2, -2}, {2, -2}, {-2, 2}, {2, 2}};
+      for (int[] leg : legs) {
+         this.placeCityStack(level, cursor, worldX + leg[0], surfaceY + 1, worldZ + leg[1], Blocks.IRON_BARS.defaultBlockState(), legHeight, maxY, flags);
+      }
+      for (int dx = -3; dx <= 3; dx++) {
+         for (int dz = -3; dz <= 3; dz++) {
+            this.placeCityBlock(level, cursor, worldX + dx, surfaceY + legHeight + 1, worldZ + dz, Blocks.POLISHED_ANDESITE.defaultBlockState(), maxY, flags);
+            this.placeCityBlock(level, cursor, worldX + dx, surfaceY + legHeight + 2, worldZ + dz, Blocks.POLISHED_ANDESITE.defaultBlockState(), maxY, flags);
+         }
+      }
+   }
+
+   private void placeCityCross(
+      WorldGenLevel level, MutableBlockPos cursor, int worldX, int surfaceY, int worldZ, int height, int maxY, int flags
+   ) {
+      this.placeCityBlock(level, cursor, worldX, surfaceY + 1, worldZ, Blocks.STONE_BRICKS.defaultBlockState(), maxY, flags);
+      for (int y = 2; y <= height; y++) {
+         this.placeCityBlock(level, cursor, worldX, surfaceY + y, worldZ, Blocks.STONE_BRICK_WALL.defaultBlockState(), maxY, flags);
+      }
+      int armY = surfaceY + Math.max(3, height - 1);
+      this.placeCityBlock(level, cursor, worldX - 1, armY, worldZ, Blocks.STONE_BRICK_WALL.defaultBlockState(), maxY, flags);
+      this.placeCityBlock(level, cursor, worldX + 1, armY, worldZ, Blocks.STONE_BRICK_WALL.defaultBlockState(), maxY, flags);
+   }
+
+   private void placeCityStack(
+      WorldGenLevel level, MutableBlockPos cursor, int worldX, int startY, int worldZ, BlockState state, int height, int maxY, int flags
+   ) {
+      for (int offset = 0; offset < height; offset++) {
+         this.placeCityBlock(level, cursor, worldX, startY + offset, worldZ, state, maxY, flags);
+      }
+   }
+
+   private boolean placeCityBlock(
+      WorldGenLevel level, MutableBlockPos cursor, int worldX, int y, int worldZ, BlockState state, int maxY, int flags
+   ) {
+      if (y > maxY) {
+         return false;
+      }
+      cursor.set(worldX, y, worldZ);
+      if (!isRoadLightReplaceable(level.getBlockState(cursor))) {
+         return false;
+      }
+      level.setBlock(cursor, state, flags);
+      return true;
+   }
+
+   private boolean placeCityBlockReplacingBarrier(
+      WorldGenLevel level, MutableBlockPos cursor, int worldX, int y, int worldZ, BlockState state, int maxY, int flags
+   ) {
+      if (y > maxY) {
+         return false;
+      }
+      cursor.set(worldX, y, worldZ);
+      BlockState current = level.getBlockState(cursor);
+      if (!isRoadLightReplaceable(current) && !isCityBarrierBlock(current)) {
+         return false;
+      }
+      level.setBlock(cursor, state, flags);
+      return true;
+   }
+
+   private static boolean isCityBarrierBlock(BlockState state) {
+      return state.is(Blocks.COBBLESTONE_WALL)
+         || state.is(Blocks.STONE_BRICK_WALL)
+         || state.is(Blocks.OAK_FENCE)
+         || state.is(Blocks.IRON_BARS)
+         || state.is(Blocks.OAK_LEAVES);
+   }
+
+   private static boolean canReplaceCitySurface(BlockState state) {
+      return !state.isAir()
+         && state.getFluidState().isEmpty()
+         && !isRoadDeckState(state)
+         && (state.is(BlockTags.DIRT)
+            || state.is(Blocks.STONE)
+            || state.is(Blocks.ANDESITE)
+            || state.is(Blocks.GRAVEL)
+            || state.is(Blocks.SAND)
+            || state.is(Blocks.RED_SAND)
+            || state.is(Blocks.MOSS_BLOCK)
+            || state.is(Blocks.MUD)
+            || state.is(Blocks.SNOW_BLOCK)
+            || state.is(Blocks.LIGHT_GRAY_CONCRETE)
+            || state.is(Blocks.GRAY_CONCRETE));
+   }
+
+   private static boolean canAnchorCityLine(BlockState state) {
+      return !state.isAir()
+         && state.getFluidState().isEmpty()
+         && !isRoadDeckState(state)
+         && !state.is(BlockTags.LOGS)
+         && !state.is(BlockTags.LEAVES);
+   }
+
+   private static boolean isBuildingDoorTarget(BlockState state) {
+      return !state.isAir()
+         && state.getFluidState().isEmpty()
+         && !isRoadDeckState(state)
+         && !canReplaceCitySurface(state)
+         && !state.is(BlockTags.LOGS)
+         && !state.is(BlockTags.LEAVES);
+   }
+
+   private static boolean cityFeatureVisible(Map<String, String> tags) {
+      if (intFromTag(tags.get("layer"), 0) < 0 || intFromTag(tags.get("level"), 0) < 0) {
+         return false;
+      }
+      String location = tags.getOrDefault("location", "").trim().toLowerCase(Locale.ROOT);
+      return !"underground".equals(location) && !"underwater".equals(location) && !truthyTag(tags.get("tunnel"));
+   }
+
+   private static BlockState cityFlagState(String sourceId) {
+      return switch (Math.floorMod(sourceId.hashCode(), 6)) {
+         case 0 -> Blocks.RED_WOOL.defaultBlockState();
+         case 1 -> Blocks.YELLOW_WOOL.defaultBlockState();
+         case 2 -> Blocks.BLUE_WOOL.defaultBlockState();
+         case 3 -> Blocks.GREEN_WOOL.defaultBlockState();
+         case 4 -> Blocks.ORANGE_WOOL.defaultBlockState();
+         default -> Blocks.WHITE_WOOL.defaultBlockState();
+      };
+   }
+
+   private static BlockState cityAreaSurfaceState(ExternalAreaFeature area, int worldX, int worldZ) {
+      String type = area.typeTag().trim().toLowerCase(Locale.ROOT);
+      if (area.kind() == ExternalAreaKind.PARKING) {
+         if (isParkingPaintStripe(worldX, worldZ)) {
+            return CITY_PARKING_MARK_STATE;
+         }
+         return Math.floorMod(worldX + worldZ, 11) == 0 ? CITY_PARKING_DRIVE_STATE : CITY_PARKING_STATE;
+      }
+      return switch (area.kind()) {
+         case LANDUSE -> landuseSurfaceState(type, worldX, worldZ);
+         case LEISURE -> leisureSurfaceState(type);
+         case NATURAL -> naturalSurfaceState(type);
+         case WATER -> WATER_STATE;
+         case AMENITY -> CITY_PARKING_STATE;
+         case PARKING -> CITY_PARKING_STATE;
+      };
+   }
+
+   private static boolean isParkingPaintStripe(int worldX, int worldZ) {
+      int x = Math.floorMod(worldX, 6);
+      int z = Math.floorMod(worldZ, 10);
+      return x == 0 && z >= 1 && z <= 8 || z == 0 && x >= 1 && x <= 4;
+   }
+
+   private static BlockState landuseSurfaceState(String type, int worldX, int worldZ) {
+      return switch (type) {
+         case "construction", "brownfield", "landfill" -> Math.floorMod(worldX + worldZ, 5) == 0 ? GRAVEL_STATE : COARSE_DIRT_STATE;
+         case "industrial" -> Math.floorMod(worldX + worldZ, 4) == 0 ? Blocks.STONE_BRICKS.defaultBlockState() : STONE_STATE;
+         case "military" -> Math.floorMod(worldX + worldZ, 7) == 0 ? Blocks.STONE_BRICKS.defaultBlockState() : Blocks.GRAY_CONCRETE.defaultBlockState();
+         case "quarry" -> Math.floorMod(worldX + worldZ, 6) == 0 ? GRAVEL_STATE : STONE_STATE;
+         case "railway" -> GRAVEL_STATE;
+         case "traffic_island" -> Blocks.STONE_SLAB.defaultBlockState();
+         case "education", "religious" -> Blocks.POLISHED_ANDESITE.defaultBlockState();
+         case "cemetery" -> MOSS_BLOCK_STATE;
+         case "farmland" -> Blocks.FARMLAND.defaultBlockState();
+         case "forest", "orchard", "greenfield" -> GRASS_BLOCK_STATE;
+         case "vineyard" -> COARSE_DIRT_STATE;
+         case "commercial", "retail", "residential" -> GRASS_BLOCK_STATE;
+         case "meadow", "grass", "recreation_ground" -> GRASS_BLOCK_STATE;
+         default -> GRASS_BLOCK_STATE;
+      };
+   }
+
+   private static BlockState leisureSurfaceState(String type) {
+      return switch (type) {
+         case "track" -> CITY_TRACK_STATE;
+         case "pitch", "sports_centre", "schoolyard" -> Blocks.GREEN_CONCRETE.defaultBlockState();
+         case "playground", "recreation_ground", "dog_park", "beach_resort" -> CITY_PLAYGROUND_STATE;
+         case "swimming_pool", "swimming_area" -> WATER_STATE;
+         case "bathing_place" -> Blocks.SMOOTH_SANDSTONE.defaultBlockState();
+         case "outdoor_seating", "water_park", "slipway" -> Blocks.LIGHT_GRAY_CONCRETE.defaultBlockState();
+         case "ice_rink" -> Blocks.PACKED_ICE.defaultBlockState();
+         case "garden", "park", "nature_reserve", "golf_course", "disc_golf_course" -> GRASS_BLOCK_STATE;
+         default -> GRASS_BLOCK_STATE;
+      };
+   }
+
+   private static BlockState naturalSurfaceState(String type) {
+      return switch (type) {
+         case "beach", "sand", "dune", "shoal" -> SAND_STATE;
+         case "wetland", "mud" -> MUD_STATE;
+         case "bare_rock", "cliff", "ridge", "saddle", "mountain_range" -> STONE_STATE;
+         case "scree", "blockfield" -> GRAVEL_STATE;
+         case "glacier" -> Blocks.PACKED_ICE.defaultBlockState();
+         case "reef" -> WATER_STATE;
+         case "wood", "tree_row" -> PODZOL_STATE;
+         case "scrub", "heath", "shrubbery", "tundra" -> MOSS_BLOCK_STATE;
+         default -> GRASS_BLOCK_STATE;
+      };
+   }
+
+   private static BlockState cityBarrierState(ExternalLineFeature line) {
+      String type = line.typeTag().trim().toLowerCase(Locale.ROOT);
+      return switch (type) {
+         case "wall", "city_wall", "retaining_wall" -> CITY_BARRIER_WALL_STATE;
+         case "hedge" -> CITY_BARRIER_HEDGE_STATE;
+         case "guard_rail", "chain", "bollard" -> CITY_BARRIER_RAIL_STATE;
+         default -> CITY_BARRIER_FENCE_STATE;
+      };
+   }
+
+   private static int cityBarrierHeight(ExternalLineFeature line) {
+      String type = line.typeTag().trim().toLowerCase(Locale.ROOT);
+      if ("hedge".equals(type) || "wall".equals(type) || "city_wall".equals(type) || "retaining_wall".equals(type)) {
+         return Math.max(1, Math.min(3, intFromTag(line.tags().get("height"), 2)));
+      }
+      return 1;
+   }
+
+   private static boolean truthyTag(String value) {
+      if (value == null) {
+         return false;
+      }
+      return switch (value.trim().toLowerCase(Locale.ROOT)) {
+         case "yes", "true", "1" -> true;
+         default -> false;
+      };
+   }
+
+   private static int intFromTag(String value, int defaultValue) {
+      if (value == null || value.isBlank()) {
+         return defaultValue;
+      }
+      String normalized = value.trim().replace(',', '.');
+      StringBuilder number = new StringBuilder();
+      boolean seenDigit = false;
+      for (int index = 0; index < normalized.length(); index++) {
+         char ch = normalized.charAt(index);
+         if ((ch >= '0' && ch <= '9') || ch == '.' || (ch == '-' && number.isEmpty())) {
+            number.append(ch);
+            if (ch >= '0' && ch <= '9') {
+               seenDigit = true;
+            }
+         } else if (seenDigit) {
+            break;
+         }
+      }
+      if (!seenDigit) {
+         return defaultValue;
+      }
+      try {
+         return (int)Math.round(Double.parseDouble(number.toString()));
+      } catch (NumberFormatException error) {
+         return defaultValue;
+      }
    }
 
    private boolean isNearWater(int worldX, int worldZ, int radius) {
@@ -5013,7 +6972,7 @@ public final class EarthChunkGenerator extends ChunkGenerator {
 
       this.repairAnomalousChunkTerrain(terrainSurfaces, waterSurfaces, waterFlags, coverClasses, heightGrid, gridSize, step, chunkMinY, shell.maxY());
       EarthBiomeSource earthBiomeSource = this.biomeSource instanceof EarthBiomeSource typedEarthBiomeSource ? typedEarthBiomeSource : null;
-      EarthChunkGenerator.ChunkBiomeClimateCache climateCache = FAST_FULL_CHUNK && earthBiomeSource != null
+      EarthChunkGenerator.ChunkBiomeClimateCache climateCache = shouldUseChunkClimateCache(FAST_FULL_CHUNK, earthBiomeSource, this.settings.worldScale())
          ? new EarthChunkGenerator.ChunkBiomeClimateCache(pos, this.settings.worldScale())
          : null;
       Holder<Biome>[] biomeCache = newBiomeCache(CHUNK_AREA);
@@ -5281,6 +7240,10 @@ public final class EarthChunkGenerator extends ChunkGenerator {
       }
    }
 
+   private static boolean shouldUseChunkClimateCache(boolean fastFullChunk, EarthBiomeSource earthBiomeSource, double worldScale) {
+      return fastFullChunk && earthBiomeSource != null && worldScale > 1.5;
+   }
+
    private void applyPreparedTerrainRefinement(ServerLevel level, ChunkAccess chunk, EarthChunkGenerator.PreparedTerrainRefinement refinement) {
       long chunkKey = ChunkPos.asLong(chunk.getPos().x, chunk.getPos().z);
       if (!Objects.equals(this.terrainGenerationStamps.get(chunkKey), refinement.generationStamp())) {
@@ -5415,6 +7378,8 @@ public final class EarthChunkGenerator extends ChunkGenerator {
          this.placePreparedRoadLights(level, chunk);
       }
 
+      this.applyExternalCityDetails(level, chunk);
+
       List<EarthChunkGenerator.PreparedTreePlacement> treePlacements = detail.treePlacements();
       if (!treePlacements.isEmpty()) {
          long treeApplyStartNs = beginFullChunkProfiling();
@@ -5491,10 +7456,20 @@ public final class EarthChunkGenerator extends ChunkGenerator {
          double worldScale = this.settings.worldScale();
          if (!(worldScale <= 0.0) && !(worldScale > OSM_ROAD_MAX_SCALE)) {
             OsmQueryMode queryMode = mode == null ? OsmQueryMode.BLOCKING : mode;
-            TellusOsmRoadSource.RoadQueryResult result = OSM_ROAD_SOURCE.roadsForAreaWithStatus(
-               minBlockX, minBlockZ, maxBlockX, maxBlockZ, worldScale, Math.max(0, marginBlocks), queryMode
+            List<RoadFeature> externalFeatures = EXTERNAL_FEATURE_SOURCE.roadsForArea(
+               minBlockX, minBlockZ, maxBlockX, maxBlockZ, worldScale, Math.max(0, marginBlocks)
             );
-            return new EarthChunkGenerator.OsmRoadQueryResult(result.features(), result.hadCacheMiss());
+            boolean skipOsm = EXTERNAL_FEATURE_SOURCE.preferExternalRoads() && !externalFeatures.isEmpty();
+            TellusOsmRoadSource.RoadQueryResult result = skipOsm
+               ? new TellusOsmRoadSource.RoadQueryResult(List.of(), false)
+               : OSM_ROAD_SOURCE.roadsForAreaWithStatus(minBlockX, minBlockZ, maxBlockX, maxBlockZ, worldScale, Math.max(0, marginBlocks), queryMode);
+            if (externalFeatures.isEmpty()) {
+               return new EarthChunkGenerator.OsmRoadQueryResult(result.features(), result.hadCacheMiss());
+            }
+            List<RoadFeature> features = new ArrayList<>(result.features().size() + externalFeatures.size());
+            features.addAll(result.features());
+            features.addAll(externalFeatures);
+            return new EarthChunkGenerator.OsmRoadQueryResult(List.copyOf(features), result.hadCacheMiss());
          } else {
             return new EarthChunkGenerator.OsmRoadQueryResult(List.of(), false);
          }
@@ -5518,12 +7493,22 @@ public final class EarthChunkGenerator extends ChunkGenerator {
          return new EarthChunkGenerator.OsmBuildingQueryResult(List.of(), false);
       } else {
          double worldScale = this.settings.worldScale();
-         if (!(worldScale <= 0.0) && !(worldScale > OSM_BUILDING_MAX_SCALE) && OSM_BUILDING_SOURCE.available()) {
+         if (!(worldScale <= 0.0) && !(worldScale > OSM_BUILDING_MAX_SCALE)) {
             OsmQueryMode queryMode = mode == null ? OsmQueryMode.BLOCKING : mode;
-            TellusOsmBuildingSource.BuildingQueryResult result = OSM_BUILDING_SOURCE.buildingsForAreaWithStatus(
-               minBlockX, minBlockZ, maxBlockX, maxBlockZ, worldScale, Math.max(0, marginBlocks), queryMode
+            List<OsmBuildingFeature> features = new ArrayList<>();
+            boolean hadCacheMiss = false;
+            List<OsmBuildingFeature> externalFeatures = EXTERNAL_FEATURE_SOURCE.buildingsForArea(
+               minBlockX, minBlockZ, maxBlockX, maxBlockZ, worldScale, Math.max(0, marginBlocks)
             );
-            return new EarthChunkGenerator.OsmBuildingQueryResult(result.features(), result.hadCacheMiss());
+            if ((!EXTERNAL_FEATURE_SOURCE.preferExternalBuildings() || externalFeatures.isEmpty()) && OSM_BUILDING_SOURCE.available()) {
+               TellusOsmBuildingSource.BuildingQueryResult result = OSM_BUILDING_SOURCE.buildingsForAreaWithStatus(
+                  minBlockX, minBlockZ, maxBlockX, maxBlockZ, worldScale, Math.max(0, marginBlocks), queryMode
+               );
+               features.addAll(result.features());
+               hadCacheMiss = result.hadCacheMiss();
+            }
+            features.addAll(externalFeatures);
+            return new EarthChunkGenerator.OsmBuildingQueryResult(List.copyOf(features), hadCacheMiss);
          } else {
             return new EarthChunkGenerator.OsmBuildingQueryResult(List.of(), false);
          }
@@ -5557,7 +7542,7 @@ public final class EarthChunkGenerator extends ChunkGenerator {
          return null;
       } else {
          double worldScale = this.settings.worldScale();
-         if (!(worldScale <= 0.0) && !(worldScale > OSM_BUILDING_MAX_SCALE) && OSM_BUILDING_SOURCE.available()) {
+         if (!(worldScale <= 0.0) && !(worldScale > OSM_BUILDING_MAX_SCALE) && this.buildingSourcesAvailable()) {
             int chunkMinX = pos.getMinBlockX();
             int chunkMinZ = pos.getMinBlockZ();
             int chunkMaxX = chunkMinX + CHUNK_MASK;
@@ -5963,7 +7948,7 @@ public final class EarthChunkGenerator extends ChunkGenerator {
    private List<RoadFeature> fetchEntranceRoads(
       int minBlockX, int minBlockZ, int maxBlockX, int maxBlockZ, double worldScale, OsmQueryMode queryMode
    ) {
-      if (!(worldScale > 0.0) || worldScale > OSM_ROAD_MAX_SCALE || !OSM_ROAD_SOURCE.available()) {
+      if (!(worldScale > 0.0) || worldScale > OSM_ROAD_MAX_SCALE || !this.roadSourcesAvailable()) {
          return List.of();
       }
 
@@ -6144,9 +8129,7 @@ public final class EarthChunkGenerator extends ChunkGenerator {
             } else if (stairState != null) {
                state = stairState;
             } else if (facadeCell) {
-               state = this.shouldPlaceWindow(blueprint, boundaryDistance, worldX, worldZ, floorIndex, floorBottom, floorTop, y)
-                  ? palette.window()
-                  : palette.wall();
+               state = this.facadeStateFor(blueprint, palette, boundaryDistance, worldX, worldZ, floorIndex, floorBottom, floorTop, y);
             } else if (partitionCell) {
                state = palette.partition();
             } else if (y == floorTop && TellusBuildingLighting.shouldPlaceInteriorLight(blueprint, boundaryDistance, worldX, worldZ, floorIndex)) {
@@ -6202,8 +8185,8 @@ public final class EarthChunkGenerator extends ChunkGenerator {
             int floorBottom = blueprint.floorBottomY(floorIndex);
             int floorTop = Math.min(columnTopY, blueprint.floorTopY(floorIndex));
             boolean facadeCell = blueprint.isFacadeCell(boundaryDistance, floorIndex);
-            if (facadeCell && this.shouldPlaceWindow(blueprint, boundaryDistance, worldX, worldZ, floorIndex, floorBottom, floorTop, y)) {
-               state = palette.window();
+            if (facadeCell) {
+               state = this.facadeStateFor(blueprint, palette, boundaryDistance, worldX, worldZ, floorIndex, floorBottom, floorTop, y);
             } else {
                state = palette.wall();
             }
@@ -6348,6 +8331,80 @@ public final class EarthChunkGenerator extends ChunkGenerator {
       };
    }
 
+   private BlockState facadeStateFor(
+      BuildingBlueprint blueprint,
+      EarthChunkGenerator.BuildingPalette palette,
+      int boundaryDistance,
+      int worldX,
+      int worldZ,
+      int floorIndex,
+      int floorBottom,
+      int floorTop,
+      int y
+   ) {
+      if (this.isStorefrontFacade(blueprint, floorIndex)) {
+         int edgeCoord = this.facadeEdgeCoord(blueprint, boundaryDistance, worldX, worldZ);
+         if (edgeCoord >= 0) {
+            if (floorTop - floorBottom >= 3 && y == floorBottom + 3) {
+               return Math.floorMod(edgeCoord, 5) == 0 ? palette.trim() : this.storefrontAccentState(blueprint, worldX, worldZ);
+            }
+            if (y >= floorBottom + 1 && y <= Math.min(floorTop, floorBottom + 2)) {
+               return Math.floorMod(edgeCoord, 4) == 0 ? palette.trim() : palette.window();
+            }
+         }
+      }
+
+      return this.shouldPlaceWindow(blueprint, boundaryDistance, worldX, worldZ, floorIndex, floorBottom, floorTop, y)
+         ? palette.window()
+         : palette.wall();
+   }
+
+   private boolean isStorefrontFacade(BuildingBlueprint blueprint, int floorIndex) {
+      if (floorIndex != 0) {
+         return false;
+      }
+      BuildingProfile profile = blueprint.profile();
+      if (profile.archetype() == BuildingProfile.Archetype.COMMERCIAL) {
+         return true;
+      }
+      String type = profile.primaryType();
+      return type.contains("shop")
+         || type.contains("retail")
+         || type.contains("commercial")
+         || type.contains("mall")
+         || type.contains("market")
+         || type.contains("supermarket")
+         || type.contains("restaurant")
+         || type.contains("hotel")
+         || type.contains("office");
+   }
+
+   private int facadeEdgeCoord(BuildingBlueprint blueprint, int boundaryDistance, int worldX, int worldZ) {
+      int setback = blueprint.setbackForFloor(0);
+      int minWorldX = blueprint.minWorldX() + setback;
+      int maxWorldX = blueprint.maxWorldX() - setback;
+      int minWorldZ = blueprint.minWorldZ() + setback;
+      int maxWorldZ = blueprint.maxWorldZ() - setback;
+      if ((worldX == minWorldX || worldX == maxWorldX) && worldZ >= minWorldZ && worldZ <= maxWorldZ) {
+         return worldZ - minWorldZ;
+      }
+      if ((worldZ == minWorldZ || worldZ == maxWorldZ) && worldX >= minWorldX && worldX <= maxWorldX) {
+         return worldX - minWorldX;
+      }
+      return boundaryDistance == 0 ? 0 : -1;
+   }
+
+   private BlockState storefrontAccentState(BuildingBlueprint blueprint, int worldX, int worldZ) {
+      int roll = Math.floorMod((int)(blueprint.blueprintSeed() ^ worldX * 73428767L ^ worldZ * 912931L), 5);
+      return switch (roll) {
+         case 0 -> Blocks.RED_WOOL.defaultBlockState();
+         case 1 -> Blocks.BLUE_WOOL.defaultBlockState();
+         case 2 -> Blocks.GREEN_WOOL.defaultBlockState();
+         case 3 -> Blocks.YELLOW_WOOL.defaultBlockState();
+         default -> Blocks.WHITE_WOOL.defaultBlockState();
+      };
+   }
+
    private boolean shouldPlaceWindow(
       BuildingBlueprint blueprint,
       int boundaryDistance,
@@ -6484,7 +8541,7 @@ public final class EarthChunkGenerator extends ChunkGenerator {
             continue;
          }
 
-         int roadWidth = roadWidthForClass(road.roadClass(), widths);
+         int roadWidth = roadWidthForFeature(road, roadWidthForClass(road.roadClass(), widths));
          if (roadWidth <= 0 || road.pointCount() < 2) {
             continue;
          }
@@ -8208,6 +10265,25 @@ public final class EarthChunkGenerator extends ChunkGenerator {
       }
    }
 
+   private static ArnisTreeType wildTreeTypeForBiome(Holder<Biome> biome, long seed) {
+      if (biome.is(Biomes.BIRCH_FOREST) || biome.is(Biomes.OLD_GROWTH_BIRCH_FOREST)) {
+         return ArnisTreeType.BIRCH;
+      }
+      if (biome.is(Biomes.TAIGA) || biome.is(Biomes.SNOWY_TAIGA) || biome.is(Biomes.OLD_GROWTH_PINE_TAIGA) || biome.is(Biomes.OLD_GROWTH_SPRUCE_TAIGA) || biome.is(Biomes.GROVE)) {
+         return ArnisTreeType.SPRUCE;
+      }
+      if (biome.is(Biomes.DARK_FOREST)) {
+         return ArnisTreeType.DARK_OAK;
+      }
+      if (biome.is(Biomes.JUNGLE) || biome.is(Biomes.SPARSE_JUNGLE) || biome.is(Biomes.BAMBOO_JUNGLE)) {
+         return ArnisTreeType.JUNGLE;
+      }
+      if (biome.is(Biomes.SAVANNA) || biome.is(Biomes.SAVANNA_PLATEAU) || biome.is(Biomes.WINDSWEPT_SAVANNA) || biome.is(Biomes.WOODED_BADLANDS)) {
+         return ArnisTreeType.ACACIA;
+      }
+      return ArnisTreeType.chooseDefault(seed);
+   }
+
    private static List<ConfiguredFeature<?, ?>> treeFeaturesForBiome(Holder<Biome> biome) {
       return TREE_FEATURES.computeIfAbsent(biome, holder -> {
          List<ConfiguredFeature<?, ?>> result = new ArrayList<>();
@@ -8935,12 +11011,16 @@ public final class EarthChunkGenerator extends ChunkGenerator {
       private final Long2ObjectOpenHashMap<EarthChunkGenerator.RoadColumnSample> edgeColumnCache = new Long2ObjectOpenHashMap<>();
       private byte[] resolvedClass = new byte[CHUNK_AREA];
       private byte[] resolvedMode = new byte[CHUNK_AREA];
+      private byte[] resolvedSurface = new byte[CHUNK_AREA];
       private int[] resolvedDeckY = new int[CHUNK_AREA];
+      private int[] resolvedWidth = new int[CHUNK_AREA];
       private boolean[] resolvedTunnelCarve = new boolean[CHUNK_AREA];
       private boolean[] blockedByHigherClass = new boolean[CHUNK_AREA];
       private boolean[] bridgeOverlayPresent = new boolean[CHUNK_AREA];
       private int[] bridgeOverlayDeckY = new int[CHUNK_AREA];
       private byte[] bridgeOverlayClass = new byte[CHUNK_AREA];
+      private byte[] bridgeOverlaySurface = new byte[CHUNK_AREA];
+      private int[] bridgeOverlayWidth = new int[CHUNK_AREA];
       private boolean[] bridgeSupportShaftPresent = new boolean[CHUNK_AREA];
       private int[] bridgeSupportShaftBottomY = new int[CHUNK_AREA];
       private int[] bridgeSupportShaftTopY = new int[CHUNK_AREA];
@@ -8949,14 +11029,19 @@ public final class EarthChunkGenerator extends ChunkGenerator {
       private int[] bridgeSupportCapTopY = new int[CHUNK_AREA];
       private boolean[] candidatePresent = new boolean[CHUNK_AREA];
       private int[] candidateDeckY = new int[CHUNK_AREA];
+      private int[] candidateWidth = new int[CHUNK_AREA];
       private byte[] candidateMode = new byte[CHUNK_AREA];
+      private byte[] candidateSurface = new byte[CHUNK_AREA];
       private boolean[] candidateTunnelCarve = new boolean[CHUNK_AREA];
       private boolean[] bridgeCandidatePresent = new boolean[CHUNK_AREA];
       private int[] bridgeCandidateDeckY = new int[CHUNK_AREA];
+      private int[] bridgeCandidateWidth = new int[CHUNK_AREA];
+      private byte[] bridgeCandidateSurface = new byte[CHUNK_AREA];
       private int[] placed = new int[CHUNK_AREA];
       private final byte[] chunkRoadClass = new byte[CHUNK_AREA];
       private final byte[] chunkRoadMode = new byte[CHUNK_AREA];
       private final int[] chunkRoadDeckY = new int[CHUNK_AREA];
+      private final int[] chunkRoadWidth = new int[CHUNK_AREA];
       private final boolean[] chunkTunnelNeedsCarve = new boolean[CHUNK_AREA];
       private final boolean[] tunnelCarveMask = new boolean[CHUNK_AREA];
       private final int[] tunnelCarveDeckY = new int[CHUNK_AREA];
@@ -8966,12 +11051,16 @@ public final class EarthChunkGenerator extends ChunkGenerator {
          if (this.resolvedClass.length < extArea) {
             this.resolvedClass = new byte[extArea];
             this.resolvedMode = new byte[extArea];
+            this.resolvedSurface = new byte[extArea];
             this.resolvedDeckY = new int[extArea];
+            this.resolvedWidth = new int[extArea];
             this.resolvedTunnelCarve = new boolean[extArea];
             this.blockedByHigherClass = new boolean[extArea];
             this.bridgeOverlayPresent = new boolean[extArea];
             this.bridgeOverlayDeckY = new int[extArea];
             this.bridgeOverlayClass = new byte[extArea];
+            this.bridgeOverlaySurface = new byte[extArea];
+            this.bridgeOverlayWidth = new int[extArea];
             this.bridgeSupportShaftPresent = new boolean[extArea];
             this.bridgeSupportShaftBottomY = new int[extArea];
             this.bridgeSupportShaftTopY = new int[extArea];
@@ -8980,10 +11069,14 @@ public final class EarthChunkGenerator extends ChunkGenerator {
             this.bridgeSupportCapTopY = new int[extArea];
             this.candidatePresent = new boolean[extArea];
             this.candidateDeckY = new int[extArea];
+            this.candidateWidth = new int[extArea];
             this.candidateMode = new byte[extArea];
+            this.candidateSurface = new byte[extArea];
             this.candidateTunnelCarve = new boolean[extArea];
             this.bridgeCandidatePresent = new boolean[extArea];
             this.bridgeCandidateDeckY = new int[extArea];
+            this.bridgeCandidateWidth = new int[extArea];
+            this.bridgeCandidateSurface = new byte[extArea];
             this.placed = new int[extArea];
          }
       }
@@ -8991,12 +11084,16 @@ public final class EarthChunkGenerator extends ChunkGenerator {
       private void clearRoadExtState(int extArea) {
          Arrays.fill(this.resolvedClass, 0, extArea, (byte)0);
          Arrays.fill(this.resolvedMode, 0, extArea, (byte)0);
+         Arrays.fill(this.resolvedSurface, 0, extArea, (byte)0);
          Arrays.fill(this.resolvedDeckY, 0, extArea, 0);
+         Arrays.fill(this.resolvedWidth, 0, extArea, 0);
          Arrays.fill(this.resolvedTunnelCarve, 0, extArea, false);
          Arrays.fill(this.blockedByHigherClass, 0, extArea, false);
          Arrays.fill(this.bridgeOverlayPresent, 0, extArea, false);
          Arrays.fill(this.bridgeOverlayDeckY, 0, extArea, 0);
          Arrays.fill(this.bridgeOverlayClass, 0, extArea, (byte)0);
+         Arrays.fill(this.bridgeOverlaySurface, 0, extArea, (byte)0);
+         Arrays.fill(this.bridgeOverlayWidth, 0, extArea, 0);
          Arrays.fill(this.bridgeSupportShaftPresent, 0, extArea, false);
          Arrays.fill(this.bridgeSupportShaftBottomY, 0, extArea, 0);
          Arrays.fill(this.bridgeSupportShaftTopY, 0, extArea, 0);
@@ -9008,10 +11105,14 @@ public final class EarthChunkGenerator extends ChunkGenerator {
       private void clearRoadCandidateState(int extArea) {
          Arrays.fill(this.candidatePresent, 0, extArea, false);
          Arrays.fill(this.candidateDeckY, 0, extArea, 0);
+         Arrays.fill(this.candidateWidth, 0, extArea, 0);
          Arrays.fill(this.candidateMode, 0, extArea, (byte)0);
+         Arrays.fill(this.candidateSurface, 0, extArea, (byte)0);
          Arrays.fill(this.candidateTunnelCarve, 0, extArea, false);
          Arrays.fill(this.bridgeCandidatePresent, 0, extArea, false);
          Arrays.fill(this.bridgeCandidateDeckY, 0, extArea, 0);
+         Arrays.fill(this.bridgeCandidateWidth, 0, extArea, 0);
+         Arrays.fill(this.bridgeCandidateSurface, 0, extArea, (byte)0);
       }
    }
 
@@ -10248,6 +12349,7 @@ public final class EarthChunkGenerator extends ChunkGenerator {
       DECORATION_AXOLOTLS("axolotls"),
       DECORATION_TREES("trees"),
       DECORATION_BUILDINGS("buildings"),
+      DECORATION_CITY_DETAILS("cityDetails"),
       DECORATION_REALTIME_SNOW("realtimeSnow"),
       DECORATION_ROAD_LIGHTS("roadLights"),
       DECORATION_DEFERRED_APPLY("deferredApply"),
@@ -10456,7 +12558,7 @@ public final class EarthChunkGenerator extends ChunkGenerator {
                   }
                }
 
-               Tellus.LOGGER.info(message.toString());
+               TellusDiagnostics.worldgen(message.toString());
             }
          }
       }
@@ -10563,21 +12665,19 @@ public final class EarthChunkGenerator extends ChunkGenerator {
          long now = System.nanoTime();
          long next = NEXT_LOG_AT_NS.get();
          if (now >= next && NEXT_LOG_AT_NS.compareAndSet(next, now + LOG_INTERVAL_NS)) {
-            Tellus.LOGGER.info(
-               "Terrain streaming perf 15s: shell(chunks={},heightMisses={},coverMisses={},visualMisses={},waterFallbacks={},heightFallbacks={},chunkThreadElevationDiskOpens=0,chunkThreadCoverDiskOpens=0,prefetchQueueRejections={}) refinement(queued={},applied={},staleDrops={},detailDelays={})",
-               new Object[]{
-                  SHELL_CHUNKS.sumThenReset(),
-                  SHELL_HEIGHT_MISSES.sumThenReset(),
-                  SHELL_COVER_MISSES.sumThenReset(),
-                  SHELL_VISUAL_MISSES.sumThenReset(),
-                  SHELL_WATER_FALLBACKS.sumThenReset(),
-                  SHELL_HEIGHT_FALLBACKS.sumThenReset(),
-                  PREFETCH_QUEUE_REJECTIONS.sumThenReset(),
-                  REFINEMENT_QUEUED.sumThenReset(),
-                  REFINEMENT_APPLIES.sumThenReset(),
-                  REFINEMENT_STALE_DROPS.sumThenReset(),
-                  DETAIL_DELAYS.sumThenReset()
-               }
+            TellusDiagnostics.worldgen(
+               "Terrain streaming perf 15s: shell(chunks=%d,heightMisses=%d,coverMisses=%d,visualMisses=%d,waterFallbacks=%d,heightFallbacks=%d,chunkThreadElevationDiskOpens=0,chunkThreadCoverDiskOpens=0,prefetchQueueRejections=%d) refinement(queued=%d,applied=%d,staleDrops=%d,detailDelays=%d)",
+               SHELL_CHUNKS.sumThenReset(),
+               SHELL_HEIGHT_MISSES.sumThenReset(),
+               SHELL_COVER_MISSES.sumThenReset(),
+               SHELL_VISUAL_MISSES.sumThenReset(),
+               SHELL_WATER_FALLBACKS.sumThenReset(),
+               SHELL_HEIGHT_FALLBACKS.sumThenReset(),
+               PREFETCH_QUEUE_REJECTIONS.sumThenReset(),
+               REFINEMENT_QUEUED.sumThenReset(),
+               REFINEMENT_APPLIES.sumThenReset(),
+               REFINEMENT_STALE_DROPS.sumThenReset(),
+               DETAIL_DELAYS.sumThenReset()
             );
          }
       }
@@ -10676,20 +12776,18 @@ public final class EarthChunkGenerator extends ChunkGenerator {
       }
 
       private static void logAndReset() {
-         Tellus.LOGGER.info(
-            "Chunk detail perf 15s: baseTerrain(total={}ms,calls={}) detailJob(total={}ms,calls={}) detailApply(total={}ms,calls={}) skippedFallbacks={} staleDrops={} failures={} maxQueueDepth={}",
-            new Object[]{
-               toMillis(BASE_TERRAIN_NS.sumThenReset()),
-               BASE_TERRAIN_CALLS.sumThenReset(),
-               toMillis(DETAIL_JOB_NS.sumThenReset()),
-               DETAIL_JOB_CALLS.sumThenReset(),
-               toMillis(DETAIL_APPLY_NS.sumThenReset()),
-               DETAIL_APPLY_CALLS.sumThenReset(),
-               SKIPPED_BLOCKING_FALLBACKS.sumThenReset(),
-               STALE_DROPS.sumThenReset(),
-               FAILURES.sumThenReset(),
-               MAX_QUEUE_DEPTH.getAndSet(0L)
-            }
+         TellusDiagnostics.worldgen(
+            "Chunk detail perf 15s: baseTerrain(total=%sms,calls=%d) detailJob(total=%sms,calls=%d) detailApply(total=%sms,calls=%d) skippedFallbacks=%d staleDrops=%d failures=%d maxQueueDepth=%d",
+            toMillis(BASE_TERRAIN_NS.sumThenReset()),
+            BASE_TERRAIN_CALLS.sumThenReset(),
+            toMillis(DETAIL_JOB_NS.sumThenReset()),
+            DETAIL_JOB_CALLS.sumThenReset(),
+            toMillis(DETAIL_APPLY_NS.sumThenReset()),
+            DETAIL_APPLY_CALLS.sumThenReset(),
+            SKIPPED_BLOCKING_FALLBACKS.sumThenReset(),
+            STALE_DROPS.sumThenReset(),
+            FAILURES.sumThenReset(),
+            MAX_QUEUE_DEPTH.getAndSet(0L)
          );
       }
 

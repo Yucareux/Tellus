@@ -1,6 +1,7 @@
 package com.yucareux.tellus.world.data.osm;
 
 import com.yucareux.tellus.Tellus;
+import com.yucareux.tellus.util.TellusDiagnostics;
 import com.yucareux.tellus.world.data.source.DownloadProgressReporter;
 import java.io.IOException;
 import java.io.InputStream;
@@ -92,6 +93,7 @@ public final class OverpassRoadClient {
       this.acquireRequestGuard();
 
       byte[] responseBody;
+      long startMs = System.currentTimeMillis();
       try {
          this.applyRateLimitDelay();
          HttpURLConnection connection = (HttpURLConnection)endpoint.toURL().openConnection();
@@ -113,6 +115,15 @@ public final class OverpassRoadClient {
                String message = readErrorSnippet(connection);
                boolean retryableStatus = status == 408 || status == 429 || status >= 500;
                String detail = "Overpass HTTP " + status + " (" + endpoint.getHost() + ")" + (message.isEmpty() ? "" : ": " + message);
+               TellusDiagnostics.traffic(
+                  "Legacy Overpass roads failed endpoint=%s status=%d retryable=%s payloadBytes=%d elapsedMs=%d detail=%s",
+                  endpoint,
+                  status,
+                  retryableStatus,
+                  payload.length,
+                  System.currentTimeMillis() - startMs,
+                  detail
+               );
                if (retryableStatus) {
                   this.applyRetryableCooldown(status, parseRetryAfterMillis(connection.getHeaderField("Retry-After")));
                   throw new OverpassRoadClient.RetryableOverpassException(detail);
@@ -128,6 +139,14 @@ public final class OverpassRoadClient {
             } finally {
                DownloadProgressReporter.requestFinished();
             }
+            TellusDiagnostics.traffic(
+               "Legacy Overpass roads ok endpoint=%s status=%d payloadBytes=%d bytes=%d elapsedMs=%d",
+               endpoint,
+               status,
+               payload.length,
+               responseBody.length,
+               System.currentTimeMillis() - startMs
+            );
          } finally {
             connection.disconnect();
          }

@@ -456,6 +456,8 @@ public final class TellusOsmBuildingSource implements TellusCacheHandle {
 
    private static OsmBuildingMetadata resolveMetadata(Map<String, Object> tags, double heightMeters) {
       int floorCount = resolveFloorCount(tags, heightMeters);
+      Double roofLevels = parseDouble(firstNonBlank(tags, "roof_levels", "roof:levels"));
+      Double roofHeight = parseDouble(firstNonBlank(tags, "roof_height", "roof:height"));
       return new OsmBuildingMetadata(
          firstNonBlank(tags, "class", "building_class", "category", "kind"),
          firstNonBlank(tags, "subtype", "building_subtype", "building", "type"),
@@ -463,7 +465,12 @@ public final class TellusOsmBuildingSource implements TellusCacheHandle {
          firstNonBlank(tags, "@name", "name"),
          floorCount,
          firstNonBlank(tags, "roof_shape", "roof:shape"),
-         firstNonBlank(tags, "roof_material", "roof:material", "roof:colour", "roof_color")
+         roofLevels == null ? 0 : Math.max(0, (int)Math.round(roofLevels)),
+         roofHeight == null ? 0.0 : Math.max(0.0, roofHeight),
+         firstNonBlank(tags, "roof_material", "roof:material"),
+         firstNonBlank(tags, "wall_material", "building_material", "building:material", "facade_material", "facade:material", "material"),
+         firstNonBlank(tags, "roof_color", "roof_colour", "roof:color", "roof:colour"),
+         firstNonBlank(tags, "wall_color", "wall_colour", "building_color", "building_colour", "building:color", "building:colour", "facade:color", "facade:colour", "color", "colour")
       );
    }
 

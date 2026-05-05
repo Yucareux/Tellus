@@ -3,6 +3,7 @@ package com.yucareux.tellus.world.data.osm;
 import com.google.common.cache.CacheBuilder;
 import com.google.common.cache.CacheLoader;
 import com.google.common.cache.LoadingCache;
+import com.yucareux.tellus.util.TellusDiagnostics;
 import com.yucareux.tellus.world.data.source.DownloadProgressReporter;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
@@ -184,6 +185,7 @@ final class PmTilesRangeReader {
       if (length <= 0) {
          return new byte[0];
       } else {
+         long startMs = System.currentTimeMillis();
          HttpURLConnection connection = (HttpURLConnection)this.uri.toURL().openConnection();
          connection.setRequestProperty("Range", "bytes=" + offset + "-" + (offset + length - 1L));
          connection.setInstanceFollowRedirects(true);
@@ -193,24 +195,44 @@ final class PmTilesRangeReader {
          long expectedBytes = connection.getContentLengthLong();
          DownloadProgressReporter.requestStarted(expectedBytes);
 
-         byte[] var9;
+         byte[] data;
          try (InputStream input = openStream(connection, code)) {
             if (code == 200) {
                skipFully(input, offset);
-               return readFully(input, length);
-            }
+               data = readFully(input, length);
+            } else {
+               if (code != 206) {
+                  throw new IOException("PMTiles HTTP error " + code);
+               }
 
-            if (code != 206) {
-               throw new IOException("PMTiles HTTP error " + code);
+               data = readFully(input, length);
             }
-
-            var9 = readFully(input, length);
+         } catch (IOException | RuntimeException error) {
+            TellusDiagnostics.traffic(
+               "PMTiles range failed uri=%s status=%d offset=%d requestedBytes=%d elapsedMs=%d error=%s",
+               this.uri,
+               code,
+               offset,
+               length,
+               System.currentTimeMillis() - startMs,
+               error.getMessage()
+            );
+            throw error;
          } finally {
             DownloadProgressReporter.requestFinished();
             connection.disconnect();
          }
 
-         return var9;
+         TellusDiagnostics.traffic(
+            "PMTiles range ok uri=%s status=%d offset=%d requestedBytes=%d bytes=%d elapsedMs=%d",
+            this.uri,
+            code,
+            offset,
+            length,
+            data.length,
+            System.currentTimeMillis() - startMs
+         );
+         return data;
       }
    }
 

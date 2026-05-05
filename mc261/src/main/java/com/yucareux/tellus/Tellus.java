@@ -273,7 +273,10 @@ public class Tellus implements ModInitializer {
          if (level.getChunkSource().getGenerator() instanceof EarthChunkGenerator earthGenerator) {
             double latitude = clampLatitude(earthGenerator.latitudeFromBlock(player.getZ()));
             double longitude = clampLongitude(earthGenerator.longitudeFromBlock(player.getX()));
-            ServerPlayNetworking.send(player, new GeoTpOpenMapPayload(latitude, longitude));
+            EarthGeneratorSettings settings = earthGenerator.settings();
+            double spawnLatitude = clampLatitude(settings.spawnLatitude());
+            double spawnLongitude = clampLongitude(settings.spawnLongitude());
+            ServerPlayNetworking.send(player, new GeoTpOpenMapPayload(latitude, longitude, spawnLatitude, spawnLongitude));
             return 1;
          } else {
             source.sendFailure(Component.literal("Tellus: GeoTP map is only available in Tellus worlds."));
