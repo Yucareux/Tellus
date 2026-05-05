@@ -43,6 +43,7 @@ public final class OverpassExternalFeatureSource implements ExternalFeatureSourc
    public static final String NETWORK_MODE_PROPERTY = "tellus.arnis.overpass.network";
    public static final String CITY_DETAILS_PROPERTY = "tellus.arnis.overpass.cityDetails";
    public static final String BLOCKING_CITY_DETAILS_NETWORK_PROPERTY = "tellus.arnis.overpass.cityDetails.blockingNetwork";
+   public static final String OFFLINE_REGIONS_PROPERTY = "tellus.arnis.offlineRegions.enabled";
    private static final String SOURCE = "arnis-overpass";
    private static final String CITY_CACHE_PROFILE = "city-v7";
    private static final String NETWORK_CACHE_FIRST = "cache-first";
@@ -85,6 +86,7 @@ public final class OverpassExternalFeatureSource implements ExternalFeatureSourc
    private final boolean enabled;
    private final boolean networkEnabled;
    private final Path cacheRoot;
+   private final List<OfflineRegion> offlineRegions;
    private final URI[] endpoints;
    private final ConcurrentMap<TileKey, TileFeatures> memoryCache = new ConcurrentHashMap<>();
    private final ConcurrentMap<TileKey, Object> tileLocks = new ConcurrentHashMap<>();
@@ -97,10 +99,11 @@ public final class OverpassExternalFeatureSource implements ExternalFeatureSourc
    private final AtomicLong networkTilesReserved = new AtomicLong(0L);
    private final AtomicLong skippedNetworkTiles = new AtomicLong(0L);
 
-   private OverpassExternalFeatureSource(boolean enabled, boolean networkEnabled, Path cacheRoot, URI[] endpoints) {
+   private OverpassExternalFeatureSource(boolean enabled, boolean networkEnabled, Path cacheRoot, List<OfflineRegion> offlineRegions, URI[] endpoints) {
       this.enabled = enabled;
       this.networkEnabled = networkEnabled;
       this.cacheRoot = cacheRoot;
+      this.offlineRegions = List.copyOf(offlineRegions);
       this.endpoints = endpoints;
    }
 
@@ -116,20 +119,22 @@ public final class OverpassExternalFeatureSource implements ExternalFeatureSourc
          return disabled();
       }
       Path cacheRoot = defaultCacheRoot();
+      List<OfflineRegion> offlineRegions = loadOfflineRegions(defaultOfflineRegionRoot());
       String endpoints = System.getProperty(ENDPOINTS_PROPERTY, DEFAULT_ENDPOINTS);
       URI[] parsedEndpoints = parseEndpoints(endpoints);
       TellusDiagnostics.traffic(
-         "Overpass source ready networkMode=%s networkEnabled=%s cacheRoot=%s endpoints=%d queryZoom=%d cityDetails=%s blockingCityDetails=%s maxNetworkTiles=%d",
+         "Overpass source ready networkMode=%s networkEnabled=%s cacheRoot=%s offlineRegions=%d endpoints=%d queryZoom=%d cityDetails=%s blockingCityDetails=%s maxNetworkTiles=%d",
          networkMode,
          !NETWORK_CACHE_ONLY.equals(networkMode),
          cacheRoot,
+         offlineRegions.size(),
          parsedEndpoints.length,
          QUERY_ZOOM,
          cityDetailsEnabled(),
          blockingCityDetailsNetwork(),
          MAX_NETWORK_TILES_PER_SESSION
       );
-      return new OverpassExternalFeatureSource(true, !NETWORK_CACHE_ONLY.equals(networkMode), cacheRoot, parsedEndpoints);
+      return new OverpassExternalFeatureSource(true, !NETWORK_CACHE_ONLY.equals(networkMode), cacheRoot, offlineRegions, parsedEndpoints);
    }
 
    public static CacheEstimate estimateConfiguredCache(GeoBounds bounds) {
@@ -160,7 +165,7 @@ public final class OverpassExternalFeatureSource implements ExternalFeatureSourc
    }
 
    public static OverpassExternalFeatureSource disabled() {
-      return new OverpassExternalFeatureSource(false, false, Path.of("."), new URI[0]);
+      return new OverpassExternalFeatureSource(false, false, Path.of("."), List.of(), new URI[0]);
    }
 
    public boolean available() {
@@ -377,6 +382,7 @@ public final class OverpassExternalFeatureSource implements ExternalFeatureSourc
 
    private TileFeatures loadTile(TileKey key, boolean requireCityDetails, TileFeatures fallback, boolean allowBlockingNetwork) {
       Path cachePath = this.cachePathFor(key);
+      boolean offlineRegionTile = this.offlineRegionCovers(key);
       if (Files.exists(cachePath)) {
          try {
             TileFeatures parsed = this.parseTile(key, this.readCompressed(cachePath), this.cacheHasCityProfile(cachePath));
@@ -394,6 +400,10 @@ public final class OverpassExternalFeatureSource implements ExternalFeatureSourc
                return parsed;
             }
             fallback = parsed;
+            if (offlineRegionTile) {
+               TellusDiagnostics.traffic("Overpass offline region base cache hit tile=%s missingCityProfile=true; networkSkipped=true", key);
+               return fallback;
+            }
             if (!allowBlockingNetwork) {
                TellusDiagnostics.traffic("Overpass city details deferred tile=%s; using base cache and filling in background", key);
                this.scheduleCityDetailsFetch(key);
@@ -412,8 +422,17 @@ public final class OverpassExternalFeatureSource implements ExternalFeatureSourc
       }
 
       if (requireCityDetails && !allowBlockingNetwork) {
+         if (offlineRegionTile) {
+            TellusDiagnostics.traffic("Overpass offline region cache miss tile=%s deferred=false networkSkipped=true fallback=%s", key, fallback != null);
+            return fallback != null ? fallback : TileFeatures.empty(key.bounds());
+         }
          TellusDiagnostics.traffic("Overpass city details deferred tile=%s; no city cache available yet", key);
          this.scheduleCityDetailsFetch(key);
+         return fallback != null ? fallback : TileFeatures.empty(key.bounds());
+      }
+
+      if (offlineRegionTile) {
+         TellusDiagnostics.traffic("Overpass offline region cache miss tile=%s networkSkipped=true fallback=%s", key, fallback != null);
          return fallback != null ? fallback : TileFeatures.empty(key.bounds());
       }
 
@@ -1291,8 +1310,83 @@ public final class OverpassExternalFeatureSource implements ExternalFeatureSourc
       return FabricLoader.getInstance().getGameDir().resolve("tellus/cache/map/arnis-overpass");
    }
 
+   private static Path defaultOfflineRegionRoot() {
+      return FabricLoader.getInstance().getGameDir().resolve("tellus/cache/offline-regions");
+   }
+
    private static Path cachePathFor(Path cacheRoot, TileKey key) {
       return cacheRoot.resolve(Integer.toString(key.zoom())).resolve(Integer.toString(key.x())).resolve(key.y() + ".json.gz");
+   }
+
+   private boolean offlineRegionCovers(TileKey key) {
+      if (this.offlineRegions.isEmpty()) {
+         return false;
+      }
+      GeoBounds bounds = key.bounds();
+      double centerLat = (bounds.south() + bounds.north()) * 0.5;
+      double centerLon = (bounds.west() + bounds.east()) * 0.5;
+      for (OfflineRegion region : this.offlineRegions) {
+         if (region.contains(centerLat, centerLon)) {
+            return true;
+         }
+      }
+      return false;
+   }
+
+   private static List<OfflineRegion> loadOfflineRegions(Path root) {
+      if (!Boolean.parseBoolean(System.getProperty(OFFLINE_REGIONS_PROPERTY, "true"))) {
+         return List.of();
+      }
+      if (!Files.isDirectory(root)) {
+         return List.of();
+      }
+      List<OfflineRegion> regions = new ArrayList<>();
+      try (java.util.stream.Stream<Path> paths = Files.list(root)) {
+         paths.filter(path -> path.getFileName().toString().endsWith(".json")).forEach(path -> {
+            OfflineRegion region = readOfflineRegion(path);
+            if (region != null) {
+               regions.add(region);
+            }
+         });
+      } catch (IOException error) {
+         LOGGER.debug("Failed to list Tellus offline regions {}", root, error);
+         TellusDiagnostics.traffic("Overpass offline regions unavailable root=%s error=%s", root, shortError(error));
+      }
+      if (!regions.isEmpty()) {
+         TellusDiagnostics.traffic("Overpass offline regions loaded root=%s count=%d", root, regions.size());
+      }
+      return regions;
+   }
+
+   private static OfflineRegion readOfflineRegion(Path path) {
+      try {
+         JsonObject object = JsonParser.parseString(Files.readString(path, StandardCharsets.UTF_8)).getAsJsonObject();
+         if (!SOURCE.equals(jsonString(object, "source", "")) || !CITY_CACHE_PROFILE.equals(jsonString(object, "profile", ""))) {
+            return null;
+         }
+         if (!jsonBoolean(object, "complete", false) || jsonInt(object, "zoom", -1) != QUERY_ZOOM) {
+            return null;
+         }
+         JsonObject bounds = object.has("bounds") && object.get("bounds").isJsonObject() ? object.getAsJsonObject("bounds") : null;
+         if (bounds == null) {
+            return null;
+         }
+         GeoBounds geoBounds = new GeoBounds(
+            jsonDouble(bounds, "south"),
+            jsonDouble(bounds, "west"),
+            jsonDouble(bounds, "north"),
+            jsonDouble(bounds, "east")
+         );
+         String name = jsonString(object, "name", path.getFileName().toString());
+         int totalTiles = jsonInt(object, "totalTiles", 0);
+         int cachedTiles = jsonInt(object, "profileCachedTiles", 0);
+         TellusDiagnostics.traffic("Overpass offline region ready name=%s bounds=%s cached=%d/%d", name, geoBounds, cachedTiles, totalTiles);
+         return new OfflineRegion(name, geoBounds);
+      } catch (IOException | IllegalArgumentException | IllegalStateException error) {
+         LOGGER.debug("Ignoring invalid Tellus offline region {}", path, error);
+         TellusDiagnostics.traffic("Overpass offline region invalid path=%s error=%s", path, shortError(error));
+         return null;
+      }
    }
 
    private static CacheEstimate estimateCache(GeoBounds bounds, Path cacheRoot, boolean networkEnabled) {
@@ -1488,6 +1582,29 @@ public final class OverpassExternalFeatureSource implements ExternalFeatureSourc
       return Boolean.parseBoolean(System.getProperty(BLOCKING_CITY_DETAILS_NETWORK_PROPERTY, "false"));
    }
 
+   private static String jsonString(JsonObject object, String name, String fallback) {
+      JsonElement element = object.get(name);
+      return element != null && element.isJsonPrimitive() ? element.getAsString() : fallback;
+   }
+
+   private static boolean jsonBoolean(JsonObject object, String name, boolean fallback) {
+      JsonElement element = object.get(name);
+      return element != null && element.isJsonPrimitive() ? element.getAsBoolean() : fallback;
+   }
+
+   private static int jsonInt(JsonObject object, String name, int fallback) {
+      JsonElement element = object.get(name);
+      return element != null && element.isJsonPrimitive() ? element.getAsInt() : fallback;
+   }
+
+   private static double jsonDouble(JsonObject object, String name) {
+      JsonElement element = object.get(name);
+      if (element == null || !element.isJsonPrimitive()) {
+         throw new IllegalArgumentException("missing numeric field " + name);
+      }
+      return element.getAsDouble();
+   }
+
    private static int intProperty(String key, int defaultValue, int minInclusive, int maxInclusive) {
       String value = System.getProperty(key);
       if (value == null) {
@@ -1519,6 +1636,15 @@ public final class OverpassExternalFeatureSource implements ExternalFeatureSourc
    private record TileKey(int zoom, int x, int y) {
       private GeoBounds bounds() {
          return tileBounds(this.zoom, this.x, this.y);
+      }
+   }
+
+   private record OfflineRegion(String name, GeoBounds bounds) {
+      private boolean contains(double latitude, double longitude) {
+         return latitude >= this.bounds.south()
+            && latitude <= this.bounds.north()
+            && longitude >= this.bounds.west()
+            && longitude <= this.bounds.east();
       }
    }
 
