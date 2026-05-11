@@ -115,6 +115,10 @@ public class EarthCustomizeScreen extends Screen {
    private long previewDirtyAt = -1L;
    private double spawnLatitude = 27.9881;
    private double spawnLongitude = 86.925;
+   private boolean useLocalOrigin = EarthGeneratorSettings.DEFAULT.useLocalOrigin();
+   private double originLatitude = EarthGeneratorSettings.DEFAULT.originLatitude();
+   private double originLongitude = EarthGeneratorSettings.DEFAULT.originLongitude();
+   private boolean localOriginFollowsSpawn = true;
 
    public EarthCustomizeScreen(CreateWorldScreen parent, WorldCreationContext worldCreationContext) {
       super(TITLE);
@@ -170,6 +174,11 @@ public class EarthCustomizeScreen extends Screen {
    public void applySpawnpoint(double latitude, double longitude) {
       this.spawnLatitude = latitude;
       this.spawnLongitude = longitude;
+      if (this.findToggleValue("use_local_origin", this.useLocalOrigin)) {
+         this.originLatitude = latitude;
+         this.originLongitude = longitude;
+      }
+
       this.previewDirtyAt = System.currentTimeMillis();
    }
 
@@ -421,6 +430,7 @@ public class EarthCustomizeScreen extends Screen {
       boolean enableRoads = this.findToggleValue("enable_roads", EarthGeneratorSettings.DEFAULT.enableRoads());
       boolean enableBuildings = this.findToggleValue("enable_buildings", EarthGeneratorSettings.DEFAULT.enableBuildings());
       boolean enableWater = this.findToggleValue("enable_water", EarthGeneratorSettings.DEFAULT.enableWater());
+      boolean useLocalOrigin = this.findToggleValue("use_local_origin", EarthGeneratorSettings.DEFAULT.useLocalOrigin());
       boolean deepDark = this.findToggleValue("deep_dark", EarthGeneratorSettings.DEFAULT.deepDark());
       boolean geodes = this.findToggleValue("geodes", EarthGeneratorSettings.DEFAULT.geodes());
       boolean addStrongholds = this.findToggleValue("add_strongholds", EarthGeneratorSettings.DEFAULT.addStrongholds());
@@ -477,6 +487,9 @@ public class EarthCustomizeScreen extends Screen {
          seaLevel,
          this.spawnLatitude,
          this.spawnLongitude,
+         useLocalOrigin,
+         useLocalOrigin ? this.spawnLatitude : this.originLatitude,
+         useLocalOrigin ? this.spawnLongitude : this.originLongitude,
          minAltitude,
          maxAltitude,
          riverLakeShorelineBlend,
@@ -548,6 +561,11 @@ public class EarthCustomizeScreen extends Screen {
       if (!preserveSpawnpoint) {
          this.spawnLatitude = initialSettings.spawnLatitude();
          this.spawnLongitude = initialSettings.spawnLongitude();
+         this.useLocalOrigin = initialSettings.useLocalOrigin();
+         this.originLatitude = initialSettings.originLatitude();
+         this.originLongitude = initialSettings.originLongitude();
+         this.localOriginFollowsSpawn = sameCoordinate(this.originLatitude, this.spawnLatitude)
+            && sameCoordinate(this.originLongitude, this.spawnLongitude);
       }
 
       this.setSliderValue("world_scale", initialSettings.worldScale());
@@ -567,6 +585,7 @@ public class EarthCustomizeScreen extends Screen {
       this.setToggleValue("enable_roads", initialSettings.enableRoads());
       this.setToggleValue("enable_buildings", initialSettings.enableBuildings());
       this.setToggleValue("enable_water", initialSettings.enableWater());
+      this.setToggleValue("use_local_origin", initialSettings.useLocalOrigin());
       this.setToggleValue("deep_dark", initialSettings.deepDark());
       this.setToggleValue("geodes", initialSettings.geodes());
       this.setToggleValue("add_strongholds", initialSettings.addStrongholds());
@@ -605,6 +624,10 @@ public class EarthCustomizeScreen extends Screen {
             }
          }
       }
+   }
+
+   private static boolean sameCoordinate(double first, double second) {
+      return Math.abs(first - second) < 1.0E-7;
    }
 
    private void setToggleValue(String key, boolean value) {
@@ -769,7 +792,8 @@ public class EarthCustomizeScreen extends Screen {
                .withScale(EarthCustomizeScreen.SliderScale.power(3.0)),
             this.categoryLink(demProvidersCategory)
                .withLabel(Component.translatable("property.tellus.dem_provider.name"))
-               .withTooltip(Component.translatable("property.tellus.dem_provider.tooltip").withStyle(ChatFormatting.GRAY))
+               .withTooltip(Component.translatable("property.tellus.dem_provider.tooltip").withStyle(ChatFormatting.GRAY)),
+            toggle("use_local_origin", EarthGeneratorSettings.DEFAULT.useLocalOrigin())
          )
       );
       worldSettings.add(

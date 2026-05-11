@@ -100,6 +100,30 @@ public final class EarthBiomeSource extends BiomeSource {
       this.fastSpawnMode = enabled;
    }
 
+   private double geoBlockXFromLocalBlockX(double localBlockX) {
+      return localBlockX + this.originBlockX();
+   }
+
+   private double geoBlockZFromLocalBlockZ(double localBlockZ) {
+      return localBlockZ + this.originBlockZ();
+   }
+
+   private int geoBlockXFloorFromLocalBlockX(double localBlockX) {
+      return Mth.floor(this.geoBlockXFromLocalBlockX(localBlockX));
+   }
+
+   private int geoBlockZFloorFromLocalBlockZ(double localBlockZ) {
+      return Mth.floor(this.geoBlockZFromLocalBlockZ(localBlockZ));
+   }
+
+   private double originBlockX() {
+      return this.settings.useLocalOrigin() ? this.settings.originLongitude() * EarthProjection.blocksPerDegree(this.settings.worldScale()) : 0.0;
+   }
+
+   private double originBlockZ() {
+      return this.settings.useLocalOrigin() ? EarthProjection.latToBlockZ(this.settings.originLatitude(), this.settings.worldScale()) : 0.0;
+   }
+
    
    protected Stream<Holder<Biome>> collectPossibleBiomes() {
       return Objects.requireNonNull(this.possibleBiomes.stream(), "possibleBiomes.stream()");
@@ -150,7 +174,9 @@ public final class EarthBiomeSource extends BiomeSource {
       if (this.fastSpawnMode) {
          return this.resolveFastSpawnSurfaceBiome(blockX, blockZ);
       } else {
-         int rawCoverClass = LAND_COVER_SOURCE.sampleCoverClass(blockX, blockZ, this.settings.worldScale());
+         int rawCoverClass = LAND_COVER_SOURCE.sampleCoverClass(
+            this.geoBlockXFromLocalBlockX(blockX), this.geoBlockZFromLocalBlockZ(blockZ), this.settings.worldScale()
+         );
          int visualCoverClass = this.sampleVisualCoverClass(blockX, blockZ, rawCoverClass);
          return this.resolveSurfaceBiomeAtBlock(blockX, blockZ, rawCoverClass, visualCoverClass, null, null);
       }
@@ -161,11 +187,17 @@ public final class EarthBiomeSource extends BiomeSource {
       if (this.fastSpawnMode) {
          return this.resolveFastSpawnSurfaceBiome(blockX, blockZ);
       } else {
-         int rawCoverClass = LAND_COVER_SOURCE.sampleCoverClass(blockX, blockZ, this.settings.worldScale());
+         int rawCoverClass = LAND_COVER_SOURCE.sampleCoverClass(
+            this.geoBlockXFromLocalBlockX(blockX), this.geoBlockZFromLocalBlockZ(blockZ), this.settings.worldScale()
+         );
          int visualCoverClass = this.sampleVisualCoverClass(blockX, blockZ, rawCoverClass);
          WaterSurfaceResolver.WaterColumnData column = this.settings.enableWater()
-            ? this.waterResolver.resolveFastColumnData(blockX, blockZ, rawCoverClass)
-            : this.waterResolver.resolveColumnData(blockX, blockZ, rawCoverClass);
+            ? this.waterResolver.resolveFastColumnData(
+               this.geoBlockXFloorFromLocalBlockX(blockX), this.geoBlockZFloorFromLocalBlockZ(blockZ), rawCoverClass
+            )
+            : this.waterResolver.resolveColumnData(
+               this.geoBlockXFloorFromLocalBlockX(blockX), this.geoBlockZFloorFromLocalBlockZ(blockZ), rawCoverClass
+            );
          Holder<Biome> surfaceBiome = this.resolveSurfaceBiomeAtBlock(blockX, blockZ, rawCoverClass, visualCoverClass, column, null);
          if (!this.settings.caveGeneration()) {
             return surfaceBiome;
@@ -178,13 +210,17 @@ public final class EarthBiomeSource extends BiomeSource {
 
    
    private Holder<Biome> resolveFastSpawnSurfaceBiome(int blockX, int blockZ) {
-      int rawCoverClass = LAND_COVER_SOURCE.sampleCoverClass(blockX, blockZ, this.settings.worldScale());
+      int rawCoverClass = LAND_COVER_SOURCE.sampleCoverClass(
+         this.geoBlockXFromLocalBlockX(blockX), this.geoBlockZFromLocalBlockZ(blockZ), this.settings.worldScale()
+      );
       int visualCoverClass = this.sampleVisualCoverClass(blockX, blockZ, rawCoverClass);
       boolean remaSnowTerrain = this.isRemaSnowTerrain(blockZ);
       if (rawCoverClass == ESA_MANGROVES) {
          return this.mangrove;
       } else if (this.settings.enableWater()) {
-         WaterSurfaceResolver.WaterInfo waterInfo = this.waterResolver.resolveFastWaterInfo(blockX, blockZ, rawCoverClass);
+         WaterSurfaceResolver.WaterInfo waterInfo = this.waterResolver.resolveFastWaterInfo(
+            this.geoBlockXFloorFromLocalBlockX(blockX), this.geoBlockZFloorFromLocalBlockZ(blockZ), rawCoverClass
+         );
          return waterInfo.isWater()
             ? (waterInfo.isOcean() ? this.ocean : this.river)
             : (remaSnowTerrain || visualCoverClass == ESA_SNOW_ICE ? this.frozenPeaks : this.plains);
@@ -205,12 +241,18 @@ public final class EarthBiomeSource extends BiomeSource {
       if (this.settings.enableWater()) {
          WaterSurfaceResolver.WaterColumnData waterColumn = column != null
             ? column
-            : this.waterResolver.resolveFastColumnData(blockX, blockZ, rawCoverClass);
+            : this.waterResolver.resolveFastColumnData(
+               this.geoBlockXFloorFromLocalBlockX(blockX), this.geoBlockZFloorFromLocalBlockZ(blockZ), rawCoverClass
+            );
          if (waterColumn.hasWater()) {
             return waterColumn.isOcean() ? this.ocean : this.river;
          }
       } else if (rawCoverClass == ESA_NO_DATA || rawCoverClass == ESA_WATER) {
-         WaterSurfaceResolver.WaterColumnData waterColumn = column != null ? column : this.waterResolver.resolveColumnData(blockX, blockZ, rawCoverClass);
+         WaterSurfaceResolver.WaterColumnData waterColumn = column != null
+            ? column
+            : this.waterResolver.resolveColumnData(
+               this.geoBlockXFloorFromLocalBlockX(blockX), this.geoBlockZFloorFromLocalBlockZ(blockZ), rawCoverClass
+            );
          if (waterColumn.hasWater()) {
             return waterColumn.isOcean() ? this.ocean : this.river;
          }
@@ -237,9 +279,11 @@ public final class EarthBiomeSource extends BiomeSource {
 
       String koppen = precomputedKoppen;
       if (koppen == null) {
-         koppen = KOPPEN_SOURCE.sampleDitheredCode(blockX, blockZ, this.settings.worldScale());
+         double geoBlockX = this.geoBlockXFromLocalBlockX(blockX);
+         double geoBlockZ = this.geoBlockZFromLocalBlockZ(blockZ);
+         koppen = KOPPEN_SOURCE.sampleDitheredCode(geoBlockX, geoBlockZ, this.settings.worldScale());
          if (koppen == null) {
-            koppen = KOPPEN_SOURCE.findNearestCode(blockX, blockZ, this.settings.worldScale());
+            koppen = KOPPEN_SOURCE.findNearestCode(geoBlockX, geoBlockZ, this.settings.worldScale());
          }
       }
 
@@ -257,7 +301,9 @@ public final class EarthBiomeSource extends BiomeSource {
 
    private int sampleVisualCoverClass(int blockX, int blockZ, int rawCoverClass) {
       double worldScale = this.settings.worldScale();
-      return worldScale > 0.0 && worldScale < 10.0 ? LAND_COVER_SOURCE.sampleVisualCoverClass(blockX, blockZ, worldScale) : rawCoverClass;
+      return worldScale > 0.0 && worldScale < 10.0
+         ? LAND_COVER_SOURCE.sampleVisualCoverClass(this.geoBlockXFromLocalBlockX(blockX), this.geoBlockZFromLocalBlockZ(blockZ), worldScale)
+         : rawCoverClass;
    }
 
    

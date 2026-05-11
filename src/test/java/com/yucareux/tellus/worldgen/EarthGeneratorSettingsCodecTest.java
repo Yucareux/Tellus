@@ -115,6 +115,46 @@ class EarthGeneratorSettingsCodecTest {
       assertFalse(encodedObject.has("dem_provider"));
    }
 
+   @Test
+   void missingOriginDefaultsToSpawn() {
+      JsonElement input = JsonParser.parseString(
+         """
+         {
+           "spawn_latitude": 40.7128,
+           "spawn_longitude": -74.006,
+           "use_local_origin": true
+         }
+         """
+      );
+
+      EarthGeneratorSettings decoded = requireSuccess(EarthGeneratorSettings.CODEC.parse(JsonOps.INSTANCE, input));
+
+      assertTrue(decoded.useLocalOrigin());
+      assertEquals(40.7128, decoded.originLatitude());
+      assertEquals(-74.006, decoded.originLongitude());
+   }
+
+   @Test
+   void explicitOriginOverridesSpawn() {
+      JsonElement input = JsonParser.parseString(
+         """
+         {
+           "spawn_latitude": 40.7128,
+           "spawn_longitude": -74.006,
+           "use_local_origin": true,
+           "origin_latitude": 51.5074,
+           "origin_longitude": -0.1278
+         }
+         """
+      );
+
+      EarthGeneratorSettings decoded = requireSuccess(EarthGeneratorSettings.CODEC.parse(JsonOps.INSTANCE, input));
+
+      assertTrue(decoded.useLocalOrigin());
+      assertEquals(51.5074, decoded.originLatitude());
+      assertEquals(-0.1278, decoded.originLongitude());
+   }
+
    private static JsonElement loadFixture(String path) throws IOException {
       try (InputStream stream = EarthGeneratorSettingsCodecTest.class.getClassLoader().getResourceAsStream(path)) {
          assertNotNull(stream, "Missing fixture " + path);

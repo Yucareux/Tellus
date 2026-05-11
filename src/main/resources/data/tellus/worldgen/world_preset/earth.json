@@ -12,7 +12,8 @@
             "oceanic_height_scale": 1.0,
             "height_offset": 64,
             "spawn_latitude": 27.9881,
-            "spawn_longitude": 86.925
+            "spawn_longitude": 86.925,
+            "use_local_origin": true
           }
         },
         "settings": {
@@ -21,7 +22,8 @@
           "oceanic_height_scale": 1.0,
           "height_offset": 64,
           "spawn_latitude": 27.9881,
-          "spawn_longitude": 86.925
+          "spawn_longitude": 86.925,
+          "use_local_origin": true
         }
       }
     },

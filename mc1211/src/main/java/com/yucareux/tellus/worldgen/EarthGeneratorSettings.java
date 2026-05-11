@@ -24,6 +24,9 @@ public record EarthGeneratorSettings(
    int seaLevel,
    double spawnLatitude,
    double spawnLongitude,
+   boolean useLocalOrigin,
+   double originLatitude,
+   double originLongitude,
    int minAltitude,
    int maxAltitude,
    int riverLakeShorelineBlend,
@@ -324,6 +327,9 @@ public record EarthGeneratorSettings(
          .apply(instance, EarthGeneratorSettings::createStructureSettings)
    );
    private static final MapCodec<Boolean> TRAIL_RUINS_CODEC = Codec.BOOL.fieldOf("add_trail_ruins").orElse(DEFAULT.addTrailRuins());
+   private static final MapCodec<Boolean> USE_LOCAL_ORIGIN_CODEC = Codec.BOOL.fieldOf("use_local_origin").orElse(DEFAULT.useLocalOrigin());
+   private static final MapCodec<Optional<Double>> ORIGIN_LATITUDE_CODEC = Codec.DOUBLE.optionalFieldOf("origin_latitude");
+   private static final MapCodec<Optional<Double>> ORIGIN_LONGITUDE_CODEC = Codec.DOUBLE.optionalFieldOf("origin_longitude");
    private static final MapCodec<EarthGeneratorSettings> MAP_CODEC = MapCodec.of(
       new Implementation<EarthGeneratorSettings>() {
          public <T> RecordBuilder<T> encode(EarthGeneratorSettings input, DynamicOps<T> ops, RecordBuilder<T> prefix) {
@@ -348,6 +354,9 @@ public record EarthGeneratorSettings(
             builder = EarthGeneratorSettings.VOXY_CHUNK_PREGEN_CHUNKS_PER_TICK_CODEC.encode(input.voxyChunkPregenChunksPerTick(), ops, builder);
             builder = EarthGeneratorSettings.DEEP_DARK_CODEC.encode(input.deepDark(), ops, builder);
             builder = EarthGeneratorSettings.GEODES_CODEC.encode(input.geodes(), ops, builder);
+            builder = EarthGeneratorSettings.USE_LOCAL_ORIGIN_CODEC.encode(input.useLocalOrigin(), ops, builder);
+            builder = EarthGeneratorSettings.ORIGIN_LATITUDE_CODEC.encode(Optional.of(input.originLatitude()), ops, builder);
+            builder = EarthGeneratorSettings.ORIGIN_LONGITUDE_CODEC.encode(Optional.of(input.originLongitude()), ops, builder);
             builder = EarthGeneratorSettings.STRUCTURE_CODEC.encode(EarthGeneratorSettings.StructureSettings.fromSettings(input), ops, builder);
             return EarthGeneratorSettings.TRAIL_RUINS_CODEC.encode(input.addTrailRuins(), ops, builder);
          }
@@ -372,6 +381,9 @@ public record EarthGeneratorSettings(
             baseKeys = Stream.concat(baseKeys, EarthGeneratorSettings.VOXY_CHUNK_PREGEN_CHUNKS_PER_TICK_CODEC.keys(ops));
             baseKeys = Stream.concat(baseKeys, EarthGeneratorSettings.DEEP_DARK_CODEC.keys(ops));
             baseKeys = Stream.concat(baseKeys, EarthGeneratorSettings.GEODES_CODEC.keys(ops));
+            baseKeys = Stream.concat(baseKeys, EarthGeneratorSettings.USE_LOCAL_ORIGIN_CODEC.keys(ops));
+            baseKeys = Stream.concat(baseKeys, EarthGeneratorSettings.ORIGIN_LATITUDE_CODEC.keys(ops));
+            baseKeys = Stream.concat(baseKeys, EarthGeneratorSettings.ORIGIN_LONGITUDE_CODEC.keys(ops));
             Stream<T> structureKeys = Stream.concat(baseKeys, EarthGeneratorSettings.STRUCTURE_CODEC.keys(ops));
             return Stream.concat(structureKeys, EarthGeneratorSettings.TRAIL_RUINS_CODEC.keys(ops));
          }
@@ -399,6 +411,9 @@ public record EarthGeneratorSettings(
             DataResult<Integer> voxyChunkPregenChunksPerTick = EarthGeneratorSettings.VOXY_CHUNK_PREGEN_CHUNKS_PER_TICK_CODEC.decode(ops, input);
             DataResult<Boolean> deepDark = EarthGeneratorSettings.DEEP_DARK_CODEC.decode(ops, input);
             DataResult<Boolean> geodes = EarthGeneratorSettings.GEODES_CODEC.decode(ops, input);
+            DataResult<Boolean> useLocalOrigin = EarthGeneratorSettings.USE_LOCAL_ORIGIN_CODEC.decode(ops, input);
+            DataResult<Optional<Double>> originLatitude = EarthGeneratorSettings.ORIGIN_LATITUDE_CODEC.decode(ops, input);
+            DataResult<Optional<Double>> originLongitude = EarthGeneratorSettings.ORIGIN_LONGITUDE_CODEC.decode(ops, input);
             DataResult<EarthGeneratorSettings.StructureSettings> structures = EarthGeneratorSettings.STRUCTURE_CODEC.decode(ops, input);
             DataResult<Boolean> trailRuins = EarthGeneratorSettings.TRAIL_RUINS_CODEC.decode(ops, input);
             DataResult<EarthGeneratorSettings.SettingsBase> withSeaLevel = base.apply2(EarthGeneratorSettings::applySeaLevel, seaLevel);
@@ -438,7 +453,10 @@ public record EarthGeneratorSettings(
             settings = settings.apply2(EarthGeneratorSettings::applyDeepDark, deepDark);
             settings = settings.apply2(EarthGeneratorSettings::applyGeodes, geodes);
             settings = settings.apply2(EarthGeneratorSettings::withStructureSettings, structures);
-            return settings.apply2(EarthGeneratorSettings::applyTrailRuins, trailRuins);
+            settings = settings.apply2(EarthGeneratorSettings::applyTrailRuins, trailRuins);
+            settings = settings.apply2(EarthGeneratorSettings::applyUseLocalOrigin, useLocalOrigin);
+            settings = settings.apply2(EarthGeneratorSettings::applyOriginLatitude, originLatitude);
+            return settings.apply2(EarthGeneratorSettings::applyOriginLongitude, originLongitude);
          }
 
          public <T> Stream<T> keys(DynamicOps<T> ops) {
@@ -461,6 +479,9 @@ public record EarthGeneratorSettings(
             baseKeys = Stream.concat(baseKeys, EarthGeneratorSettings.VOXY_CHUNK_PREGEN_CHUNKS_PER_TICK_CODEC.keys(ops));
             baseKeys = Stream.concat(baseKeys, EarthGeneratorSettings.DEEP_DARK_CODEC.keys(ops));
             baseKeys = Stream.concat(baseKeys, EarthGeneratorSettings.GEODES_CODEC.keys(ops));
+            baseKeys = Stream.concat(baseKeys, EarthGeneratorSettings.USE_LOCAL_ORIGIN_CODEC.keys(ops));
+            baseKeys = Stream.concat(baseKeys, EarthGeneratorSettings.ORIGIN_LATITUDE_CODEC.keys(ops));
+            baseKeys = Stream.concat(baseKeys, EarthGeneratorSettings.ORIGIN_LONGITUDE_CODEC.keys(ops));
             Stream<T> structureKeys = Stream.concat(baseKeys, EarthGeneratorSettings.STRUCTURE_CODEC.keys(ops));
             return Stream.concat(structureKeys, EarthGeneratorSettings.TRAIL_RUINS_CODEC.keys(ops));
          }
@@ -520,6 +541,118 @@ public record EarthGeneratorSettings(
       boolean enableBuildings,
       boolean enableWater
    ) {
+      this(
+         worldScale,
+         terrestrialHeightScale,
+         oceanicHeightScale,
+         heightOffset,
+         seaLevel,
+         spawnLatitude,
+         spawnLongitude,
+         false,
+         spawnLatitude,
+         spawnLongitude,
+         minAltitude,
+         maxAltitude,
+         riverLakeShorelineBlend,
+         oceanShorelineBlend,
+         shorelineBlendCliffLimit,
+         caveGeneration,
+         oreDistribution,
+         lavaPools,
+         addStrongholds,
+         addVillages,
+         addMineshafts,
+         addOceanMonuments,
+         addWoodlandMansions,
+         addDesertTemples,
+         addJungleTemples,
+         addPillagerOutposts,
+         addRuinedPortals,
+         addShipwrecks,
+         addOceanRuins,
+         addBuriedTreasure,
+         addIgloos,
+         addWitchHuts,
+         addAncientCities,
+         addTrialChambers,
+         addTrailRuins,
+         deepDark,
+         geodes,
+         distantHorizonsWaterResolver,
+         distantHorizonsOsmFeatures,
+         distantHorizonsOsmRoadMaxDetail,
+         distantHorizonsOsmBuildingMaxDetail,
+         distantHorizonsOsmNonBlockingFetch,
+         realtimeTime,
+         realtimeWeather,
+         historicalSnow,
+         voxyChunkPregenEnabled,
+         voxyChunkPregenMaxRadius,
+         voxyChunkPregenChunksPerTick,
+         distantHorizonsRenderMode,
+         demSelection,
+         enableRoads,
+         enableBuildings,
+         enableWater
+      );
+   }
+
+   public EarthGeneratorSettings(
+      double worldScale,
+      double terrestrialHeightScale,
+      double oceanicHeightScale,
+      int heightOffset,
+      int seaLevel,
+      double spawnLatitude,
+      double spawnLongitude,
+      boolean useLocalOrigin,
+      double originLatitude,
+      double originLongitude,
+      int minAltitude,
+      int maxAltitude,
+      int riverLakeShorelineBlend,
+      int oceanShorelineBlend,
+      boolean shorelineBlendCliffLimit,
+      boolean caveGeneration,
+      boolean oreDistribution,
+      boolean lavaPools,
+      boolean addStrongholds,
+      boolean addVillages,
+      boolean addMineshafts,
+      boolean addOceanMonuments,
+      boolean addWoodlandMansions,
+      boolean addDesertTemples,
+      boolean addJungleTemples,
+      boolean addPillagerOutposts,
+      boolean addRuinedPortals,
+      boolean addShipwrecks,
+      boolean addOceanRuins,
+      boolean addBuriedTreasure,
+      boolean addIgloos,
+      boolean addWitchHuts,
+      boolean addAncientCities,
+      boolean addTrialChambers,
+      boolean addTrailRuins,
+      boolean deepDark,
+      boolean geodes,
+      boolean distantHorizonsWaterResolver,
+      boolean distantHorizonsOsmFeatures,
+      int distantHorizonsOsmRoadMaxDetail,
+      int distantHorizonsOsmBuildingMaxDetail,
+      boolean distantHorizonsOsmNonBlockingFetch,
+      boolean realtimeTime,
+      boolean realtimeWeather,
+      boolean historicalSnow,
+      boolean voxyChunkPregenEnabled,
+      int voxyChunkPregenMaxRadius,
+      int voxyChunkPregenChunksPerTick,
+      EarthGeneratorSettings.DistantHorizonsRenderMode distantHorizonsRenderMode,
+      EarthGeneratorSettings.DemSelection demSelection,
+      boolean enableRoads,
+      boolean enableBuildings,
+      boolean enableWater
+   ) {
       worldScale = clampWorldScale(worldScale);
       voxyChunkPregenMaxRadius = Mth.clamp(voxyChunkPregenMaxRadius, 0, MAX_VOXY_PREGEN_RADIUS);
       voxyChunkPregenChunksPerTick = Mth.clamp(voxyChunkPregenChunksPerTick, 1, MAX_VOXY_PREGEN_CHUNKS_PER_TICK);
@@ -534,6 +667,9 @@ public record EarthGeneratorSettings(
       this.seaLevel = seaLevel;
       this.spawnLatitude = spawnLatitude;
       this.spawnLongitude = spawnLongitude;
+      this.useLocalOrigin = useLocalOrigin;
+      this.originLatitude = EarthProjection.clampLatitude(originLatitude);
+      this.originLongitude = Mth.clamp(originLongitude, -180.0, 180.0);
       this.minAltitude = minAltitude;
       this.maxAltitude = maxAltitude;
       this.riverLakeShorelineBlend = riverLakeShorelineBlend;
@@ -838,6 +974,80 @@ public record EarthGeneratorSettings(
 
    private static EarthGeneratorSettings applyGeodes(EarthGeneratorSettings settings, Boolean geodes) {
       return settings.withGeodes(Objects.requireNonNull(geodes, "geodes"));
+   }
+
+   private static EarthGeneratorSettings applyUseLocalOrigin(EarthGeneratorSettings settings, Boolean useLocalOrigin) {
+      return settings.withLocalOrigin(Objects.requireNonNull(useLocalOrigin, "useLocalOrigin"), settings.originLatitude(), settings.originLongitude());
+   }
+
+   private static EarthGeneratorSettings applyOriginLatitude(EarthGeneratorSettings settings, Optional<Double> originLatitude) {
+      return settings.withLocalOrigin(
+         settings.useLocalOrigin(), Objects.requireNonNull(originLatitude, "originLatitude").orElse(settings.spawnLatitude()), settings.originLongitude()
+      );
+   }
+
+   private static EarthGeneratorSettings applyOriginLongitude(EarthGeneratorSettings settings, Optional<Double> originLongitude) {
+      return settings.withLocalOrigin(
+         settings.useLocalOrigin(), settings.originLatitude(), Objects.requireNonNull(originLongitude, "originLongitude").orElse(settings.spawnLongitude())
+      );
+   }
+
+   private EarthGeneratorSettings withLocalOrigin(boolean useLocalOrigin, double originLatitude, double originLongitude) {
+      return new EarthGeneratorSettings(
+         this.worldScale,
+         this.terrestrialHeightScale,
+         this.oceanicHeightScale,
+         this.heightOffset,
+         this.seaLevel,
+         this.spawnLatitude,
+         this.spawnLongitude,
+         useLocalOrigin,
+         originLatitude,
+         originLongitude,
+         this.minAltitude,
+         this.maxAltitude,
+         this.riverLakeShorelineBlend,
+         this.oceanShorelineBlend,
+         this.shorelineBlendCliffLimit,
+         this.caveGeneration,
+         this.oreDistribution,
+         this.lavaPools,
+         this.addStrongholds,
+         this.addVillages,
+         this.addMineshafts,
+         this.addOceanMonuments,
+         this.addWoodlandMansions,
+         this.addDesertTemples,
+         this.addJungleTemples,
+         this.addPillagerOutposts,
+         this.addRuinedPortals,
+         this.addShipwrecks,
+         this.addOceanRuins,
+         this.addBuriedTreasure,
+         this.addIgloos,
+         this.addWitchHuts,
+         this.addAncientCities,
+         this.addTrialChambers,
+         this.addTrailRuins,
+         this.deepDark,
+         this.geodes,
+         this.distantHorizonsWaterResolver,
+         this.distantHorizonsOsmFeatures,
+         this.distantHorizonsOsmRoadMaxDetail,
+         this.distantHorizonsOsmBuildingMaxDetail,
+         this.distantHorizonsOsmNonBlockingFetch,
+         this.realtimeTime,
+         this.realtimeWeather,
+         this.historicalSnow,
+         this.voxyChunkPregenEnabled,
+         this.voxyChunkPregenMaxRadius,
+         this.voxyChunkPregenChunksPerTick,
+         this.distantHorizonsRenderMode,
+         this.demSelection,
+         this.enableRoads,
+         this.enableBuildings,
+         this.enableWater
+      );
    }
 
    private EarthGeneratorSettings withTrailRuins(boolean addTrailRuins) {
