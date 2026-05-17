@@ -1,6 +1,6 @@
 esa_code,esa_name,koppen_code,koppen_climate,biome_id
 10,Tree cover,Af,"Tropical, rainforest",jungle
-10,Tree cover,Am,"Tropical, monsoon",bamboo_jungle
+10,Tree cover,Am,"Tropical, monsoon",jungle
 10,Tree cover,Aw,"Tropical, savannah",savanna
 10,Tree cover,BWh,"Arid, desert, hot",wooded_badlands
 10,Tree cover,BWk,"Arid, desert, cold",windswept_forest
@@ -29,9 +29,9 @@ esa_code,esa_name,koppen_code,koppen_climate,biome_id
 10,Tree cover,Dfd,"Cold, no dry season, very cold winter",taiga
 10,Tree cover,ET,"Polar, tundra",forest
 10,Tree cover,EF,"Polar, frost",stony_peaks
-20,Shrubland,Af,"Tropical, rainforest",sparse_jungle
+20,Shrubland,Af,"Tropical, rainforest",bamboo_jungle
 20,Shrubland,Am,"Tropical, monsoon",sparse_jungle
-20,Shrubland,Aw,"Tropical, savannah",windswept_savanna
+20,Shrubland,Aw,"Tropical, savannah",savanna
 20,Shrubland,BWh,"Arid, desert, hot",desert
 20,Shrubland,BWk,"Arid, desert, cold",badlands
 20,Shrubland,BSh,"Arid, steppe, hot",savanna
@@ -59,8 +59,8 @@ esa_code,esa_name,koppen_code,koppen_climate,biome_id
 20,Shrubland,Dfd,"Cold, no dry season, very cold winter",plains
 20,Shrubland,ET,"Polar, tundra",plains
 20,Shrubland,EF,"Polar, frost",stony_peaks
-30,Grassland,Af,"Tropical, rainforest",savanna
-30,Grassland,Am,"Tropical, monsoon",savanna
+30,Grassland,Af,"Tropical, rainforest",swamp
+30,Grassland,Am,"Tropical, monsoon",plains
 30,Grassland,Aw,"Tropical, savannah",savanna
 30,Grassland,BWh,"Arid, desert, hot",desert
 30,Grassland,BWk,"Arid, desert, cold",badlands
@@ -89,7 +89,7 @@ esa_code,esa_name,koppen_code,koppen_climate,biome_id
 30,Grassland,Dfd,"Cold, no dry season, very cold winter",plains
 30,Grassland,ET,"Polar, tundra",plains
 30,Grassland,EF,"Polar, frost",stony_peaks
-40,Cropland,Af,"Tropical, rainforest",plains
+40,Cropland,Af,"Tropical, rainforest",swamp
 40,Cropland,Am,"Tropical, monsoon",plains
 40,Cropland,Aw,"Tropical, savannah",savanna
 40,Cropland,BWh,"Arid, desert, hot",desert
@@ -269,9 +269,9 @@ esa_code,esa_name,koppen_code,koppen_climate,biome_id
 95,Mangroves,Dfd,"Cold, no dry season, very cold winter",mangrove_swamp
 95,Mangroves,ET,"Polar, tundra",mangrove_swamp
 95,Mangroves,EF,"Polar, frost",mangrove_swamp
-100,Moss and lichen,Af,"Tropical, rainforest",jungle
-100,Moss and lichen,Am,"Tropical, monsoon",jungle
-100,Moss and lichen,Aw,"Tropical, savannah",sparse_jungle
+100,Moss and lichen,Af,"Tropical, rainforest",plains
+100,Moss and lichen,Am,"Tropical, monsoon",plains
+100,Moss and lichen,Aw,"Tropical, savannah",plains
 100,Moss and lichen,BWh,"Arid, desert, hot",badlands
 100,Moss and lichen,BWk,"Arid, desert, cold",badlands
 100,Moss and lichen,BSh,"Arid, steppe, hot",windswept_savanna
