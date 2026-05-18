@@ -27,8 +27,8 @@ esa_code,esa_name,koppen_code,koppen_climate,biome_id
 10,Tree cover,Dfb,"Cold, no dry season, warm summer",taiga
 10,Tree cover,Dfc,"Cold, no dry season, cold summer",taiga
 10,Tree cover,Dfd,"Cold, no dry season, very cold winter",taiga
-10,Tree cover,ET,"Polar, tundra",forest
-10,Tree cover,EF,"Polar, frost",stony_peaks
+10,Tree cover,ET,"Polar, tundra",snowy_taiga
+10,Tree cover,EF,"Polar, frost",grove
 20,Shrubland,Af,"Tropical, rainforest",bamboo_jungle
 20,Shrubland,Am,"Tropical, monsoon",sparse_jungle
 20,Shrubland,Aw,"Tropical, savannah",savanna
@@ -57,8 +57,8 @@ esa_code,esa_name,koppen_code,koppen_climate,biome_id
 20,Shrubland,Dfb,"Cold, no dry season, warm summer",plains
 20,Shrubland,Dfc,"Cold, no dry season, cold summer",plains
 20,Shrubland,Dfd,"Cold, no dry season, very cold winter",plains
-20,Shrubland,ET,"Polar, tundra",plains
-20,Shrubland,EF,"Polar, frost",stony_peaks
+20,Shrubland,ET,"Polar, tundra",windswept_hills
+20,Shrubland,EF,"Polar, frost",windswept_gravelly_hills
 30,Grassland,Af,"Tropical, rainforest",swamp
 30,Grassland,Am,"Tropical, monsoon",plains
 30,Grassland,Aw,"Tropical, savannah",savanna
@@ -147,8 +147,8 @@ esa_code,esa_name,koppen_code,koppen_climate,biome_id
 50,Built-up,Dfb,"Cold, no dry season, warm summer",plains
 50,Built-up,Dfc,"Cold, no dry season, cold summer",plains
 50,Built-up,Dfd,"Cold, no dry season, very cold winter",plains
-50,Built-up,ET,"Polar, tundra",plains
-50,Built-up,EF,"Polar, frost",plains
+50,Built-up,ET,"Polar, tundra",windswept_hills
+50,Built-up,EF,"Polar, frost",windswept_gravelly_hills
 60,Bare / sparse vegetation,Af,"Tropical, rainforest",stony_peaks
 60,Bare / sparse vegetation,Am,"Tropical, monsoon",stony_peaks
 60,Bare / sparse vegetation,Aw,"Tropical, savannah",stony_peaks
@@ -207,8 +207,8 @@ esa_code,esa_name,koppen_code,koppen_climate,biome_id
 70,Snow and ice,Dfb,"Cold, no dry season, warm summer",frozen_peaks
 70,Snow and ice,Dfc,"Cold, no dry season, cold summer",frozen_peaks
 70,Snow and ice,Dfd,"Cold, no dry season, very cold winter",frozen_peaks
-70,Snow and ice,ET,"Polar, tundra",frozen_peaks
-70,Snow and ice,EF,"Polar, frost",frozen_peaks
+70,Snow and ice,ET,"Polar, tundra",snowy_plains
+70,Snow and ice,EF,"Polar, frost",snowy_slopes
 90,Herbaceous wetland,Af,"Tropical, rainforest",swamp
 90,Herbaceous wetland,Am,"Tropical, monsoon",swamp
 90,Herbaceous wetland,Aw,"Tropical, savannah",swamp
@@ -237,8 +237,8 @@ esa_code,esa_name,koppen_code,koppen_climate,biome_id
 90,Herbaceous wetland,Dfb,"Cold, no dry season, warm summer",swamp
 90,Herbaceous wetland,Dfc,"Cold, no dry season, cold summer",swamp
 90,Herbaceous wetland,Dfd,"Cold, no dry season, very cold winter",swamp
-90,Herbaceous wetland,ET,"Polar, tundra",plains
-90,Herbaceous wetland,EF,"Polar, frost",stony_peaks
+90,Herbaceous wetland,ET,"Polar, tundra",windswept_hills
+90,Herbaceous wetland,EF,"Polar, frost",windswept_gravelly_hills
 95,Mangroves,Af,"Tropical, rainforest",mangrove_swamp
 95,Mangroves,Am,"Tropical, monsoon",mangrove_swamp
 95,Mangroves,Aw,"Tropical, savannah",mangrove_swamp
@@ -267,8 +267,8 @@ esa_code,esa_name,koppen_code,koppen_climate,biome_id
 95,Mangroves,Dfb,"Cold, no dry season, warm summer",mangrove_swamp
 95,Mangroves,Dfc,"Cold, no dry season, cold summer",mangrove_swamp
 95,Mangroves,Dfd,"Cold, no dry season, very cold winter",mangrove_swamp
-95,Mangroves,ET,"Polar, tundra",mangrove_swamp
-95,Mangroves,EF,"Polar, frost",mangrove_swamp
+95,Mangroves,ET,"Polar, tundra",windswept_hills
+95,Mangroves,EF,"Polar, frost",windswept_gravelly_hills
 100,Moss and lichen,Af,"Tropical, rainforest",plains
 100,Moss and lichen,Am,"Tropical, monsoon",plains
 100,Moss and lichen,Aw,"Tropical, savannah",plains
@@ -297,8 +297,8 @@ esa_code,esa_name,koppen_code,koppen_climate,biome_id
 100,Moss and lichen,Dfb,"Cold, no dry season, warm summer",taiga
 100,Moss and lichen,Dfc,"Cold, no dry season, cold summer",taiga
 100,Moss and lichen,Dfd,"Cold, no dry season, very cold winter",forest
-100,Moss and lichen,ET,"Polar, tundra",forest
-100,Moss and lichen,EF,"Polar, frost",stony_peaks
+100,Moss and lichen,ET,"Polar, tundra",windswept_hills
+100,Moss and lichen,EF,"Polar, frost",windswept_gravelly_hills
 10,Tree cover,NONE,No Köppen available (fallback),forest
 20,Shrubland,NONE,No Köppen available (fallback),plains
 30,Grassland,NONE,No Köppen available (fallback),plains
