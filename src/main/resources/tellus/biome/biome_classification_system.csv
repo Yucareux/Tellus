@@ -33,7 +33,7 @@ esa_code,esa_name,koppen_code,koppen_climate,biome_id
 20,Shrubland,Am,"Tropical, monsoon",sparse_jungle
 20,Shrubland,Aw,"Tropical, savannah",windswept_savanna
 20,Shrubland,BWh,"Arid, desert, hot",desert
-20,Shrubland,BWk,"Arid, desert, cold",eroded_badlands
+20,Shrubland,BWk,"Arid, desert, cold",badlands
 20,Shrubland,BSh,"Arid, steppe, hot",windswept_savanna
 20,Shrubland,BSk,"Arid, steppe, cold",windswept_savanna
 20,Shrubland,Csa,"Temperate, dry summer, hot summer",savanna
@@ -63,7 +63,7 @@ esa_code,esa_name,koppen_code,koppen_climate,biome_id
 30,Grassland,Am,"Tropical, monsoon",plains
 30,Grassland,Aw,"Tropical, savannah",savanna
 30,Grassland,BWh,"Arid, desert, hot",savanna
-30,Grassland,BWk,"Arid, desert, cold",windswept_savanna
+30,Grassland,BWk,"Arid, desert, cold",savanna
 30,Grassland,BSh,"Arid, steppe, hot",savanna
 30,Grassland,BSk,"Arid, steppe, cold",plains
 30,Grassland,Csa,"Temperate, dry summer, hot summer",plains
@@ -123,7 +123,7 @@ esa_code,esa_name,koppen_code,koppen_climate,biome_id
 50,Built-up,Am,"Tropical, monsoon",plains
 50,Built-up,Aw,"Tropical, savannah",savanna
 50,Built-up,BWh,"Arid, desert, hot",desert
-50,Built-up,BWk,"Arid, desert, cold",windswept_savanna
+50,Built-up,BWk,"Arid, desert, cold",savanna
 50,Built-up,BSh,"Arid, steppe, hot",savanna
 50,Built-up,BSk,"Arid, steppe, cold",plains
 50,Built-up,Csa,"Temperate, dry summer, hot summer",plains
@@ -153,9 +153,9 @@ esa_code,esa_name,koppen_code,koppen_climate,biome_id
 60,Bare / sparse vegetation,Am,"Tropical, monsoon",stony_peaks
 60,Bare / sparse vegetation,Aw,"Tropical, savannah",stony_peaks
 60,Bare / sparse vegetation,BWh,"Arid, desert, hot",desert
-60,Bare / sparse vegetation,BWk,"Arid, desert, cold",badlands
+60,Bare / sparse vegetation,BWk,"Arid, desert, cold",eroded_badlands
 60,Bare / sparse vegetation,BSh,"Arid, steppe, hot",badlands
-60,Bare / sparse vegetation,BSk,"Arid, steppe, cold",stony_peaks
+60,Bare / sparse vegetation,BSk,"Arid, steppe, cold",badlands
 60,Bare / sparse vegetation,Csa,"Temperate, dry summer, hot summer",stony_peaks
 60,Bare / sparse vegetation,Csb,"Temperate, dry summer, warm summer",stony_peaks
 60,Bare / sparse vegetation,Csc,"Temperate, dry summer, cold summer",stony_peaks
