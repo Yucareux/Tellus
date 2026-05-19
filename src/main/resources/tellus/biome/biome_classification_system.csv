@@ -16,16 +16,16 @@ esa_code,esa_name,koppen_code,koppen_climate,biome_id
 10,Tree cover,Cfb,"Temperate, no dry season, warm summer",dark_forest
 10,Tree cover,Cfc,"Temperate, no dry season, cold summer",old_growth_spruce_taiga
 10,Tree cover,Dsa,"Cold, dry summer, hot summer",forest
-10,Tree cover,Dsb,"Cold, dry summer, warm summer",old_growth_pine_taiga
+10,Tree cover,Dsb,"Cold, dry summer, warm summer",taiga
 10,Tree cover,Dsc,"Cold, dry summer, cold summer",old_growth_pine_taiga
 10,Tree cover,Dsd,"Cold, dry summer, very cold winter",grove
 10,Tree cover,Dwa,"Cold, dry winter, hot summer",dark_forest
 10,Tree cover,Dwb,"Cold, dry winter, warm summer",forest
-10,Tree cover,Dwc,"Cold, dry winter, cold summer",old_growth_pine_taiga
+10,Tree cover,Dwc,"Cold, dry winter, cold summer",taiga
 10,Tree cover,Dwd,"Cold, dry winter, very cold winter",snowy_taiga
 10,Tree cover,Dfa,"Cold, no dry season, hot summer",dark_forest
 10,Tree cover,Dfb,"Cold, no dry season, warm summer",forest
-10,Tree cover,Dfc,"Cold, no dry season, cold summer",old_growth_pine_taiga
+10,Tree cover,Dfc,"Cold, no dry season, cold summer",taiga
 10,Tree cover,Dfd,"Cold, no dry season, very cold winter",grove
 10,Tree cover,ET,"Polar, tundra",grove
 10,Tree cover,EF,"Polar, frost",grove
@@ -46,16 +46,16 @@ esa_code,esa_name,koppen_code,koppen_climate,biome_id
 20,Shrubland,Cfb,"Temperate, no dry season, warm summer",flower_forest
 20,Shrubland,Cfc,"Temperate, no dry season, cold summer",taiga
 20,Shrubland,Dsa,"Cold, dry summer, hot summer",windswept_forest
-20,Shrubland,Dsb,"Cold, dry summer, warm summer",taiga
+20,Shrubland,Dsb,"Cold, dry summer, warm summer",windswept_forest
 20,Shrubland,Dsc,"Cold, dry summer, cold summer",taiga
 20,Shrubland,Dsd,"Cold, dry summer, very cold winter",snowy_plains
 20,Shrubland,Dwa,"Cold, dry winter, hot summer",forest
 20,Shrubland,Dwb,"Cold, dry winter, warm summer",taiga
-20,Shrubland,Dwc,"Cold, dry winter, cold summer",taiga
+20,Shrubland,Dwc,"Cold, dry winter, cold summer",windswept_forest
 20,Shrubland,Dwd,"Cold, dry winter, very cold winter",snowy_plains
 20,Shrubland,Dfa,"Cold, no dry season, hot summer",forest
 20,Shrubland,Dfb,"Cold, no dry season, warm summer",windswept_forest
-20,Shrubland,Dfc,"Cold, no dry season, cold summer",taiga
+20,Shrubland,Dfc,"Cold, no dry season, cold summer",windswept_forest
 20,Shrubland,Dfd,"Cold, no dry season, very cold winter",snowy_plains
 20,Shrubland,ET,"Polar, tundra",snowy_plains
 20,Shrubland,EF,"Polar, frost",snowy_plains
