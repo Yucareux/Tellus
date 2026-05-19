@@ -78,7 +78,7 @@ esa_code,esa_name,koppen_code,koppen_climate,biome_id
 30,Grassland,Dsa,"Cold, dry summer, hot summer",plains
 30,Grassland,Dsb,"Cold, dry summer, warm summer",plains
 30,Grassland,Dsc,"Cold, dry summer, cold summer",meadow
-30,Grassland,Dsd,"Cold, dry summer, very cold winter",windswept_hills
+30,Grassland,Dsd,"Cold, dry summer, very cold winter",windswept_gravelly_hills
 30,Grassland,Dwa,"Cold, dry winter, hot summer",plains
 30,Grassland,Dwb,"Cold, dry winter, warm summer",plains
 30,Grassland,Dwc,"Cold, dry winter, cold summer",meadow
@@ -138,7 +138,7 @@ esa_code,esa_name,koppen_code,koppen_climate,biome_id
 50,Built-up,Dsa,"Cold, dry summer, hot summer",plains
 50,Built-up,Dsb,"Cold, dry summer, warm summer",plains
 50,Built-up,Dsc,"Cold, dry summer, cold summer",meadow
-50,Built-up,Dsd,"Cold, dry summer, very cold winter",windswept_hills
+50,Built-up,Dsd,"Cold, dry summer, very cold winter",windswept_gravelly_hills
 50,Built-up,Dwa,"Cold, dry winter, hot summer",plains
 50,Built-up,Dwb,"Cold, dry winter, warm summer",plains
 50,Built-up,Dwc,"Cold, dry winter, cold summer",meadow
@@ -285,18 +285,18 @@ esa_code,esa_name,koppen_code,koppen_climate,biome_id
 100,Moss and lichen,Cfa,"Temperate, no dry season, hot summer",plains
 100,Moss and lichen,Cfb,"Temperate, no dry season, warm summer",plains
 100,Moss and lichen,Cfc,"Temperate, no dry season, cold summer",meadow
-100,Moss and lichen,Dsa,"Cold, dry summer, hot summer",windswept_hills
-100,Moss and lichen,Dsb,"Cold, dry summer, warm summer",windswept_hills
-100,Moss and lichen,Dsc,"Cold, dry summer, cold summer",plains
-100,Moss and lichen,Dsd,"Cold, dry summer, very cold winter",plains
+100,Moss and lichen,Dsa,"Cold, dry summer, hot summer",plains
+100,Moss and lichen,Dsb,"Cold, dry summer, warm summer",plains
+100,Moss and lichen,Dsc,"Cold, dry summer, cold summer",meadow
+100,Moss and lichen,Dsd,"Cold, dry summer, very cold winter",windswept_gravelly_hills
 100,Moss and lichen,Dwa,"Cold, dry winter, hot summer",plains
 100,Moss and lichen,Dwb,"Cold, dry winter, warm summer",plains
-100,Moss and lichen,Dwc,"Cold, dry winter, cold summer",plains
-100,Moss and lichen,Dwd,"Cold, dry winter, very cold winter",plains
+100,Moss and lichen,Dwc,"Cold, dry winter, cold summer",meadow
+100,Moss and lichen,Dwd,"Cold, dry winter, very cold winter",windswept_gravelly_hills
 100,Moss and lichen,Dfa,"Cold, no dry season, hot summer",plains
 100,Moss and lichen,Dfb,"Cold, no dry season, warm summer",plains
-100,Moss and lichen,Dfc,"Cold, no dry season, cold summer",plains
-100,Moss and lichen,Dfd,"Cold, no dry season, very cold winter",plains
+100,Moss and lichen,Dfc,"Cold, no dry season, cold summer",meadow
+100,Moss and lichen,Dfd,"Cold, no dry season, very cold winter",windswept_gravelly_hills
 100,Moss and lichen,ET,"Polar, tundra",snowy_slopes
 100,Moss and lichen,EF,"Polar, frost",snowy_slopes
 10,Tree cover,NONE,No Köppen available (fallback),forest
