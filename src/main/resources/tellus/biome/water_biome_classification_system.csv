@@ -1,0 +1,63 @@
+is_ocean,water_type,koppen_code,koppen_climate,biome_id
+0,river,Af,"Tropical, rainforest",river
+0,river,Am,"Tropical, monsoon",river
+0,river,Aw,"Tropical, savannah",river
+0,river,BWh,"Arid, desert, hot",river
+0,river,BWk,"Arid, desert, cold",river
+0,river,BSh,"Arid, steppe, hot",river
+0,river,BSk,"Arid, steppe, cold",river
+0,river,Csa,"Temperate, dry summer, hot summer",river
+0,river,Csb,"Temperate, dry summer, warm summer",river
+0,river,Csc,"Temperate, dry summer, cold summer",river
+0,river,Cwa,"Temperate, dry winter, hot summer",river
+0,river,Cwb,"Temperate, dry winter, warm summer",river
+0,river,Cwc,"Temperate, dry winter, cold summer",river
+0,river,Cfa,"Temperate, no dry season, hot summer",river
+0,river,Cfb,"Temperate, no dry season, warm summer",river
+0,river,Cfc,"Temperate, no dry season, cold summer",river
+0,river,Dsa,"Cold, dry summer, hot summer",river
+0,river,Dsb,"Cold, dry summer, warm summer",river
+0,river,Dsc,"Cold, dry summer, cold summer",river
+0,river,Dsd,"Cold, dry summer, very cold winter",frozen_river
+0,river,Dwa,"Cold, dry winter, hot summer",river
+0,river,Dwb,"Cold, dry winter, warm summer",river
+0,river,Dwc,"Cold, dry winter, cold summer",river
+0,river,Dwd,"Cold, dry winter, very cold winter",frozen_river
+0,river,Dfa,"Cold, no dry season, hot summer",river
+0,river,Dfb,"Cold, no dry season, warm summer",river
+0,river,Dfc,"Cold, no dry season, cold summer",river
+0,river,Dfd,"Cold, no dry season, very cold winter",frozen_river
+0,river,ET,"Polar, tundra",frozen_river
+0,river,EF,"Polar, frost",frozen_river
+1,ocean,Af,"Tropical, rainforest",warm_ocean
+1,ocean,Am,"Tropical, monsoon",warm_ocean
+1,ocean,Aw,"Tropical, savannah",warm_ocean
+1,ocean,BWh,"Arid, desert, hot",warm_ocean
+1,ocean,BWk,"Arid, desert, cold",ocean
+1,ocean,BSh,"Arid, steppe, hot",warm_ocean
+1,ocean,BSk,"Arid, steppe, cold",lukewarm_ocean
+1,ocean,Csa,"Temperate, dry summer, hot summer",warm_ocean
+1,ocean,Csb,"Temperate, dry summer, warm summer",lukewarm_ocean
+1,ocean,Csc,"Temperate, dry summer, cold summer",ocean
+1,ocean,Cwa,"Temperate, dry winter, hot summer",warm_ocean
+1,ocean,Cwb,"Temperate, dry winter, warm summer",lukewarm_ocean
+1,ocean,Cwc,"Temperate, dry winter, cold summer",ocean
+1,ocean,Cfa,"Temperate, no dry season, hot summer",warm_ocean
+1,ocean,Cfb,"Temperate, no dry season, warm summer",lukewarm_ocean
+1,ocean,Cfc,"Temperate, no dry season, cold summer",ocean
+1,ocean,Dsa,"Cold, dry summer, hot summer",lukewarm_ocean
+1,ocean,Dsb,"Cold, dry summer, warm summer",ocean
+1,ocean,Dsc,"Cold, dry summer, cold summer",cold_ocean
+1,ocean,Dsd,"Cold, dry summer, very cold winter",frozen_ocean
+1,ocean,Dwa,"Cold, dry winter, hot summer",lukewarm_ocean
+1,ocean,Dwb,"Cold, dry winter, warm summer",ocean
+1,ocean,Dwc,"Cold, dry winter, cold summer",cold_ocean
+1,ocean,Dwd,"Cold, dry winter, very cold winter",frozen_ocean
+1,ocean,Dfa,"Cold, no dry season, hot summer",lukewarm_ocean
+1,ocean,Dfb,"Cold, no dry season, warm summer",ocean
+1,ocean,Dfc,"Cold, no dry season, cold summer",cold_ocean
+1,ocean,Dfd,"Cold, no dry season, very cold winter",frozen_ocean
+1,ocean,ET,"Polar, tundra",deep_frozen_ocean
+1,ocean,EF,"Polar, frost",deep_frozen_ocean
+0,river,NONE,No Köppen available (fallback),river
+1,ocean,NONE,No Köppen available (fallback),ocean

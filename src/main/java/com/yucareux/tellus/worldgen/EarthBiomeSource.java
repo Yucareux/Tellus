@@ -3,6 +3,7 @@ package com.yucareux.tellus.worldgen;
 import com.mojang.serialization.MapCodec;
 import com.mojang.serialization.codecs.RecordCodecBuilder;
 import com.yucareux.tellus.world.data.biome.BiomeClassification;
+import com.yucareux.tellus.world.data.biome.WaterBiomeClassification;
 import com.yucareux.tellus.world.data.cover.TellusLandCoverSource;
 import com.yucareux.tellus.world.data.elevation.TellusElevationSource;
 import com.yucareux.tellus.world.data.koppen.TellusKoppenSource;
@@ -207,12 +208,12 @@ public final class EarthBiomeSource extends BiomeSource {
             ? column
             : this.waterResolver.resolveFastColumnData(blockX, blockZ, rawCoverClass);
          if (waterColumn.hasWater()) {
-            return waterColumn.isOcean() ? this.ocean : this.river;
+            return resolveWaterBiome(blockX, blockZ, waterColumn.isOcean(), precomputedKoppen);
          }
       } else if (rawCoverClass == ESA_NO_DATA || rawCoverClass == ESA_WATER) {
          WaterSurfaceResolver.WaterColumnData waterColumn = column != null ? column : this.waterResolver.resolveColumnData(blockX, blockZ, rawCoverClass);
          if (waterColumn.hasWater()) {
-            return waterColumn.isOcean() ? this.ocean : this.river;
+            return resolveWaterBiome(blockX, blockZ, waterColumn.isOcean(), precomputedKoppen);
          }
       }
       return this.resolveSurfaceBiomeAfterWater(blockX, blockZ, visualCoverClass, precomputedKoppen);
@@ -225,9 +226,27 @@ public final class EarthBiomeSource extends BiomeSource {
          return this.mangrove;
       }
       if ((this.settings.enableWater() || rawCoverClass == ESA_NO_DATA || rawCoverClass == ESA_WATER) && hasWater) {
-         return isOcean ? this.ocean : this.river;
+         return resolveWaterBiome(blockX, blockZ, isOcean, precomputedKoppen);
       }
       return this.resolveSurfaceBiomeAfterWater(blockX, blockZ, visualCoverClass, precomputedKoppen);
+   }
+
+   private Holder<Biome> resolveWaterBiome(int blockX, int blockZ, boolean isOcean, String precomputedKoppen) {
+      String koppen = precomputedKoppen;
+      if (koppen == null) {
+         koppen = KOPPEN_SOURCE.sampleDitheredCode(blockX, blockZ, this.settings.worldScale());
+         if (koppen == null) {
+            koppen = KOPPEN_SOURCE.findNearestCode(blockX, blockZ, this.settings.worldScale());
+         }
+      }
+
+      ResourceKey<Biome> biomeKey = WaterBiomeClassification.findBiomeKey(isOcean, koppen);
+
+      if (biomeKey == null) {
+         biomeKey = WaterBiomeClassification.findFallbackKey(isOcean);
+      }
+
+      return biomeKey == null ? this.river : this.resolveBiome(biomeKey, this.river);
    }
 
    private Holder<Biome> resolveSurfaceBiomeAfterWater(int blockX, int blockZ, int visualCoverClass, String precomputedKoppen) {
