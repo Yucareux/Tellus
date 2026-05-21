@@ -12,7 +12,7 @@ esa_code,esa_name,koppen_code,koppen_climate,biome_id
 10,Tree cover,Cwa,"Temperate, dry winter, hot summer",dark_forest
 10,Tree cover,Cwb,"Temperate, dry winter, warm summer",old_growth_birch_forest
 10,Tree cover,Cwc,"Temperate, dry winter, cold summer",old_growth_spruce_taiga
-10,Tree cover,Cfa,"Temperate, no dry season, hot summer",jungle
+10,Tree cover,Cfa,"Temperate, no dry season, hot summer",dark_forest
 10,Tree cover,Cfb,"Temperate, no dry season, warm summer",dark_forest
 10,Tree cover,Cfc,"Temperate, no dry season, cold summer",old_growth_spruce_taiga
 10,Tree cover,Dsa,"Cold, dry summer, hot summer",forest
@@ -42,7 +42,7 @@ esa_code,esa_name,koppen_code,koppen_climate,biome_id
 20,Shrubland,Cwa,"Temperate, dry winter, hot summer",forest
 20,Shrubland,Cwb,"Temperate, dry winter, warm summer",birch_forest
 20,Shrubland,Cwc,"Temperate, dry winter, cold summer",taiga
-20,Shrubland,Cfa,"Temperate, no dry season, hot summer",sparse_jungle
+20,Shrubland,Cfa,"Temperate, no dry season, hot summer",forest
 20,Shrubland,Cfb,"Temperate, no dry season, warm summer",flower_forest
 20,Shrubland,Cfc,"Temperate, no dry season, cold summer",taiga
 20,Shrubland,Dsa,"Cold, dry summer, hot summer",windswept_forest
