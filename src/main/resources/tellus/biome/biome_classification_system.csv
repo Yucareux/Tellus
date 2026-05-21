@@ -1,69 +1,69 @@
 esa_code,esa_name,koppen_code,koppen_climate,biome_id
 10,Tree cover,Af,"Tropical, rainforest",jungle
-10,Tree cover,Am,"Tropical, monsoon",bamboo_jungle
+10,Tree cover,Am,"Tropical, monsoon",jungle
 10,Tree cover,Aw,"Tropical, savannah",savanna
 10,Tree cover,BWh,"Arid, desert, hot",wooded_badlands
-10,Tree cover,BWk,"Arid, desert, cold",windswept_forest
-10,Tree cover,BSh,"Arid, steppe, hot",savanna_plateau
-10,Tree cover,BSk,"Arid, steppe, cold",windswept_forest
+10,Tree cover,BWk,"Arid, desert, cold",wooded_badlands
+10,Tree cover,BSh,"Arid, steppe, hot",wooded_badlands
+10,Tree cover,BSk,"Arid, steppe, cold",savanna_plateau
 10,Tree cover,Csa,"Temperate, dry summer, hot summer",forest
-10,Tree cover,Csb,"Temperate, dry summer, warm summer",birch_forest
-10,Tree cover,Csc,"Temperate, dry summer, cold summer",taiga
-10,Tree cover,Cwa,"Temperate, dry winter, hot summer",forest
-10,Tree cover,Cwb,"Temperate, dry winter, warm summer",birch_forest
-10,Tree cover,Cwc,"Temperate, dry winter, cold summer",taiga
+10,Tree cover,Csb,"Temperate, dry summer, warm summer",dark_forest
+10,Tree cover,Csc,"Temperate, dry summer, cold summer",old_growth_pine_taiga
+10,Tree cover,Cwa,"Temperate, dry winter, hot summer",dark_forest
+10,Tree cover,Cwb,"Temperate, dry winter, warm summer",old_growth_birch_forest
+10,Tree cover,Cwc,"Temperate, dry winter, cold summer",old_growth_spruce_taiga
 10,Tree cover,Cfa,"Temperate, no dry season, hot summer",dark_forest
 10,Tree cover,Cfb,"Temperate, no dry season, warm summer",dark_forest
-10,Tree cover,Cfc,"Temperate, no dry season, cold summer",taiga
-10,Tree cover,Dsa,"Cold, dry summer, hot summer",taiga
+10,Tree cover,Cfc,"Temperate, no dry season, cold summer",old_growth_spruce_taiga
+10,Tree cover,Dsa,"Cold, dry summer, hot summer",forest
 10,Tree cover,Dsb,"Cold, dry summer, warm summer",taiga
-10,Tree cover,Dsc,"Cold, dry summer, cold summer",taiga
-10,Tree cover,Dsd,"Cold, dry summer, very cold winter",taiga
-10,Tree cover,Dwa,"Cold, dry winter, hot summer",taiga
-10,Tree cover,Dwb,"Cold, dry winter, warm summer",taiga
+10,Tree cover,Dsc,"Cold, dry summer, cold summer",old_growth_pine_taiga
+10,Tree cover,Dsd,"Cold, dry summer, very cold winter",grove
+10,Tree cover,Dwa,"Cold, dry winter, hot summer",dark_forest
+10,Tree cover,Dwb,"Cold, dry winter, warm summer",forest
 10,Tree cover,Dwc,"Cold, dry winter, cold summer",taiga
-10,Tree cover,Dwd,"Cold, dry winter, very cold winter",taiga
-10,Tree cover,Dfa,"Cold, no dry season, hot summer",forest
-10,Tree cover,Dfb,"Cold, no dry season, warm summer",taiga
+10,Tree cover,Dwd,"Cold, dry winter, very cold winter",snowy_taiga
+10,Tree cover,Dfa,"Cold, no dry season, hot summer",dark_forest
+10,Tree cover,Dfb,"Cold, no dry season, warm summer",forest
 10,Tree cover,Dfc,"Cold, no dry season, cold summer",taiga
-10,Tree cover,Dfd,"Cold, no dry season, very cold winter",taiga
-10,Tree cover,ET,"Polar, tundra",forest
-10,Tree cover,EF,"Polar, frost",stony_peaks
-20,Shrubland,Af,"Tropical, rainforest",sparse_jungle
+10,Tree cover,Dfd,"Cold, no dry season, very cold winter",grove
+10,Tree cover,ET,"Polar, tundra",grove
+10,Tree cover,EF,"Polar, frost",grove
+20,Shrubland,Af,"Tropical, rainforest",bamboo_jungle
 20,Shrubland,Am,"Tropical, monsoon",sparse_jungle
 20,Shrubland,Aw,"Tropical, savannah",windswept_savanna
 20,Shrubland,BWh,"Arid, desert, hot",desert
 20,Shrubland,BWk,"Arid, desert, cold",badlands
-20,Shrubland,BSh,"Arid, steppe, hot",savanna
-20,Shrubland,BSk,"Arid, steppe, cold",windswept_hills
-20,Shrubland,Csa,"Temperate, dry summer, hot summer",windswept_hills
-20,Shrubland,Csb,"Temperate, dry summer, warm summer",windswept_hills
-20,Shrubland,Csc,"Temperate, dry summer, cold summer",windswept_hills
-20,Shrubland,Cwa,"Temperate, dry winter, hot summer",plains
-20,Shrubland,Cwb,"Temperate, dry winter, warm summer",meadow
-20,Shrubland,Cwc,"Temperate, dry winter, cold summer",forest
-20,Shrubland,Cfa,"Temperate, no dry season, hot summer",plains
-20,Shrubland,Cfb,"Temperate, no dry season, warm summer",plains
-20,Shrubland,Cfc,"Temperate, no dry season, cold summer",meadow
-20,Shrubland,Dsa,"Cold, dry summer, hot summer",windswept_hills
-20,Shrubland,Dsb,"Cold, dry summer, warm summer",windswept_hills
-20,Shrubland,Dsc,"Cold, dry summer, cold summer",plains
-20,Shrubland,Dsd,"Cold, dry summer, very cold winter",plains
-20,Shrubland,Dwa,"Cold, dry winter, hot summer",plains
-20,Shrubland,Dwb,"Cold, dry winter, warm summer",plains
-20,Shrubland,Dwc,"Cold, dry winter, cold summer",plains
-20,Shrubland,Dwd,"Cold, dry winter, very cold winter",plains
-20,Shrubland,Dfa,"Cold, no dry season, hot summer",plains
-20,Shrubland,Dfb,"Cold, no dry season, warm summer",plains
-20,Shrubland,Dfc,"Cold, no dry season, cold summer",plains
-20,Shrubland,Dfd,"Cold, no dry season, very cold winter",plains
-20,Shrubland,ET,"Polar, tundra",plains
-20,Shrubland,EF,"Polar, frost",stony_peaks
-30,Grassland,Af,"Tropical, rainforest",savanna
-30,Grassland,Am,"Tropical, monsoon",savanna
+20,Shrubland,BSh,"Arid, steppe, hot",windswept_savanna
+20,Shrubland,BSk,"Arid, steppe, cold",windswept_savanna
+20,Shrubland,Csa,"Temperate, dry summer, hot summer",savanna
+20,Shrubland,Csb,"Temperate, dry summer, warm summer",forest
+20,Shrubland,Csc,"Temperate, dry summer, cold summer",taiga
+20,Shrubland,Cwa,"Temperate, dry winter, hot summer",forest
+20,Shrubland,Cwb,"Temperate, dry winter, warm summer",birch_forest
+20,Shrubland,Cwc,"Temperate, dry winter, cold summer",taiga
+20,Shrubland,Cfa,"Temperate, no dry season, hot summer",forest
+20,Shrubland,Cfb,"Temperate, no dry season, warm summer",flower_forest
+20,Shrubland,Cfc,"Temperate, no dry season, cold summer",taiga
+20,Shrubland,Dsa,"Cold, dry summer, hot summer",windswept_forest
+20,Shrubland,Dsb,"Cold, dry summer, warm summer",windswept_forest
+20,Shrubland,Dsc,"Cold, dry summer, cold summer",taiga
+20,Shrubland,Dsd,"Cold, dry summer, very cold winter",snowy_plains
+20,Shrubland,Dwa,"Cold, dry winter, hot summer",forest
+20,Shrubland,Dwb,"Cold, dry winter, warm summer",taiga
+20,Shrubland,Dwc,"Cold, dry winter, cold summer",windswept_forest
+20,Shrubland,Dwd,"Cold, dry winter, very cold winter",snowy_plains
+20,Shrubland,Dfa,"Cold, no dry season, hot summer",forest
+20,Shrubland,Dfb,"Cold, no dry season, warm summer",windswept_forest
+20,Shrubland,Dfc,"Cold, no dry season, cold summer",windswept_forest
+20,Shrubland,Dfd,"Cold, no dry season, very cold winter",snowy_plains
+20,Shrubland,ET,"Polar, tundra",snowy_plains
+20,Shrubland,EF,"Polar, frost",snowy_plains
+30,Grassland,Af,"Tropical, rainforest",swamp
+30,Grassland,Am,"Tropical, monsoon",plains
 30,Grassland,Aw,"Tropical, savannah",savanna
-30,Grassland,BWh,"Arid, desert, hot",desert
-30,Grassland,BWk,"Arid, desert, cold",badlands
+30,Grassland,BWh,"Arid, desert, hot",savanna
+30,Grassland,BWk,"Arid, desert, cold",savanna
 30,Grassland,BSh,"Arid, steppe, hot",savanna
 30,Grassland,BSk,"Arid, steppe, cold",plains
 30,Grassland,Csa,"Temperate, dry summer, hot summer",plains
@@ -75,24 +75,24 @@ esa_code,esa_name,koppen_code,koppen_climate,biome_id
 30,Grassland,Cfa,"Temperate, no dry season, hot summer",plains
 30,Grassland,Cfb,"Temperate, no dry season, warm summer",plains
 30,Grassland,Cfc,"Temperate, no dry season, cold summer",meadow
-30,Grassland,Dsa,"Cold, dry summer, hot summer",meadow
-30,Grassland,Dsb,"Cold, dry summer, warm summer",meadow
-30,Grassland,Dsc,"Cold, dry summer, cold summer",plains
-30,Grassland,Dsd,"Cold, dry summer, very cold winter",plains
+30,Grassland,Dsa,"Cold, dry summer, hot summer",plains
+30,Grassland,Dsb,"Cold, dry summer, warm summer",plains
+30,Grassland,Dsc,"Cold, dry summer, cold summer",meadow
+30,Grassland,Dsd,"Cold, dry summer, very cold winter",windswept_gravelly_hills
 30,Grassland,Dwa,"Cold, dry winter, hot summer",plains
 30,Grassland,Dwb,"Cold, dry winter, warm summer",plains
-30,Grassland,Dwc,"Cold, dry winter, cold summer",plains
-30,Grassland,Dwd,"Cold, dry winter, very cold winter",plains
+30,Grassland,Dwc,"Cold, dry winter, cold summer",meadow
+30,Grassland,Dwd,"Cold, dry winter, very cold winter",windswept_hills
 30,Grassland,Dfa,"Cold, no dry season, hot summer",plains
-30,Grassland,Dfb,"Cold, no dry season, warm summer",plains
-30,Grassland,Dfc,"Cold, no dry season, cold summer",plains
-30,Grassland,Dfd,"Cold, no dry season, very cold winter",plains
-30,Grassland,ET,"Polar, tundra",plains
-30,Grassland,EF,"Polar, frost",stony_peaks
-40,Cropland,Af,"Tropical, rainforest",plains
+30,Grassland,Dfb,"Cold, no dry season, warm summer",meadow
+30,Grassland,Dfc,"Cold, no dry season, cold summer",meadow
+30,Grassland,Dfd,"Cold, no dry season, very cold winter",windswept_gravelly_hills
+30,Grassland,ET,"Polar, tundra",windswept_gravelly_hills
+30,Grassland,EF,"Polar, frost",windswept_gravelly_hills
+40,Cropland,Af,"Tropical, rainforest",swamp
 40,Cropland,Am,"Tropical, monsoon",plains
 40,Cropland,Aw,"Tropical, savannah",savanna
-40,Cropland,BWh,"Arid, desert, hot",desert
+40,Cropland,BWh,"Arid, desert, hot",savanna
 40,Cropland,BWk,"Arid, desert, cold",plains
 40,Cropland,BSh,"Arid, steppe, hot",savanna
 40,Cropland,BSk,"Arid, steppe, cold",plains
@@ -103,27 +103,27 @@ esa_code,esa_name,koppen_code,koppen_climate,biome_id
 40,Cropland,Cwb,"Temperate, dry winter, warm summer",meadow
 40,Cropland,Cwc,"Temperate, dry winter, cold summer",meadow
 40,Cropland,Cfa,"Temperate, no dry season, hot summer",plains
-40,Cropland,Cfb,"Temperate, no dry season, warm summer",plains
+40,Cropland,Cfb,"Temperate, no dry season, warm summer",sunflower_plains
 40,Cropland,Cfc,"Temperate, no dry season, cold summer",meadow
 40,Cropland,Dsa,"Cold, dry summer, hot summer",plains
 40,Cropland,Dsb,"Cold, dry summer, warm summer",plains
-40,Cropland,Dsc,"Cold, dry summer, cold summer",plains
-40,Cropland,Dsd,"Cold, dry summer, very cold winter",plains
+40,Cropland,Dsc,"Cold, dry summer, cold summer",meadow
+40,Cropland,Dsd,"Cold, dry summer, very cold winter",meadow
 40,Cropland,Dwa,"Cold, dry winter, hot summer",plains
 40,Cropland,Dwb,"Cold, dry winter, warm summer",plains
-40,Cropland,Dwc,"Cold, dry winter, cold summer",plains
-40,Cropland,Dwd,"Cold, dry winter, very cold winter",plains
+40,Cropland,Dwc,"Cold, dry winter, cold summer",meadow
+40,Cropland,Dwd,"Cold, dry winter, very cold winter",meadow
 40,Cropland,Dfa,"Cold, no dry season, hot summer",plains
 40,Cropland,Dfb,"Cold, no dry season, warm summer",plains
-40,Cropland,Dfc,"Cold, no dry season, cold summer",plains
-40,Cropland,Dfd,"Cold, no dry season, very cold winter",plains
-40,Cropland,ET,"Polar, tundra",plains
-40,Cropland,EF,"Polar, frost",plains
+40,Cropland,Dfc,"Cold, no dry season, cold summer",meadow
+40,Cropland,Dfd,"Cold, no dry season, very cold winter",meadow
+40,Cropland,ET,"Polar, tundra",windswept_hills
+40,Cropland,EF,"Polar, frost",windswept_hills
 50,Built-up,Af,"Tropical, rainforest",plains
 50,Built-up,Am,"Tropical, monsoon",plains
 50,Built-up,Aw,"Tropical, savannah",savanna
 50,Built-up,BWh,"Arid, desert, hot",desert
-50,Built-up,BWk,"Arid, desert, cold",badlands
+50,Built-up,BWk,"Arid, desert, cold",savanna
 50,Built-up,BSh,"Arid, steppe, hot",savanna
 50,Built-up,BSk,"Arid, steppe, cold",plains
 50,Built-up,Csa,"Temperate, dry summer, hot summer",plains
@@ -137,24 +137,24 @@ esa_code,esa_name,koppen_code,koppen_climate,biome_id
 50,Built-up,Cfc,"Temperate, no dry season, cold summer",meadow
 50,Built-up,Dsa,"Cold, dry summer, hot summer",plains
 50,Built-up,Dsb,"Cold, dry summer, warm summer",plains
-50,Built-up,Dsc,"Cold, dry summer, cold summer",plains
-50,Built-up,Dsd,"Cold, dry summer, very cold winter",plains
+50,Built-up,Dsc,"Cold, dry summer, cold summer",meadow
+50,Built-up,Dsd,"Cold, dry summer, very cold winter",windswept_gravelly_hills
 50,Built-up,Dwa,"Cold, dry winter, hot summer",plains
 50,Built-up,Dwb,"Cold, dry winter, warm summer",plains
-50,Built-up,Dwc,"Cold, dry winter, cold summer",plains
-50,Built-up,Dwd,"Cold, dry winter, very cold winter",plains
+50,Built-up,Dwc,"Cold, dry winter, cold summer",meadow
+50,Built-up,Dwd,"Cold, dry winter, very cold winter",windswept_hills
 50,Built-up,Dfa,"Cold, no dry season, hot summer",plains
-50,Built-up,Dfb,"Cold, no dry season, warm summer",plains
-50,Built-up,Dfc,"Cold, no dry season, cold summer",plains
-50,Built-up,Dfd,"Cold, no dry season, very cold winter",plains
-50,Built-up,ET,"Polar, tundra",plains
-50,Built-up,EF,"Polar, frost",plains
+50,Built-up,Dfb,"Cold, no dry season, warm summer",meadow
+50,Built-up,Dfc,"Cold, no dry season, cold summer",meadow
+50,Built-up,Dfd,"Cold, no dry season, very cold winter",windswept_gravelly_hills
+50,Built-up,ET,"Polar, tundra",windswept_gravelly_hills
+50,Built-up,EF,"Polar, frost",windswept_gravelly_hills
 60,Bare / sparse vegetation,Af,"Tropical, rainforest",stony_peaks
 60,Bare / sparse vegetation,Am,"Tropical, monsoon",stony_peaks
 60,Bare / sparse vegetation,Aw,"Tropical, savannah",stony_peaks
 60,Bare / sparse vegetation,BWh,"Arid, desert, hot",desert
-60,Bare / sparse vegetation,BWk,"Arid, desert, cold",badlands
-60,Bare / sparse vegetation,BSh,"Arid, steppe, hot",windswept_savanna
+60,Bare / sparse vegetation,BWk,"Arid, desert, cold",eroded_badlands
+60,Bare / sparse vegetation,BSh,"Arid, steppe, hot",badlands
 60,Bare / sparse vegetation,BSk,"Arid, steppe, cold",badlands
 60,Bare / sparse vegetation,Csa,"Temperate, dry summer, hot summer",stony_peaks
 60,Bare / sparse vegetation,Csb,"Temperate, dry summer, warm summer",stony_peaks
@@ -212,8 +212,8 @@ esa_code,esa_name,koppen_code,koppen_climate,biome_id
 90,Herbaceous wetland,Af,"Tropical, rainforest",swamp
 90,Herbaceous wetland,Am,"Tropical, monsoon",swamp
 90,Herbaceous wetland,Aw,"Tropical, savannah",swamp
-90,Herbaceous wetland,BWh,"Arid, desert, hot",swamp
-90,Herbaceous wetland,BWk,"Arid, desert, cold",swamp
+90,Herbaceous wetland,BWh,"Arid, desert, hot",forest
+90,Herbaceous wetland,BWk,"Arid, desert, cold",forest
 90,Herbaceous wetland,BSh,"Arid, steppe, hot",swamp
 90,Herbaceous wetland,BSk,"Arid, steppe, cold",swamp
 90,Herbaceous wetland,Csa,"Temperate, dry summer, hot summer",swamp
@@ -228,17 +228,17 @@ esa_code,esa_name,koppen_code,koppen_climate,biome_id
 90,Herbaceous wetland,Dsa,"Cold, dry summer, hot summer",swamp
 90,Herbaceous wetland,Dsb,"Cold, dry summer, warm summer",swamp
 90,Herbaceous wetland,Dsc,"Cold, dry summer, cold summer",swamp
-90,Herbaceous wetland,Dsd,"Cold, dry summer, very cold winter",swamp
+90,Herbaceous wetland,Dsd,"Cold, dry summer, very cold winter",meadow
 90,Herbaceous wetland,Dwa,"Cold, dry winter, hot summer",swamp
 90,Herbaceous wetland,Dwb,"Cold, dry winter, warm summer",swamp
 90,Herbaceous wetland,Dwc,"Cold, dry winter, cold summer",swamp
-90,Herbaceous wetland,Dwd,"Cold, dry winter, very cold winter",swamp
+90,Herbaceous wetland,Dwd,"Cold, dry winter, very cold winter",meadow
 90,Herbaceous wetland,Dfa,"Cold, no dry season, hot summer",swamp
 90,Herbaceous wetland,Dfb,"Cold, no dry season, warm summer",swamp
 90,Herbaceous wetland,Dfc,"Cold, no dry season, cold summer",swamp
-90,Herbaceous wetland,Dfd,"Cold, no dry season, very cold winter",swamp
-90,Herbaceous wetland,ET,"Polar, tundra",plains
-90,Herbaceous wetland,EF,"Polar, frost",stony_peaks
+90,Herbaceous wetland,Dfd,"Cold, no dry season, very cold winter",meadow
+90,Herbaceous wetland,ET,"Polar, tundra",windswept_hills
+90,Herbaceous wetland,EF,"Polar, frost",windswept_gravelly_hills
 95,Mangroves,Af,"Tropical, rainforest",mangrove_swamp
 95,Mangroves,Am,"Tropical, monsoon",mangrove_swamp
 95,Mangroves,Aw,"Tropical, savannah",mangrove_swamp
@@ -258,47 +258,47 @@ esa_code,esa_name,koppen_code,koppen_climate,biome_id
 95,Mangroves,Dsa,"Cold, dry summer, hot summer",mangrove_swamp
 95,Mangroves,Dsb,"Cold, dry summer, warm summer",mangrove_swamp
 95,Mangroves,Dsc,"Cold, dry summer, cold summer",mangrove_swamp
-95,Mangroves,Dsd,"Cold, dry summer, very cold winter",mangrove_swamp
+95,Mangroves,Dsd,"Cold, dry summer, very cold winter",meadow
 95,Mangroves,Dwa,"Cold, dry winter, hot summer",mangrove_swamp
 95,Mangroves,Dwb,"Cold, dry winter, warm summer",mangrove_swamp
 95,Mangroves,Dwc,"Cold, dry winter, cold summer",mangrove_swamp
-95,Mangroves,Dwd,"Cold, dry winter, very cold winter",mangrove_swamp
+95,Mangroves,Dwd,"Cold, dry winter, very cold winter",meadow
 95,Mangroves,Dfa,"Cold, no dry season, hot summer",mangrove_swamp
 95,Mangroves,Dfb,"Cold, no dry season, warm summer",mangrove_swamp
 95,Mangroves,Dfc,"Cold, no dry season, cold summer",mangrove_swamp
-95,Mangroves,Dfd,"Cold, no dry season, very cold winter",mangrove_swamp
-95,Mangroves,ET,"Polar, tundra",mangrove_swamp
-95,Mangroves,EF,"Polar, frost",mangrove_swamp
-100,Moss and lichen,Af,"Tropical, rainforest",jungle
-100,Moss and lichen,Am,"Tropical, monsoon",jungle
-100,Moss and lichen,Aw,"Tropical, savannah",sparse_jungle
-100,Moss and lichen,BWh,"Arid, desert, hot",badlands
-100,Moss and lichen,BWk,"Arid, desert, cold",badlands
+95,Mangroves,Dfd,"Cold, no dry season, very cold winter",meadow
+95,Mangroves,ET,"Polar, tundra",windswept_hills
+95,Mangroves,EF,"Polar, frost",windswept_gravelly_hills
+100,Moss and lichen,Af,"Tropical, rainforest",plains
+100,Moss and lichen,Am,"Tropical, monsoon",plains
+100,Moss and lichen,Aw,"Tropical, savannah",plains
+100,Moss and lichen,BWh,"Arid, desert, hot",windswept_savanna
+100,Moss and lichen,BWk,"Arid, desert, cold",windswept_savanna
 100,Moss and lichen,BSh,"Arid, steppe, hot",windswept_savanna
-100,Moss and lichen,BSk,"Arid, steppe, cold",badlands
-100,Moss and lichen,Csa,"Temperate, dry summer, hot summer",forest
-100,Moss and lichen,Csb,"Temperate, dry summer, warm summer",forest
-100,Moss and lichen,Csc,"Temperate, dry summer, cold summer",taiga
-100,Moss and lichen,Cwa,"Temperate, dry winter, hot summer",forest
+100,Moss and lichen,BSk,"Arid, steppe, cold",windswept_hills
+100,Moss and lichen,Csa,"Temperate, dry summer, hot summer",windswept_savanna
+100,Moss and lichen,Csb,"Temperate, dry summer, warm summer",meadow
+100,Moss and lichen,Csc,"Temperate, dry summer, cold summer",windswept_hills
+100,Moss and lichen,Cwa,"Temperate, dry winter, hot summer",plains
 100,Moss and lichen,Cwb,"Temperate, dry winter, warm summer",meadow
-100,Moss and lichen,Cwc,"Temperate, dry winter, cold summer",taiga
-100,Moss and lichen,Cfa,"Temperate, no dry season, hot summer",forest
-100,Moss and lichen,Cfb,"Temperate, no dry season, warm summer",forest
-100,Moss and lichen,Cfc,"Temperate, no dry season, cold summer",taiga
-100,Moss and lichen,Dsa,"Cold, dry summer, hot summer",taiga
-100,Moss and lichen,Dsb,"Cold, dry summer, warm summer",taiga
-100,Moss and lichen,Dsc,"Cold, dry summer, cold summer",forest
-100,Moss and lichen,Dsd,"Cold, dry summer, very cold winter",forest
-100,Moss and lichen,Dwa,"Cold, dry winter, hot summer",taiga
-100,Moss and lichen,Dwb,"Cold, dry winter, warm summer",taiga
-100,Moss and lichen,Dwc,"Cold, dry winter, cold summer",forest
-100,Moss and lichen,Dwd,"Cold, dry winter, very cold winter",forest
-100,Moss and lichen,Dfa,"Cold, no dry season, hot summer",forest
-100,Moss and lichen,Dfb,"Cold, no dry season, warm summer",taiga
-100,Moss and lichen,Dfc,"Cold, no dry season, cold summer",taiga
-100,Moss and lichen,Dfd,"Cold, no dry season, very cold winter",forest
-100,Moss and lichen,ET,"Polar, tundra",forest
-100,Moss and lichen,EF,"Polar, frost",stony_peaks
+100,Moss and lichen,Cwc,"Temperate, dry winter, cold summer",meadow
+100,Moss and lichen,Cfa,"Temperate, no dry season, hot summer",plains
+100,Moss and lichen,Cfb,"Temperate, no dry season, warm summer",plains
+100,Moss and lichen,Cfc,"Temperate, no dry season, cold summer",meadow
+100,Moss and lichen,Dsa,"Cold, dry summer, hot summer",plains
+100,Moss and lichen,Dsb,"Cold, dry summer, warm summer",plains
+100,Moss and lichen,Dsc,"Cold, dry summer, cold summer",meadow
+100,Moss and lichen,Dsd,"Cold, dry summer, very cold winter",windswept_gravelly_hills
+100,Moss and lichen,Dwa,"Cold, dry winter, hot summer",plains
+100,Moss and lichen,Dwb,"Cold, dry winter, warm summer",plains
+100,Moss and lichen,Dwc,"Cold, dry winter, cold summer",meadow
+100,Moss and lichen,Dwd,"Cold, dry winter, very cold winter",windswept_gravelly_hills
+100,Moss and lichen,Dfa,"Cold, no dry season, hot summer",plains
+100,Moss and lichen,Dfb,"Cold, no dry season, warm summer",plains
+100,Moss and lichen,Dfc,"Cold, no dry season, cold summer",meadow
+100,Moss and lichen,Dfd,"Cold, no dry season, very cold winter",windswept_gravelly_hills
+100,Moss and lichen,ET,"Polar, tundra",snowy_slopes
+100,Moss and lichen,EF,"Polar, frost",snowy_slopes
 10,Tree cover,NONE,No Köppen available (fallback),forest
 20,Shrubland,NONE,No Köppen available (fallback),plains
 30,Grassland,NONE,No Köppen available (fallback),plains
@@ -306,4 +306,5 @@ esa_code,esa_name,koppen_code,koppen_climate,biome_id
 50,Built-up,NONE,No Köppen available (fallback),plains
 60,Bare / sparse vegetation,NONE,No Köppen available (fallback),stony_peaks
 90,Herbaceous wetland,NONE,No Köppen available (fallback),swamp
-100,Moss and lichen,NONE,No Köppen available (fallback),taiga
+95,Mangroves,NONE,No Köppen available (fallback),mangrove_swamp
+100,Moss and lichen,NONE,No Köppen available (fallback),plains
