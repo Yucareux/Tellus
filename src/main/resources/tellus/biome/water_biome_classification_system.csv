@@ -35,16 +35,16 @@ is_ocean,water_type,koppen_code,koppen_climate,biome_id
 1,ocean,BWh,"Arid, desert, hot",warm_ocean
 1,ocean,BWk,"Arid, desert, cold",ocean
 1,ocean,BSh,"Arid, steppe, hot",warm_ocean
-1,ocean,BSk,"Arid, steppe, cold",lukewarm_ocean
-1,ocean,Csa,"Temperate, dry summer, hot summer",warm_ocean
-1,ocean,Csb,"Temperate, dry summer, warm summer",lukewarm_ocean
-1,ocean,Csc,"Temperate, dry summer, cold summer",ocean
-1,ocean,Cwa,"Temperate, dry winter, hot summer",warm_ocean
-1,ocean,Cwb,"Temperate, dry winter, warm summer",lukewarm_ocean
-1,ocean,Cwc,"Temperate, dry winter, cold summer",ocean
-1,ocean,Cfa,"Temperate, no dry season, hot summer",warm_ocean
-1,ocean,Cfb,"Temperate, no dry season, warm summer",lukewarm_ocean
-1,ocean,Cfc,"Temperate, no dry season, cold summer",ocean
+1,ocean,BSk,"Arid, steppe, cold",ocean
+1,ocean,Csa,"Temperate, dry summer, hot summer",lukewarm_ocean
+1,ocean,Csb,"Temperate, dry summer, warm summer",ocean
+1,ocean,Csc,"Temperate, dry summer, cold summer",cold_ocean
+1,ocean,Cwa,"Temperate, dry winter, hot summer",lukewarm_ocean
+1,ocean,Cwb,"Temperate, dry winter, warm summer",ocean
+1,ocean,Cwc,"Temperate, dry winter, cold summer",cold_ocean
+1,ocean,Cfa,"Temperate, no dry season, hot summer",lukewarm_ocean
+1,ocean,Cfb,"Temperate, no dry season, warm summer",ocean
+1,ocean,Cfc,"Temperate, no dry season, cold summer",cold_ocean
 1,ocean,Dsa,"Cold, dry summer, hot summer",lukewarm_ocean
 1,ocean,Dsb,"Cold, dry summer, warm summer",ocean
 1,ocean,Dsc,"Cold, dry summer, cold summer",cold_ocean
