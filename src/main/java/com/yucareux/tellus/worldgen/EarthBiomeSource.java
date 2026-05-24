@@ -54,11 +54,27 @@ public final class EarthBiomeSource extends BiomeSource {
    private final Set<Holder<Biome>> possibleBiomes;
    
    private final Holder<Biome> plains;
-   
+
+   private final Holder<Biome> snowy_plains;
+
+   private final Holder<Biome> meadow;
+
    private final Holder<Biome> ocean;
-   
+
+   private final Holder<Biome> warm_ocean;
+
+   private final Holder<Biome> lukewarm_ocean;
+
+   private final Holder<Biome> cold_ocean;
+
+   private final Holder<Biome> frozen_ocean;
+
+   private final Holder<Biome> deep_frozen_ocean;
+
    private final Holder<Biome> river;
-   
+
+   private final Holder<Biome> frozen_river;
+
    private final Holder<Biome> frozenPeaks;
    
    private final Holder<Biome> mangrove;
@@ -80,8 +96,16 @@ public final class EarthBiomeSource extends BiomeSource {
       this.settings = Objects.requireNonNull(settings, "settings");
       this.deepDarkCeiling = settings.resolveSeaLevel() - DEEP_DARK_Y_OFFSET;
       this.plains = this.biomeLookup.getOrThrow(Biomes.PLAINS);
+      this.snowy_plains = this.biomeLookup.getOrThrow(Biomes.SNOWY_PLAINS);
+      this.meadow = this.biomeLookup.getOrThrow(Biomes.MEADOW);
       this.ocean = this.resolveBiome(Biomes.OCEAN, this.plains);
+      this.warm_ocean = this.resolveBiome(Biomes.WARM_OCEAN, this.plains);
+      this.lukewarm_ocean = this.resolveBiome(Biomes.LUKEWARM_OCEAN, this.plains);
+      this.cold_ocean = this.resolveBiome(Biomes.COLD_OCEAN, this.meadow);
+      this.frozen_ocean = this.resolveBiome(Biomes.FROZEN_OCEAN, this.snowy_plains);
+      this.deep_frozen_ocean = this.resolveBiome(Biomes.DEEP_FROZEN_OCEAN, this.snowy_plains);
       this.river = this.resolveBiome(Biomes.RIVER, this.plains);
+      this.frozen_river = this.resolveBiome(Biomes.FROZEN_RIVER, this.snowy_plains);
       this.frozenPeaks = this.resolveBiome(Biomes.FROZEN_PEAKS, this.plains);
       this.mangrove = this.resolveBiome(Biomes.MANGROVE_SWAMP, this.plains);
       this.lushCaves = this.resolveOptionalBiome(Biomes.LUSH_CAVES);
@@ -289,7 +313,13 @@ public final class EarthBiomeSource extends BiomeSource {
 
       holders.add(this.plains);
       holders.add(this.ocean);
+      holders.add(this.warm_ocean);
+      holders.add(this.lukewarm_ocean);
+      holders.add(this.cold_ocean);
+      holders.add(this.frozen_ocean);
+      holders.add(this.deep_frozen_ocean);
       holders.add(this.river);
+      holders.add(this.frozen_river);
       holders.add(this.frozenPeaks);
       holders.add(this.mangrove);
       if (this.settings.caveGeneration()) {
