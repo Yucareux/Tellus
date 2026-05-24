@@ -3,6 +3,7 @@ package com.yucareux.tellus.worldgen;
 import com.mojang.serialization.MapCodec;
 import com.mojang.serialization.codecs.RecordCodecBuilder;
 import com.yucareux.tellus.world.data.biome.BiomeClassification;
+import com.yucareux.tellus.world.data.biome.WaterBiomeClassification;
 import com.yucareux.tellus.world.data.cover.TellusLandCoverSource;
 import com.yucareux.tellus.world.data.elevation.TellusElevationSource;
 import com.yucareux.tellus.world.data.koppen.TellusKoppenSource;
@@ -53,11 +54,27 @@ public final class EarthBiomeSource extends BiomeSource {
    private final Set<Holder<Biome>> possibleBiomes;
    
    private final Holder<Biome> plains;
-   
+
+   private final Holder<Biome> snowy_plains;
+
+   private final Holder<Biome> meadow;
+
    private final Holder<Biome> ocean;
-   
+
+   private final Holder<Biome> warm_ocean;
+
+   private final Holder<Biome> lukewarm_ocean;
+
+   private final Holder<Biome> cold_ocean;
+
+   private final Holder<Biome> frozen_ocean;
+
+   private final Holder<Biome> deep_frozen_ocean;
+
    private final Holder<Biome> river;
-   
+
+   private final Holder<Biome> frozen_river;
+
    private final Holder<Biome> frozenPeaks;
    
    private final Holder<Biome> mangrove;
@@ -79,8 +96,16 @@ public final class EarthBiomeSource extends BiomeSource {
       this.settings = Objects.requireNonNull(settings, "settings");
       this.deepDarkCeiling = settings.resolveSeaLevel() - DEEP_DARK_Y_OFFSET;
       this.plains = this.biomeLookup.getOrThrow(Biomes.PLAINS);
+      this.snowy_plains = this.biomeLookup.getOrThrow(Biomes.SNOWY_PLAINS);
+      this.meadow = this.biomeLookup.getOrThrow(Biomes.MEADOW);
       this.ocean = this.resolveBiome(Biomes.OCEAN, this.plains);
+      this.warm_ocean = this.resolveBiome(Biomes.WARM_OCEAN, this.plains);
+      this.lukewarm_ocean = this.resolveBiome(Biomes.LUKEWARM_OCEAN, this.plains);
+      this.cold_ocean = this.resolveBiome(Biomes.COLD_OCEAN, this.meadow);
+      this.frozen_ocean = this.resolveBiome(Biomes.FROZEN_OCEAN, this.snowy_plains);
+      this.deep_frozen_ocean = this.resolveBiome(Biomes.DEEP_FROZEN_OCEAN, this.snowy_plains);
       this.river = this.resolveBiome(Biomes.RIVER, this.plains);
+      this.frozen_river = this.resolveBiome(Biomes.FROZEN_RIVER, this.snowy_plains);
       this.frozenPeaks = this.resolveBiome(Biomes.FROZEN_PEAKS, this.plains);
       this.mangrove = this.resolveBiome(Biomes.MANGROVE_SWAMP, this.plains);
       this.lushCaves = this.resolveOptionalBiome(Biomes.LUSH_CAVES);
@@ -207,12 +232,12 @@ public final class EarthBiomeSource extends BiomeSource {
             ? column
             : this.waterResolver.resolveFastColumnData(blockX, blockZ, rawCoverClass);
          if (waterColumn.hasWater()) {
-            return waterColumn.isOcean() ? this.ocean : this.river;
+            return resolveWaterBiome(blockX, blockZ, waterColumn.isOcean(), precomputedKoppen);
          }
       } else if (rawCoverClass == ESA_NO_DATA || rawCoverClass == ESA_WATER) {
          WaterSurfaceResolver.WaterColumnData waterColumn = column != null ? column : this.waterResolver.resolveColumnData(blockX, blockZ, rawCoverClass);
          if (waterColumn.hasWater()) {
-            return waterColumn.isOcean() ? this.ocean : this.river;
+            return resolveWaterBiome(blockX, blockZ, waterColumn.isOcean(), precomputedKoppen);
          }
       }
       return this.resolveSurfaceBiomeAfterWater(blockX, blockZ, visualCoverClass, precomputedKoppen);
@@ -225,9 +250,27 @@ public final class EarthBiomeSource extends BiomeSource {
          return this.mangrove;
       }
       if ((this.settings.enableWater() || rawCoverClass == ESA_NO_DATA || rawCoverClass == ESA_WATER) && hasWater) {
-         return isOcean ? this.ocean : this.river;
+         return resolveWaterBiome(blockX, blockZ, isOcean, precomputedKoppen);
       }
       return this.resolveSurfaceBiomeAfterWater(blockX, blockZ, visualCoverClass, precomputedKoppen);
+   }
+
+   private Holder<Biome> resolveWaterBiome(int blockX, int blockZ, boolean isOcean, String precomputedKoppen) {
+      String koppen = precomputedKoppen;
+      if (koppen == null) {
+         koppen = KOPPEN_SOURCE.sampleDitheredCode(blockX, blockZ, this.settings.worldScale());
+         if (koppen == null) {
+            koppen = KOPPEN_SOURCE.findNearestCode(blockX, blockZ, this.settings.worldScale());
+         }
+      }
+
+      ResourceKey<Biome> biomeKey = WaterBiomeClassification.findBiomeKey(isOcean, koppen);
+
+      if (biomeKey == null) {
+         biomeKey = WaterBiomeClassification.findFallbackKey(isOcean);
+      }
+
+      return biomeKey == null ? this.river : this.resolveBiome(biomeKey, this.river);
    }
 
    private Holder<Biome> resolveSurfaceBiomeAfterWater(int blockX, int blockZ, int visualCoverClass, String precomputedKoppen) {
@@ -270,7 +313,13 @@ public final class EarthBiomeSource extends BiomeSource {
 
       holders.add(this.plains);
       holders.add(this.ocean);
+      holders.add(this.warm_ocean);
+      holders.add(this.lukewarm_ocean);
+      holders.add(this.cold_ocean);
+      holders.add(this.frozen_ocean);
+      holders.add(this.deep_frozen_ocean);
       holders.add(this.river);
+      holders.add(this.frozen_river);
       holders.add(this.frozenPeaks);
       holders.add(this.mangrove);
       if (this.settings.caveGeneration()) {

@@ -35,7 +35,7 @@ public final class WaterSurfaceResolver {
    private static final int INLAND_RANDOM_DEPTH_MAX = 6;
    private static final int INLAND_MAX_DEPTH = 30;
    private static final int INLAND_DEEP_DISTANCE_STEP = 6;
-   private static final int OCEAN_MIN_DEPTH = 1;
+   private static final int OCEAN_MIN_DEPTH = 3;
    private static final int MAX_WATER_WALL_HEIGHT = 8;
    private static final int WATER_CASCADE_STEP_HEIGHT = 2;
    private static final int WATER_TERRACE_TRIGGER_HEIGHT = 6;
