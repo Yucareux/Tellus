@@ -1,0 +1,13 @@
+{
+	"required": true,
+	"package": "com.yucareux.tellus.mixin.client",
+	"compatibilityLevel": "JAVA_21",
+	"client": [
+		"LevelLoadingScreenMixin",
+		"MinecraftScreenMixin",
+		"PresetEditorMixin"
+	],
+	"injectors": {
+		"defaultRequire": 1
+	}
+}

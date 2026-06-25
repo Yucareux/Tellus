@@ -1,0 +1,39 @@
+modLoader = "javafml"
+loaderVersion = "[4,)"
+license = "LGPL-3.0-only"
+
+[[dependencies.tellus]]
+    modId = "neoforge"
+    type = "required"
+    versionRange = "[21.1,)"
+    ordering = "NONE"
+    side = "BOTH"
+
+[[dependencies.tellus]]
+    modId = "minecraft"
+    type = "required"
+    versionRange = "[1.21.1,1.22)"
+    ordering = "NONE"
+    side = "BOTH"
+
+[[dependencies.tellus]]
+    modId = "distanthorizons"
+    type = "optional"
+    versionRange = "*"
+    ordering = "NONE"
+    side = "BOTH"
+
+[[mods]]
+    modId = "tellus"
+    version = "${file.jarVersion}"
+    displayName = "Tellus"
+    description = '''
+Tellus recreates real-world terrain in Minecraft by generating Earth-scale landscapes from geographic data.
+    '''
+    logoFile = "assets/tellus/icon.png"
+
+[[mixins]]
+    config = "tellus.mixins.json"
+
+[[mixins]]
+    config = "tellus.client.mixins.json"

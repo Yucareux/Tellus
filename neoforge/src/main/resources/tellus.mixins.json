@@ -1,0 +1,17 @@
+{
+	"required": true,
+	"package": "com.yucareux.tellus.mixin",
+	"compatibilityLevel": "JAVA_21",
+	"mixins": [
+		"BiomeFreezeMixin",
+		"BiomePrecipitationMixin",
+		"OceanMonumentBuildingMixin",
+		"OceanMonumentStructureMixin"
+	],
+	"injectors": {
+		"defaultRequire": 1
+	},
+	"overwrites": {
+		"requireAnnotations": true
+	}
+}

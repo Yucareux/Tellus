@@ -1,0 +1,117 @@
+plugins {
+	id 'net.neoforged.moddev' version '2.0.21'
+	id 'maven-publish'
+}
+
+def minecraftVersion = '1.21.1'
+def neoForgeVersion = '21.1.172'
+def distantHorizonsApiVersion = '6.1.0'
+def javaVersion = 21
+
+base {
+	archivesName = "${rootProject.archives_base_name}-neoforge-${minecraftVersion}"
+}
+
+tasks.withType(AbstractArchiveTask).configureEach {
+	archiveVersion.set('')
+}
+
+sourceSets {
+	main {
+		java {
+			setSrcDirs([rootProject.file('src/main/java'), project.file('src/main/java')])
+		}
+		resources {
+			setSrcDirs([rootProject.file('src/main/resources'), project.file('src/main/resources')])
+		}
+	}
+	test {
+		java.setSrcDirs([rootProject.file('src/test/java')])
+		resources.setSrcDirs([rootProject.file('src/test/resources')])
+	}
+}
+
+repositories {
+	mavenCentral()
+	maven {
+		url = 'https://api.modrinth.com/maven/'
+		content {
+			includeGroup 'maven.modrinth'
+		}
+	}
+}
+
+neoForge {
+	version = neoForgeVersion
+
+	parchment {
+		// Optional: use parchment mappings
+	}
+
+	mods {
+		tellus {
+			sourceSet sourceSets.main
+		}
+	}
+}
+
+dependencies {
+	implementation 'org.tukaani:xz:1.10'
+	implementation 'io.github.sebasbaumh:mapbox-vector-tile-java:24.1.1'
+	implementation 'com.google.protobuf:protobuf-java:4.28.2'
+
+	testImplementation 'org.junit.jupiter:junit-jupiter:5.10.2'
+	testRuntimeOnly 'org.junit.jupiter:junit-jupiter-engine:5.10.2'
+	testRuntimeOnly 'org.junit.platform:junit-platform-launcher:1.10.2'
+
+	compileOnly "maven.modrinth:DistantHorizonsApi:${distantHorizonsApiVersion}"
+}
+
+jar {
+	from(rootProject.file('LICENSE')) {
+		rename { "${it}_${project.base.archivesName.get()}" }
+	}
+
+	// Bundle third-party libraries
+	from(configurations.runtimeClasspath.filter {
+		it.name.startsWith('xz') ||
+		it.name.startsWith('mapbox') ||
+		it.name.startsWith('protobuf')
+	}.collect { zipTree(it) }) {
+		exclude 'META-INF/MANIFEST.MF'
+		exclude 'META-INF/*.SF'
+		exclude 'META-INF/*.DSA'
+		exclude 'META-INF/*.RSA'
+	}
+}
+
+tasks.withType(JavaCompile).configureEach {
+	options.release = javaVersion
+}
+
+tasks.named('test').configure {
+	useJUnitPlatform()
+}
+
+java {
+	toolchain {
+		languageVersion = JavaLanguageVersion.of(javaVersion)
+	}
+
+	withSourcesJar()
+
+	sourceCompatibility = JavaVersion.toVersion(javaVersion)
+	targetCompatibility = JavaVersion.toVersion(javaVersion)
+}
+
+publishing {
+	publications {
+		create('mavenJava', MavenPublication) {
+			artifactId = project.base.archivesName.get()
+			from components.java
+		}
+	}
+
+	repositories {
+	}
+}
