@@ -1,0 +1,25 @@
+# Normalize line endings for text files; keep binary formats untouched.
+* text=auto
+
+# Scripts and sources stay LF everywhere (including CI containers).
+*.java text eol=lf
+*.gradle text eol=lf
+*.properties text eol=lf
+*.toml text eol=lf
+*.json text eol=lf
+*.yml text eol=lf
+*.yaml text eol=lf
+*.md text eol=lf
+*.py text eol=lf
+*.sh text eol=lf
+gradlew text eol=lf
+
+# Windows batch files stay CRLF.
+*.bat text eol=crlf
+
+# Binary formats.
+*.jar binary
+*.zip binary
+*.png binary
+*.jpg binary
+*.jpeg binary
