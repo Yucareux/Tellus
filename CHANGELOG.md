@@ -9,7 +9,9 @@ All notable changes to Tellus are documented here. This file is maintained per r
 - Root `build.gradle` now derives aggregate tasks (`clean`, `assemble`, `check`, `build`) and the per-target convenience tasks from the subproject list instead of hardcoding module names.
 - Hoisted four files that were byte-identical across all five targets into the shared source tree: `TellusChunkLodGenerator`, `DimensionTypeHighYMixin`, `LevelHighYPackedCoordinateMixin`, `HighYPackedCoordinateProfile`.
 - CI now builds the five targets in a parallel matrix and uploads the resulting jars as workflow artifacts for playtesting, instead of one serial job.
-- Added `.editorconfig` and this changelog.
+- CI validates the Gradle wrapper checksums, caches per-target Loom caches, and caps artifact retention at 14 days.
+- Added Dependabot configuration (GitHub Actions and the Gradle version catalog), issue and pull request templates, and `.gitattributes` for line-ending normalization.
+- README: added a "Building from source" section and corrected the intro to cover the Fabric and NeoForge targets.
 
 ## [0.8.2] - 2026-07-23
 

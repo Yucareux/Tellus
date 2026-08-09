@@ -1,6 +1,6 @@
 # Tellus
 
-Tellus is a Fabric mod that recreates real-world terrain in Minecraft by generating Earth-scale landscapes from geographic data. It focuses on realistic elevation, biome placement, and climate-driven time and weather, aiming to make the world feel like a playable map of our planet.
+Tellus is a Minecraft mod for Fabric and NeoForge (Minecraft 1.20.1, 1.21.1, and 26.2) that recreates real-world terrain by generating Earth-scale landscapes from geographic data. It focuses on realistic elevation, biome placement, and climate-driven time and weather, aiming to make the world feel like a playable map of our planet.
 
 ![Tellus header image](images/Header%20image.jpg)
 
@@ -62,6 +62,32 @@ The default 64×64 detail-11 pass spans 8192 chunks, matching a 4096-chunk rende
 - `/tellus config weather enable_realtime_weather <true|false>`: Overrides the real-time weather setting on the server (requires gamemaster permissions).
 
 More commands will be added over time.
+
+## Building from source
+
+Requirements: JDK 17 or newer to run Gradle 9.4 (a Temurin 21 or 25 install is recommended). Per-target Java toolchains (17, 21, 25) are provisioned automatically through foojay — `org.gradle.java.installations.auto-download=true` is set in `gradle.properties`. If Java is not on your PATH, point `JAVA_HOME` at an install:
+
+```bash
+JAVA_HOME="$HOME/.local/jdks/jdk-21.0.12+8" ./gradlew build
+```
+
+`./gradlew build` builds and tests all five targets; the shared test suite runs in every module. Convenience tasks address a single target:
+
+| Task | Target |
+|---|---|
+| `./gradlew build1201` | Fabric, Minecraft 1.20.1 |
+| `./gradlew build1211` | Fabric, Minecraft 1.21.1 |
+| `./gradlew build1211NeoForge` | NeoForge, Minecraft 1.21.1 |
+| `./gradlew build262` | Fabric, Minecraft 26.2 |
+| `./gradlew build262NeoForge` | NeoForge, Minecraft 26.2 |
+| `./gradlew runClient<target>` | Run the client for one target |
+| `./gradlew runServer<target>` | Run the server for one target |
+
+`runClient`/`runServer` use the same target suffixes as the table (for example `runClient262`). Built jars land in the module's `build/libs/` directory, for example `mc1211/build/libs/Tellus-fabric-1.21.1.jar`.
+
+Optional Distant Horizons runtime smoke tests: set the matching `mc*_distant_horizons_runtime_path` Gradle property (see `gradle.properties`) to a DH jar; the module then includes the DH runtime on its test classpath for the DH-dependent integration tests.
+
+Development tools: `tools/generate_mapterhorn_resolution_catalog.py` refreshes `src/main/resources/tellus/elevation/mapterhorn_source_resolutions.json` from Mapterhorn's public metadata.
 
 <details>
   <summary>Settings</summary>

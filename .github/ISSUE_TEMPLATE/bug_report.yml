@@ -1,0 +1,43 @@
+name: Bug report
+description: Report a crash or misbehavior in Tellus
+title: "[Bug] "
+labels: ["bug"]
+body:
+  - type: dropdown
+    id: target
+    attributes:
+      label: Target
+      description: Which loader and Minecraft version are you using?
+      options:
+        - Fabric 1.20.1
+        - Fabric 1.21.1
+        - NeoForge 1.21.1
+        - Fabric 26.2
+        - NeoForge 26.2
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Tellus version
+      description: Version shown in the mod list or in the jar file name.
+    validations:
+      required: true
+  - type: textarea
+    id: description
+    attributes:
+      label: What happened?
+      description: What did you expect to happen, and what happened instead?
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs
+      description: Paste the relevant part of `logs/latest.log` or the crash report. If it is long, attach the file instead.
+      render: shell
+  - type: textarea
+    id: settings
+    attributes:
+      label: World settings
+      description: World Scale, height toggles, and any other relevant configuration.
