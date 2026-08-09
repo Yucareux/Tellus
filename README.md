@@ -2,7 +2,7 @@
 
 Tellus is a Fabric mod that recreates real-world terrain in Minecraft by generating Earth-scale landscapes from geographic data. It focuses on realistic elevation, biome placement, and climate-driven time and weather, aiming to make the world feel like a playable map of our planet.
 
-![Tellus header image](images/Header%20image.png)
+![Tellus header image](images/Header%20image.jpg)
 
 Inspired by Gegy's Terrarium: https://modrinth.com/mod/terrarium
 
@@ -118,6 +118,109 @@ This section lets you toggle vanilla structures and world features on or off, su
 - **OpenWaters bathymetry**: Cached bathymetry tiles used for ocean and underwater terrain.
 - **Total**: Combined size of all Tellus caches (read-only).
 - **Delete cache / Delete all cache**: Removes cached data to free disk space; data will be re-downloaded or rebuilt as needed.
+</details>
+
+<details>
+  <summary>Runtime Configuration</summary>
+
+Tellus reads JVM system properties (`-Dtellus.<name>=<value>` on the client or server launch command) for tuning. Values are validated and clamped to their supported ranges; invalid values fall back to the default. Only properties with user-visible effect are listed; other `tellus.*` properties exist in the code for internal state and diagnostics.
+
+### Data sources
+
+| Property | Default | Range | Effect |
+|---|---|---|---|
+| `tellus.worldcover.memoryCacheMb` | 64 | 8..2048 | Decoded ESA WorldCover COG memory cache size in MiB. |
+| `tellus.worldcover.diskCacheMb` | 512 | 32..16384 | Compressed WorldCover block disk cache size in MiB. |
+| `tellus.worldcover.baseUrl` | official ESA source | — | Mirror base URL for WorldCover COG requests. |
+| `tellus.worldcover.connectTimeoutMs` | 7000 | 1..120000 | WorldCover HTTP connect timeout. |
+| `tellus.worldcover.readTimeoutMs` | 30000 | 1..120000 | WorldCover HTTP read timeout. |
+| `tellus.worldcover.fetchRetries` | 3 | 1..8 | WorldCover HTTP retry count. |
+| `tellus.worldcover.metadataCacheEntries` | — | — | WorldCover COG metadata cache entry count. |
+| `tellus.overture.landCover.pmtiles` | official release | — | Overture land-cover PMTiles URL override. |
+| `tellus.overture.landCover.rasterSize` | 512 | 64..1024 | Overture land-cover fallback raster edge size in pixels. |
+| `tellus.overture.landCover.dirCache` | 256 | 1..8192 | Overture land-cover tile cache entries. |
+| `tellus.overture.release` | latest | — | Pinned Overture release tag, e.g. `2025-05-20`. |
+| `tellus.elevation.cacheTiles` | 512 | — | Mapterhorn elevation tile cache entries. |
+| `tellus.elevation.areaPrefetch.samples` | 25 | — | Prefetch samples per terrain area. |
+| `tellus.elevation.areaPrefetch.terrainTileLimit` | 512 | — | Max elevation tiles per prefetch area. |
+| `tellus.elevation.downloadAttempts` | 3 | — | Mapterhorn download attempts per tile. |
+| `tellus.elevation.retryBackoffMs` | 250 | — | Mapterhorn retry backoff. |
+| `tellus.elevation.connectTimeoutMs` / `readTimeoutMs` | 8000 | — | Mapterhorn HTTP timeouts. |
+| `tellus.elevation.normalized.enabled` | false | — | Opt into the normalized elevation cache path. |
+| `tellus.elevation.normalized.threads` / `memoryTiles` | — / 256 | — | Normalized cache workers and tile count. |
+| `tellus.mapterhorn.coverage.cacheTiles` | 32 | 4..512 | Mapterhorn coverage tile cache entries. |
+| `tellus.mapterhorn.coverage.endpoint` | official | — | Mapterhorn coverage endpoint override. |
+| `tellus.landmask.baseUrl` | official | — | Land-mask PMTiles base URL override. |
+| `tellus.landmask.cacheTiles` | 256 | — | Land-mask tile cache entries. |
+| `tellus.landmask.dirCache` | 256 | — | Land-mask directory cache entries. |
+| `tellus.landmask.areaPrefetch.samples` | 25 | — | Land-mask prefetch samples per area. |
+| `tellus.landmask.areaPrefetch.tileLimit` | 512 | — | Max land-mask tiles per prefetch area. |
+| `tellus.landcover.cacheTiles` | 96 | 1..2048 | Land-cover sample cache entries. |
+| `tellus.landcover.nearestLandCacheEntries` | 131072 | 1024..1048576 | Nearest-land lookup cache entries. |
+| `tellus.landcover.nearestLandRadiusPixels` | 64 | 1..512 | Nearest-land search radius. |
+| `tellus.oisst.endpoint` | official | — | OISST sea-surface temperature endpoint override. |
+| `tellus.oisst.sampleYear` | 2024 | — | OISST climatology year used for ocean climate. |
+| `tellus.oisst.timeStrideDays` | 30 | — | OISST sampling stride in days. |
+| `tellus.oisst.cacheCells` | 4096 | — | OISST cell cache entries. |
+
+### OSM / Overpass
+
+| Property | Default | Range | Effect |
+|---|---|---|---|
+| `tellus.osm.overpass.endpoint` / `endpoints` | official | — | Overpass API endpoint(s); `endpoints` accepts a comma-separated list. |
+| `tellus.osm.overpass.queryTimeoutSec` | 25 | 5..300 | Overpass query timeout. |
+| `tellus.osm.overpass.maxRetries` | 3 | 0..12 | Overpass retry count. |
+| `tellus.osm.overpass.minSpacingMs` | 350 | 0..60000 | Minimum spacing between Overpass requests. |
+| `tellus.osm.overpass.retryBackoffMs` / `retryBackoffJitterMs` / `retryableCooldownMs` | 750 / 250 / 4000 | 0..60000 / 0..10000 / 0..300000 | Overpass retry timing. |
+| `tellus.osm.infrastructure.queryZoom` | 14 | 0..20 | OSM infrastructure query zoom level. |
+| `tellus.osm.infrastructure.cacheTiles` | 256 | 1..8192 | OSM infrastructure tile cache entries. |
+| `tellus.osm.infrastructure.prefetchAsyncMax` | 96 | 0..8192 | Max concurrent infrastructure prefetches. |
+| `tellus.overture.infrastructure.pmtiles` | official | — | Overture infrastructure PMTiles URL override. |
+| `tellus.overture.infrastructure.dirCache` | 256 | 1..8192 | Overture infrastructure cache entries. |
+
+### Water
+
+| Property | Default | Range | Effect |
+|---|---|---|---|
+| `tellus.water.oceanFloorTransitionBlocks` | 512 | 0..2048 | Coastal ramp from one-block depth to raw bathymetry. |
+| `tellus.water.oceanFloorSupportBlocks` | 8 | 2..32 | Solid support blocks reserved above the world minimum for ocean floors. |
+| `tellus.oceanCoastCacheTiles` | 32 | 4..256 | Overture coastline macro-tile cache entries. |
+| `tellus.water.inlandOceanTransitionBlocks` | 48 | 0..512 | Blending distance between inland water and open ocean. |
+| `tellus.water.featureSurfaceSamples` | 128 | 8..2048 | Water surface sampling count per feature. |
+| `tellus.water.lakeMaxTerrainCut` | 12 | 1..64 | Max terrain cut for lake water surfaces. |
+| `tellus.water.riverMaxTerrainCut` | 6 | 0..32 | Max terrain cut for river water surfaces. |
+| `tellus.water.riverConnectGapBlocks` | 4 | 0..16 | Max gap bridged when connecting river segments. |
+| `tellus.water.esaLakeHeightBucket` | 4 | 1..64 | ESA-based lake height quantization bucket. |
+| `tellus.water.esaLakeKeyGridBlocks` | 512 | 64..8192 | ESA lake key grid resolution. |
+| `tellus.waterLakeSurfaceCacheSize` / `tellus.waterNearChunkCacheSize` / `tellus.waterRegionCacheSize` | 8192 / 8192 / — | 256..65536 | Water lookup cache sizes. |
+
+### Preload and managed downloads
+
+| Property | Default | Range | Effect |
+|---|---|---|---|
+| `tellus.preload.downloadThreads` | 8 | 1..32 | Preload download worker threads. |
+| `tellus.preload.downloadDedupEntries` / `downloadDedupSeconds` | 16384 / 120 | 0..262144 / 0..3600 | Preload download deduplication window. |
+| `tellus.preload.maxChunksPerSide` | — | — | Preload area size cap in chunks. |
+| `tellus.preload.package.gridResolutionMeters` | — | — | Preload package grid resolution. |
+| `tellus.preload.package.maxSamples` / `maxLoadedSamples` / `rowsInFlight` / `threads` | — | — | Preload package sampling and threading limits. |
+| `tellus.preload.source.dem` / `water` / `roads` / `sand` / `buildings` / `infrastructure` | — | — | Per-source preload toggles. |
+| `tellus.managedDownloads.batchCellsPerSide` | 8 | 1..64 | Managed (DH) download batch size. |
+| `tellus.managedDownloads.coordinators` | 4 | 1..16 | Managed download coordinator threads. |
+| `tellus.managedDownloads.coreAttempts` | 1 | 1..3 | Core download attempts per tile. |
+| `tellus.managedDownloads.packageLoadTimeoutMs` / `retryBaseDelayMs` / `retryMaxDelayMs` | — | — | Managed download timing knobs. |
+
+### Debug and developer
+
+| Property | Default | Effect |
+|---|---|---|
+| `tellus.gameDir` / `tellus.configDir` | platform default | Override the game/config directory (used by headless tooling). |
+| `tellus.projection.mode` | `mercator` | Earth projection mode. |
+| `tellus.experimentalHeight.coordinateProfile` | — | Coordinate profile for the experimental expanded-height terrain (see `simulateFastLodDataLoading`). |
+| `tellus.dhLodTiming` / `tellus.lodTiming` | `false` | Log LOD generation timing. |
+| `tellus.debug.osmPerf` | `false` | Log OSM source performance counters. |
+| `tellus.debug.dem` / `tellus.debugWater` | `false` | Debug rendering/diagnostics for DEM and water. |
+| `tellus.chunkdetail.deferDetailedWater` | — | Defer detailed water work during chunk generation. |
+
 </details>
 
 <details>

@@ -1,14 +1,10 @@
 plugins {
-	id 'net.fabricmc.fabric-loom-remap' version '1.14.10'
+	alias(libs.plugins.loomRemap)
 	id 'eclipse'
 	id 'maven-publish'
 }
 
 def minecraftVersion = '1.20.1'
-def loaderVersion = '0.16.10'
-def fabricVersion = '0.92.8+1.20.1'
-def distantHorizonsApiVersion = '7.0.0'
-def twelveMonkeysImageioVersion = '3.13.1'
 def javaVersion = 17
 def distantHorizonsRuntimePath = providers.gradleProperty('mc1201_distant_horizons_runtime_path').orNull
 def overriddenSharedMainSources = [
@@ -92,33 +88,33 @@ sourceSets {
 dependencies {
 	minecraft "com.mojang:minecraft:${minecraftVersion}"
 	mappings loom.officialMojangMappings()
-	modImplementation "net.fabricmc:fabric-loader:${loaderVersion}"
-	modImplementation "net.fabricmc.fabric-api:fabric-api:${fabricVersion}"
+	modImplementation "net.fabricmc:fabric-loader:${libs.versions.fabricLoader1201.get()}"
+	modImplementation "net.fabricmc.fabric-api:fabric-api:${libs.versions.fabricApi1201.get()}"
 
-	bundledLibrary 'org.tukaani:xz:1.10'
-	implementation 'org.tukaani:xz:1.10'
-	implementation 'io.github.sebasbaumh:mapbox-vector-tile-java:23.2.0'
-	include 'io.github.sebasbaumh:mapbox-vector-tile-java:23.2.0'
-	implementation 'com.google.protobuf:protobuf-java:3.25.5'
-	include 'com.google.protobuf:protobuf-java:3.25.5'
-	implementation "com.twelvemonkeys.imageio:imageio-webp:${twelveMonkeysImageioVersion}"
-	implementation "com.twelvemonkeys.imageio:imageio-core:${twelveMonkeysImageioVersion}"
-	implementation "com.twelvemonkeys.imageio:imageio-metadata:${twelveMonkeysImageioVersion}"
-	implementation "com.twelvemonkeys.common:common-lang:${twelveMonkeysImageioVersion}"
-	implementation "com.twelvemonkeys.common:common-io:${twelveMonkeysImageioVersion}"
-	implementation "com.twelvemonkeys.common:common-image:${twelveMonkeysImageioVersion}"
-	include "com.twelvemonkeys.imageio:imageio-webp:${twelveMonkeysImageioVersion}"
-	include "com.twelvemonkeys.imageio:imageio-core:${twelveMonkeysImageioVersion}"
-	include "com.twelvemonkeys.imageio:imageio-metadata:${twelveMonkeysImageioVersion}"
-	include "com.twelvemonkeys.common:common-lang:${twelveMonkeysImageioVersion}"
-	include "com.twelvemonkeys.common:common-io:${twelveMonkeysImageioVersion}"
-	include "com.twelvemonkeys.common:common-image:${twelveMonkeysImageioVersion}"
+	bundledLibrary "org.tukaani:xz:${libs.versions.xz.get()}"
+	implementation libs.xz
+	implementation "io.github.sebasbaumh:mapbox-vector-tile-java:${libs.versions.mapboxVectorTile1201.get()}"
+	include "io.github.sebasbaumh:mapbox-vector-tile-java:${libs.versions.mapboxVectorTile1201.get()}"
+	implementation "com.google.protobuf:protobuf-java:${libs.versions.protobuf1201.get()}"
+	include "com.google.protobuf:protobuf-java:${libs.versions.protobuf1201.get()}"
+	implementation "com.twelvemonkeys.imageio:imageio-webp:${libs.versions.twelveMonkeys.get()}"
+	implementation "com.twelvemonkeys.imageio:imageio-core:${libs.versions.twelveMonkeys.get()}"
+	implementation "com.twelvemonkeys.imageio:imageio-metadata:${libs.versions.twelveMonkeys.get()}"
+	implementation "com.twelvemonkeys.common:common-lang:${libs.versions.twelveMonkeys.get()}"
+	implementation "com.twelvemonkeys.common:common-io:${libs.versions.twelveMonkeys.get()}"
+	implementation "com.twelvemonkeys.common:common-image:${libs.versions.twelveMonkeys.get()}"
+	include "com.twelvemonkeys.imageio:imageio-webp:${libs.versions.twelveMonkeys.get()}"
+	include "com.twelvemonkeys.imageio:imageio-core:${libs.versions.twelveMonkeys.get()}"
+	include "com.twelvemonkeys.imageio:imageio-metadata:${libs.versions.twelveMonkeys.get()}"
+	include "com.twelvemonkeys.common:common-lang:${libs.versions.twelveMonkeys.get()}"
+	include "com.twelvemonkeys.common:common-io:${libs.versions.twelveMonkeys.get()}"
+	include "com.twelvemonkeys.common:common-image:${libs.versions.twelveMonkeys.get()}"
 
-	testImplementation 'org.junit.jupiter:junit-jupiter:5.10.2'
-	testRuntimeOnly 'org.junit.jupiter:junit-jupiter-engine:5.10.2'
-	testRuntimeOnly 'org.junit.platform:junit-platform-launcher:1.10.2'
+	testImplementation libs.junitJupiter
+	testRuntimeOnly libs.junitJupiterEngine
+	testRuntimeOnly libs.junitPlatformLauncher
 
-	compileOnly "maven.modrinth:DistantHorizonsApi:${distantHorizonsApiVersion}"
+	compileOnly "maven.modrinth:DistantHorizonsApi:${libs.versions.distantHorizonsApi.get()}"
 	if (distantHorizonsRuntimePath) {
 		runtimeOnly files(distantHorizonsRuntimePath)
 	}

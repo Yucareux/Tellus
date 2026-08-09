@@ -1,0 +1,59 @@
+# Central version catalog. Bump shared dependency/plugin versions here instead
+# of in each module's build.gradle.
+
+[versions]
+# Shared across all targets
+twelveMonkeys = "3.13.1"
+distantHorizonsApi = "7.0.0"
+xz = "1.10"
+junit = "5.10.2"
+junitPlatformLauncher = "1.10.2"
+# 1.20.1 pins (older protobuf/mapbox line required by that target)
+mapboxVectorTile1201 = "23.2.0"
+protobuf1201 = "3.25.5"
+# 1.21.1 / 26.2 line
+mapboxVectorTile = "24.1.1"
+protobuf = "4.28.2"
+# Loader and mod API versions, one set per Minecraft target
+fabricLoader1201 = "0.16.10"
+fabricLoader1211 = "0.15.11"
+fabricLoader262 = "0.19.3"
+fabricApi1201 = "0.92.8+1.20.1"
+fabricApi1211 = "0.115.4+1.21.1"
+fabricApi262 = "0.152.1+26.2"
+neoForge1211 = "21.1.238"
+neoForge262 = "26.2.0.7-beta"
+# Plugins
+loomRemap = "1.14.10"
+loom = "1.16.1"
+moddev = "2.0.141"
+shadow = "9.0.0"
+
+[libraries]
+junitJupiter = { module = "org.junit.jupiter:junit-jupiter", version.ref = "junit" }
+junitJupiterEngine = { module = "org.junit.jupiter:junit-jupiter-engine", version.ref = "junit" }
+junitPlatformLauncher = { module = "org.junit.platform:junit-platform-launcher", version.ref = "junitPlatformLauncher" }
+xz = { module = "org.tukaani:xz", version.ref = "xz" }
+mapboxVectorTile = { module = "io.github.sebasbaumh:mapbox-vector-tile-java", version.ref = "mapboxVectorTile" }
+mapboxVectorTile1201 = { module = "io.github.sebasbaumh:mapbox-vector-tile-java", version.ref = "mapboxVectorTile1201" }
+protobuf = { module = "com.google.protobuf:protobuf-java", version.ref = "protobuf" }
+protobuf1201 = { module = "com.google.protobuf:protobuf-java", version.ref = "protobuf1201" }
+twelveMonkeysWebp = { module = "com.twelvemonkeys.imageio:imageio-webp", version.ref = "twelveMonkeys" }
+twelveMonkeysCore = { module = "com.twelvemonkeys.imageio:imageio-core", version.ref = "twelveMonkeys" }
+twelveMonkeysMetadata = { module = "com.twelvemonkeys.imageio:imageio-metadata", version.ref = "twelveMonkeys" }
+twelveMonkeysLang = { module = "com.twelvemonkeys.common:common-lang", version.ref = "twelveMonkeys" }
+twelveMonkeysIo = { module = "com.twelvemonkeys.common:common-io", version.ref = "twelveMonkeys" }
+twelveMonkeysImage = { module = "com.twelvemonkeys.common:common-image", version.ref = "twelveMonkeys" }
+distantHorizonsApi = { module = "maven.modrinth:DistantHorizonsApi", version.ref = "distantHorizonsApi" }
+fabricLoader1201 = { module = "net.fabricmc:fabric-loader", version.ref = "fabricLoader1201" }
+fabricLoader1211 = { module = "net.fabricmc:fabric-loader", version.ref = "fabricLoader1211" }
+fabricLoader262 = { module = "net.fabricmc:fabric-loader", version.ref = "fabricLoader262" }
+fabricApi1201 = { module = "net.fabricmc.fabric-api:fabric-api", version.ref = "fabricApi1201" }
+fabricApi1211 = { module = "net.fabricmc.fabric-api:fabric-api", version.ref = "fabricApi1211" }
+fabricApi262 = { module = "net.fabricmc.fabric-api:fabric-api", version.ref = "fabricApi262" }
+
+[plugins]
+loomRemap = { id = "net.fabricmc.fabric-loom-remap", version.ref = "loomRemap" }
+loom = { id = "net.fabricmc.fabric-loom", version.ref = "loom" }
+moddev = { id = "net.neoforged.moddev", version.ref = "moddev" }
+shadow = { id = "com.gradleup.shadow", version.ref = "shadow" }

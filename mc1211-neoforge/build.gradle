@@ -1,16 +1,17 @@
 plugins {
 	id 'java-library'
 	id 'maven-publish'
-	id 'net.neoforged.moddev' version '2.0.141'
-	id 'com.gradleup.shadow' version '9.0.0'
+	alias(libs.plugins.moddev)
+	alias(libs.plugins.shadow)
 }
 
 def minecraftVersion = '1.21.1'
-def neoForgeVersion = '21.1.238'
-def distantHorizonsApiVersion = '7.0.0'
-def twelveMonkeysImageioVersion = '3.13.1'
+def neoForgeVersion = libs.versions.neoForge1211.get()
 def javaVersion = 21
 def distantHorizonsRuntimePath = providers.gradleProperty('mc1211_neoforge_distant_horizons_runtime_path').orNull
+def twelveMonkeysVersion = libs.versions.twelveMonkeys.get()
+def mapboxVectorTileVersion = libs.versions.mapboxVectorTile.get()
+def protobufVersion = libs.versions.protobuf.get()
 
 base {
 	archivesName = "${rootProject.archives_base_name}-neoforge-${minecraftVersion}"
@@ -82,69 +83,69 @@ configurations {
 }
 
 dependencies {
-	compileOnly 'org.tukaani:xz:1.10'
-	relocatedXz 'org.tukaani:xz:1.10'
-	jarJar(implementation('io.github.sebasbaumh:mapbox-vector-tile-java:24.1.1') {
+	compileOnly libs.xz
+	relocatedXz libs.xz
+	jarJar(implementation("io.github.sebasbaumh:mapbox-vector-tile-java:${mapboxVectorTileVersion}") {
 		exclude group: 'org.slf4j', module: 'slf4j-api'
 	}) {
 		version {
-			strictly '[24.1.1,25.0)'
-			prefer '24.1.1'
+			strictly "[${mapboxVectorTileVersion},25.0)"
+			prefer mapboxVectorTileVersion
 		}
 	}
-	jarJar(implementation('com.google.protobuf:protobuf-java:4.28.2')) {
+	jarJar(implementation("com.google.protobuf:protobuf-java:${protobufVersion}")) {
 		version {
-			strictly '[4.28.2,5.0)'
-			prefer '4.28.2'
+			strictly "[${protobufVersion},5.0)"
+			prefer protobufVersion
 		}
 	}
-	jarJar(implementation("com.twelvemonkeys.imageio:imageio-webp:${twelveMonkeysImageioVersion}")) {
+	jarJar(implementation("com.twelvemonkeys.imageio:imageio-webp:${twelveMonkeysVersion}")) {
 		version {
-			strictly '[3.13.1,3.14)'
-			prefer twelveMonkeysImageioVersion
+			strictly "[${twelveMonkeysVersion},3.14)"
+			prefer twelveMonkeysVersion
 		}
 	}
-	jarJar(implementation("com.twelvemonkeys.imageio:imageio-core:${twelveMonkeysImageioVersion}")) {
+	jarJar(implementation("com.twelvemonkeys.imageio:imageio-core:${twelveMonkeysVersion}")) {
 		version {
-			strictly '[3.13.1,3.14)'
-			prefer twelveMonkeysImageioVersion
+			strictly "[${twelveMonkeysVersion},3.14)"
+			prefer twelveMonkeysVersion
 		}
 	}
-	jarJar(implementation("com.twelvemonkeys.imageio:imageio-metadata:${twelveMonkeysImageioVersion}")) {
+	jarJar(implementation("com.twelvemonkeys.imageio:imageio-metadata:${twelveMonkeysVersion}")) {
 		version {
-			strictly '[3.13.1,3.14)'
-			prefer twelveMonkeysImageioVersion
+			strictly "[${twelveMonkeysVersion},3.14)"
+			prefer twelveMonkeysVersion
 		}
 	}
-	jarJar(implementation("com.twelvemonkeys.common:common-lang:${twelveMonkeysImageioVersion}")) {
+	jarJar(implementation("com.twelvemonkeys.common:common-lang:${twelveMonkeysVersion}")) {
 		version {
-			strictly '[3.13.1,3.14)'
-			prefer twelveMonkeysImageioVersion
+			strictly "[${twelveMonkeysVersion},3.14)"
+			prefer twelveMonkeysVersion
 		}
 	}
-	jarJar(implementation("com.twelvemonkeys.common:common-io:${twelveMonkeysImageioVersion}")) {
+	jarJar(implementation("com.twelvemonkeys.common:common-io:${twelveMonkeysVersion}")) {
 		version {
-			strictly '[3.13.1,3.14)'
-			prefer twelveMonkeysImageioVersion
+			strictly "[${twelveMonkeysVersion},3.14)"
+			prefer twelveMonkeysVersion
 		}
 	}
-	jarJar(implementation("com.twelvemonkeys.common:common-image:${twelveMonkeysImageioVersion}")) {
+	jarJar(implementation("com.twelvemonkeys.common:common-image:${twelveMonkeysVersion}")) {
 		version {
-			strictly '[3.13.1,3.14)'
-			prefer twelveMonkeysImageioVersion
+			strictly "[${twelveMonkeysVersion},3.14)"
+			prefer twelveMonkeysVersion
 		}
 	}
 
-	testImplementation 'org.junit.jupiter:junit-jupiter:5.10.2'
-	testImplementation 'org.tukaani:xz:1.10'
-	testRuntimeOnly 'org.junit.jupiter:junit-jupiter-engine:5.10.2'
-	testRuntimeOnly 'org.junit.platform:junit-platform-launcher:1.10.2'
+	testImplementation libs.junitJupiter
+	testImplementation libs.xz
+	testRuntimeOnly libs.junitJupiterEngine
+	testRuntimeOnly libs.junitPlatformLauncher
 
-	compileOnly "maven.modrinth:DistantHorizonsApi:${distantHorizonsApiVersion}"
+	compileOnly libs.distantHorizonsApi
 	if (distantHorizonsRuntimePath) {
 		localRuntime files(distantHorizonsRuntimePath)
 	} else {
-		localRuntime 'org.tukaani:xz:1.10'
+		localRuntime libs.xz
 	}
 }
 

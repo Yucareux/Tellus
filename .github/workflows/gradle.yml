@@ -13,6 +13,20 @@ concurrency:
 
 jobs:
   build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - module: mc1201
+            label: fabric-1.20.1
+          - module: mc1211
+            label: fabric-1.21.1
+          - module: mc1211-neoforge
+            label: neoforge-1.21.1
+          - module: mc262
+            label: fabric-26.2
+          - module: mc262-neoforge
+            label: neoforge-26.2
     runs-on: ubuntu-latest
     timeout-minutes: 45
 
@@ -29,5 +43,12 @@ jobs:
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@0723195856401067f7a2779048b490ace7a47d7c # v5
 
-      - name: Build and test every target
-        run: ./gradlew build --stacktrace
+      - name: Build and test ${{ matrix.label }}
+        run: ./gradlew :${{ matrix.module }}:build --stacktrace
+
+      - name: Upload ${{ matrix.label }} artifacts
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: tellus-${{ matrix.label }}
+          path: ${{ matrix.module }}/build/libs/*.jar
+          if-no-files-found: warn
