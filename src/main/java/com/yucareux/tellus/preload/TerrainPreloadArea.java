@@ -1,6 +1,6 @@
 package com.yucareux.tellus.preload;
 
-import com.yucareux.tellus.worldgen.EarthProjection;
+import com.yucareux.tellus.worldgen.WorldProjection;
 import java.util.Objects;
 
 public record TerrainPreloadArea(
@@ -64,19 +64,82 @@ public record TerrainPreloadArea(
       }
    }
 
-   public static TerrainPreloadArea centered(double latitude, double longitude, int chunksPerSide, double worldScale) {
+   public static TerrainPreloadArea centered(double latitude, double longitude, int chunksPerSide, WorldProjection projection) {
+      Objects.requireNonNull(projection, "projection");
       int safeChunks = clampChunksPerSide(chunksPerSide);
-      double blocksPerDegree = EarthProjection.blocksPerDegree(worldScale);
-      double centerBlockX = longitude * blocksPerDegree;
-      double centerBlockZ = EarthProjection.latToBlockZ(latitude, worldScale);
+      double centerBlockX = projection.lonToBlockX(longitude);
+      double centerBlockZ = projection.latToBlockZ(latitude);
       double sideBlocks = safeChunks * (double)CHUNK_SIZE;
       int minChunkX = Math.floorDiv(floorToIntExact(centerBlockX - sideBlocks * 0.5), CHUNK_SIZE);
       int minChunkZ = Math.floorDiv(floorToIntExact(centerBlockZ - sideBlocks * 0.5), CHUNK_SIZE);
       int maxChunkX = checkedChunkEnd(minChunkX, safeChunks);
       int maxChunkZ = checkedChunkEnd(minChunkZ, safeChunks);
-      return fromChunkBounds(latitude, longitude, safeChunks, worldScale, minChunkX, minChunkZ, maxChunkX, maxChunkZ);
+      return fromChunkBounds(latitude, longitude, safeChunks, projection, minChunkX, minChunkZ, maxChunkX, maxChunkZ);
    }
 
+   /** Compatibility convenience for callers that explicitly want the historical global origin. */
+   public static TerrainPreloadArea centered(double latitude, double longitude, int chunksPerSide, double worldScale) {
+      return centered(latitude, longitude, chunksPerSide, WorldProjection.global(worldScale));
+   }
+
+   public static TerrainPreloadArea fromChunkBounds(
+      double latitude,
+      double longitude,
+      int chunksPerSide,
+      WorldProjection projection,
+      int minChunkX,
+      int minChunkZ,
+      int maxChunkX,
+      int maxChunkZ
+   ) {
+      Objects.requireNonNull(projection, "projection");
+      int minBlockX = checkedMinBlock(minChunkX);
+      int minBlockZ = checkedMinBlock(minChunkZ);
+      int maxBlockX = checkedMaxBlock(maxChunkX);
+      int maxBlockZ = checkedMaxBlock(maxChunkZ);
+      double lonA = projection.blockXToLon(minBlockX);
+      double lonB = projection.blockXToLon(maxBlockX);
+      double latA = projection.blockZToLat(minBlockZ);
+      double latB = projection.blockZToLat(maxBlockZ);
+      double north = Math.max(latA, latB);
+      double south = Math.min(latA, latB);
+      // A centred world's edge is the meridian opposite its origin, so an area that straddles it wraps
+      // in longitude; keep the stored bounds ordered by widening east past +180 in that case.
+      double west = Math.min(lonA, lonB);
+      double east = Math.max(lonA, lonB);
+      if (projection.isCentered() && lonB < lonA) {
+         double positiveWest = lonA;
+         double positiveEast = lonB + 360.0;
+         double negativeWest = lonA - 360.0;
+         double negativeEast = lonB;
+         double positiveDistance = Math.abs((positiveWest + positiveEast) * 0.5 - longitude);
+         double negativeDistance = Math.abs((negativeWest + negativeEast) * 0.5 - longitude);
+         if (negativeDistance < positiveDistance) {
+            west = negativeWest;
+            east = negativeEast;
+         } else {
+            west = positiveWest;
+            east = positiveEast;
+         }
+      }
+
+      return new TerrainPreloadArea(
+         projection.clampLatitude(latitude),
+         longitude,
+         chunksPerSide,
+         projection.worldScale(),
+         minChunkX,
+         minChunkZ,
+         maxChunkX,
+         maxChunkZ,
+         north,
+         south,
+         west,
+         east
+      );
+   }
+
+   /** Compatibility convenience for callers that explicitly want the historical global origin. */
    public static TerrainPreloadArea fromChunkBounds(
       double latitude,
       double longitude,
@@ -87,30 +150,8 @@ public record TerrainPreloadArea(
       int maxChunkX,
       int maxChunkZ
    ) {
-      double blocksPerDegree = EarthProjection.blocksPerDegree(worldScale);
-      int minBlockX = checkedMinBlock(minChunkX);
-      int minBlockZ = checkedMinBlock(minChunkZ);
-      int maxBlockX = checkedMaxBlock(maxChunkX);
-      int maxBlockZ = checkedMaxBlock(maxChunkZ);
-      double west = minBlockX / blocksPerDegree;
-      double east = maxBlockX / blocksPerDegree;
-      double latA = EarthProjection.blockZToLat(minBlockZ, worldScale);
-      double latB = EarthProjection.blockZToLat(maxBlockZ, worldScale);
-      double north = Math.max(latA, latB);
-      double south = Math.min(latA, latB);
-      return new TerrainPreloadArea(
-         EarthProjection.clampLatitude(latitude),
-         longitude,
-         chunksPerSide,
-         worldScale,
-         minChunkX,
-         minChunkZ,
-         maxChunkX,
-         maxChunkZ,
-         north,
-         south,
-         west,
-         east
+      return fromChunkBounds(
+         latitude, longitude, chunksPerSide, WorldProjection.global(worldScale), minChunkX, minChunkZ, maxChunkX, maxChunkZ
       );
    }
 

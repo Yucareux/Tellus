@@ -129,11 +129,12 @@ public final class TellusWorldgenSources {
    ) {
       Objects.requireNonNull(settings, "settings");
       double worldScale = settings.worldScale();
-      int coverClass = LAND_COVER.sampleCoverClass(blockX, blockZ, worldScale, previewResolutionMeters);
-      TellusLandMaskSource.LandMaskSample landMask = LAND_MASK.sampleLandMask(blockX, blockZ, worldScale);
+      WorldProjection projection = settings.projection();
+      int coverClass = LAND_COVER.sampleCoverClass(blockX, blockZ, projection, previewResolutionMeters);
+      TellusLandMaskSource.LandMaskSample landMask = LAND_MASK.sampleLandMask(blockX, blockZ, projection);
       boolean oceanCandidate = landMask.known() && !landMask.land() && (coverClass == 0 || coverClass == 80);
       TellusElevationSource.ResolvedElevationSample elevation = ELEVATION.sampleResolvedPreviewElevationMeters(
-         blockX, blockZ, worldScale, oceanCandidate, settings.demSelection(), previewResolutionMeters
+         blockX, blockZ, projection, oceanCandidate, settings.demSelection(), previewResolutionMeters
       );
       double elevationMeters = elevation.elevationMeters();
       int terrainHeight;
@@ -143,7 +144,7 @@ public final class TellusWorldgenSources {
          int relativeHeight = TerrainHeightTransform.blockOffset(
             elevationMeters,
             blockZ,
-            settings.effectiveVerticalWorldScale(),
+            projection,
             settings.effectiveTerrestrialHeightScale(),
             settings.effectiveOceanicHeightScale(),
             settings.experimentalIncreaseHeight(),
@@ -172,18 +173,19 @@ public final class TellusWorldgenSources {
       int centerX = pos.getMinBlockX() + 8;
       int centerZ = pos.getMinBlockZ() + 8;
       double worldScale = settings.worldScale();
+      WorldProjection projection = settings.projection();
       boolean packagedTerrain = hasPreloadedTerrainForChunk(pos, settings, previewResolutionMeters);
       List<CompletableFuture<Void>> futures = new ArrayList<>(4);
       if (!packagedTerrain) {
          futures.add(
-            submitCriticalWarmup(() -> LAND_COVER.prefetchTiles(centerX, centerZ, worldScale, Math.max(0, LAND_COVER_PREFETCH_RADIUS), previewResolutionMeters))
+            submitCriticalWarmup(() -> LAND_COVER.prefetchTiles(centerX, centerZ, projection, Math.max(0, LAND_COVER_PREFETCH_RADIUS), previewResolutionMeters))
          );
          futures.add(
             submitCriticalWarmup(
-               () -> ELEVATION.prefetchTiles(centerX, centerZ, worldScale, Math.max(0, ELEVATION_PREFETCH_RADIUS), settings.demSelection(), previewResolutionMeters)
+               () -> ELEVATION.prefetchTiles(centerX, centerZ, projection, Math.max(0, ELEVATION_PREFETCH_RADIUS), settings.demSelection(), previewResolutionMeters)
             )
          );
-         futures.add(submitCriticalWarmup(() -> LAND_MASK.prefetchTiles(centerX, centerZ, worldScale, Math.max(1, LAND_MASK_PREFETCH_RADIUS))));
+         futures.add(submitCriticalWarmup(() -> LAND_MASK.prefetchTiles(centerX, centerZ, projection, Math.max(1, LAND_MASK_PREFETCH_RADIUS))));
       }
 
       if (settings.customTrees() && CANOPY_HEIGHT_PREFETCH_RADIUS >= 0) {
@@ -192,7 +194,7 @@ public final class TellusWorldgenSources {
                () -> CANOPY_HEIGHT.prefetchTiles(
                   centerX,
                   centerZ,
-                  worldScale,
+                  projection,
                   Math.max(0, CANOPY_HEIGHT_PREFETCH_RADIUS),
                   previewResolutionMeters
                )
@@ -201,7 +203,7 @@ public final class TellusWorldgenSources {
       }
 
          if (SAND_PREFETCH_RADIUS > 0 && worldScale > 0.0) {
-            futures.add(submitCriticalWarmup(() -> OSM_SAND.prefetchTiles(centerX, centerZ, worldScale, SAND_PREFETCH_RADIUS)));
+            futures.add(submitCriticalWarmup(() -> OSM_SAND.prefetchTiles(centerX, centerZ, projection, SAND_PREFETCH_RADIUS)));
          }
 
       for (CompletableFuture<Void> future : futures) {
@@ -282,45 +284,46 @@ public final class TellusWorldgenSources {
       int maxX = Math.max(minBlockX, maxBlockX);
       int maxZ = Math.max(minBlockZ, maxBlockZ);
       double worldScale = settings.worldScale();
+      WorldProjection projection = settings.projection();
       int marginBlocks = Math.max(16, (int)Math.ceil(64.0 / Math.max(1.0, worldScale)));
       int lodCellBlocks = lodCellSize(worldScale, previewResolutionMeters);
       List<CompletableFuture<Void>> sourceFutures = new ArrayList<>(8);
       sourceFutures.add(submitAreaPrefetch("land cover", () ->
-         LAND_COVER.preloadAreaInputsIntoMemory(minX, minZ, maxX, maxZ, worldScale, previewResolutionMeters, 0, null)
+         LAND_COVER.preloadAreaInputsIntoMemory(minX, minZ, maxX, maxZ, projection, previewResolutionMeters, 0, null)
       ));
       if (settings.customTrees()) {
          sourceFutures.add(submitAreaPrefetch("canopy height", () ->
-            CANOPY_HEIGHT.preloadAreaInputs(minX, minZ, maxX, maxZ, worldScale, previewResolutionMeters, 0, null)
+            CANOPY_HEIGHT.preloadAreaInputs(minX, minZ, maxX, maxZ, projection, previewResolutionMeters, 0, null)
          ));
       }
       sourceFutures.add(submitAreaPrefetch("elevation", () ->
-         ELEVATION.preloadAreaInputsIntoMemory(minX, minZ, maxX, maxZ, worldScale, settings.demSelection(), previewResolutionMeters, 0, null)
+         ELEVATION.preloadAreaInputsIntoMemory(minX, minZ, maxX, maxZ, projection, settings.demSelection(), previewResolutionMeters, 0, null)
       ));
       sourceFutures.add(submitAreaPrefetch("land mask", () ->
-         LAND_MASK.preloadAreaInputsIntoMemory(minX, minZ, maxX, maxZ, worldScale, 0, null)
+         LAND_MASK.preloadAreaInputsIntoMemory(minX, minZ, maxX, maxZ, projection, 0, null)
       ));
       if (SAND_PREFETCH_RADIUS > 0 && worldScale > 0.0 && lodDetail(lodCellBlocks) <= LOD_OSM_SURFACE_MAX_DETAIL) {
          sourceFutures.add(submitAreaPrefetch("sand", () ->
-            OSM_SAND.preloadAreaTiles(minX, minZ, maxX, maxZ, worldScale, Math.max(1, SAND_PREFETCH_RADIUS), 0, null)
+            OSM_SAND.preloadAreaTiles(minX, minZ, maxX, maxZ, projection, Math.max(1, SAND_PREFETCH_RADIUS), 0, null)
          ));
       }
       if (WATER_PREFETCH_ENABLED && settings.enableWater()) {
          int waterTileBudget = DhLodWaterResolver.waterQueryTileBudget(lodCellBlocks);
          sourceFutures.add(submitAreaPrefetch("water", () ->
-            OSM_WATER.downloadAreaInputs(minX, minZ, maxX, maxZ, worldScale, marginBlocks, waterTileBudget, 0, null)
+            OSM_WATER.downloadAreaInputs(minX, minZ, maxX, maxZ, projection, marginBlocks, waterTileBudget, 0, null)
          ));
       }
       if (includeRoadsPrefetch && settings.enableRoads() && worldScale > 0.0 && worldScale <= 15.0) {
          sourceFutures.add(submitAreaPrefetch("roads", () ->
-            OSM_ROADS.preloadAreaInputs(minX, minZ, maxX, maxZ, worldScale, marginBlocks, 0, null)
+            OSM_ROADS.preloadAreaInputs(minX, minZ, maxX, maxZ, projection, marginBlocks, 0, null)
          ));
          sourceFutures.add(submitAreaPrefetch("road infrastructure", () ->
-            OSM_INFRASTRUCTURE.preloadAreaInputs(minX, minZ, maxX, maxZ, worldScale, marginBlocks, 0, null)
+            OSM_INFRASTRUCTURE.preloadAreaInputs(minX, minZ, maxX, maxZ, projection, marginBlocks, 0, null)
          ));
       }
       if (includeBuildingsPrefetch && settings.enableBuildings() && worldScale > 0.0 && worldScale <= 15.0) {
          sourceFutures.add(submitAreaPrefetch("buildings", () ->
-            OSM_BUILDINGS.preloadAreaInputs(minX, minZ, maxX, maxZ, worldScale, marginBlocks, 0, null)
+            OSM_BUILDINGS.preloadAreaInputs(minX, minZ, maxX, maxZ, projection, marginBlocks, 0, null)
          ));
       }
 
@@ -382,46 +385,47 @@ public final class TellusWorldgenSources {
    ) {
       Objects.requireNonNull(settings, "settings");
       double worldScale = settings.worldScale();
+      WorldProjection projection = settings.projection();
       int marginBlocks = Math.max(16, (int)Math.ceil(64.0 / Math.max(1.0, worldScale)));
       int tasks = ELEVATION.preloadAreaTaskCount(
-         minBlockX, minBlockZ, maxBlockX, maxBlockZ, worldScale, settings.demSelection(), worldScale
+         minBlockX, minBlockZ, maxBlockX, maxBlockZ, projection, settings.demSelection(), worldScale
       )
-         + LAND_COVER.preloadAreaTaskCount(minBlockX, minBlockZ, maxBlockX, maxBlockZ, worldScale, worldScale)
+         + LAND_COVER.preloadAreaTaskCount(minBlockX, minBlockZ, maxBlockX, maxBlockZ, projection, worldScale)
          + (settings.customTrees()
-            ? CANOPY_HEIGHT.preloadAreaTaskCount(minBlockX, minBlockZ, maxBlockX, maxBlockZ, worldScale, worldScale)
+            ? CANOPY_HEIGHT.preloadAreaTaskCount(minBlockX, minBlockZ, maxBlockX, maxBlockZ, projection, worldScale)
             : 0)
-         + LAND_MASK.preloadAreaTaskCount(minBlockX, minBlockZ, maxBlockX, maxBlockZ, worldScale)
-         + OSM_SAND.downloadAreaTileCount(minBlockX, minBlockZ, maxBlockX, maxBlockZ, worldScale, Math.max(1, SAND_PREFETCH_RADIUS));
+         + LAND_MASK.preloadAreaTaskCount(minBlockX, minBlockZ, maxBlockX, maxBlockZ, projection)
+         + OSM_SAND.downloadAreaTileCount(minBlockX, minBlockZ, maxBlockX, maxBlockZ, projection, Math.max(1, SAND_PREFETCH_RADIUS));
       if (hasDistinctPackageResolution(worldScale, packagePreviewResolutionMeters)) {
          tasks += ELEVATION.preloadAreaTaskCount(
             minBlockX,
             minBlockZ,
             maxBlockX,
             maxBlockZ,
-            worldScale,
+            projection,
             settings.demSelection(),
             packagePreviewResolutionMeters
          );
          tasks += LAND_COVER.preloadAreaTaskCount(
-            minBlockX, minBlockZ, maxBlockX, maxBlockZ, worldScale, packagePreviewResolutionMeters
+            minBlockX, minBlockZ, maxBlockX, maxBlockZ, projection, packagePreviewResolutionMeters
          );
          if (settings.customTrees()) {
             tasks += CANOPY_HEIGHT.preloadAreaTaskCount(
-               minBlockX, minBlockZ, maxBlockX, maxBlockZ, worldScale, packagePreviewResolutionMeters
+               minBlockX, minBlockZ, maxBlockX, maxBlockZ, projection, packagePreviewResolutionMeters
             );
          }
       }
       if (settings.enableWater()) {
-         tasks += OSM_WATER.downloadAreaTaskCount(minBlockX, minBlockZ, maxBlockX, maxBlockZ, worldScale, marginBlocks);
+         tasks += OSM_WATER.downloadAreaTaskCount(minBlockX, minBlockZ, maxBlockX, maxBlockZ, projection, marginBlocks);
       }
 
       if (settings.enableRoads() && worldScale > 0.0 && worldScale <= 15.0) {
-         tasks += OSM_ROADS.downloadAreaTaskCount(minBlockX, minBlockZ, maxBlockX, maxBlockZ, worldScale, marginBlocks)
-            + OSM_INFRASTRUCTURE.downloadAreaTaskCount(minBlockX, minBlockZ, maxBlockX, maxBlockZ, worldScale, marginBlocks);
+         tasks += OSM_ROADS.downloadAreaTaskCount(minBlockX, minBlockZ, maxBlockX, maxBlockZ, projection, marginBlocks)
+            + OSM_INFRASTRUCTURE.downloadAreaTaskCount(minBlockX, minBlockZ, maxBlockX, maxBlockZ, projection, marginBlocks);
       }
 
       if (settings.enableBuildings() && worldScale > 0.0 && worldScale <= 15.0) {
-         tasks += OSM_BUILDINGS.downloadAreaTaskCount(minBlockX, minBlockZ, maxBlockX, maxBlockZ, worldScale, marginBlocks);
+         tasks += OSM_BUILDINGS.downloadAreaTaskCount(minBlockX, minBlockZ, maxBlockX, maxBlockZ, projection, marginBlocks);
       }
 
       return tasks;
@@ -451,17 +455,20 @@ public final class TellusWorldgenSources {
       BiConsumer<Integer, String> progress = progressConsumer == null ? (completed, detail) -> {
       } : progressConsumer;
       double worldScale = settings.worldScale();
+      WorldProjection projection = settings.projection();
       int marginBlocks = Math.max(16, (int)Math.ceil(64.0 / Math.max(1.0, worldScale)));
       int completed = 0;
 
       completed = ELEVATION.preloadAreaInputs(
-         minBlockX, minBlockZ, maxBlockX, maxBlockZ, worldScale, settings.demSelection(), worldScale, completed, progress
+         minBlockX, minBlockZ, maxBlockX, maxBlockZ, projection, settings.demSelection(), worldScale, completed, progress
       );
 
-      completed = LAND_COVER.preloadAreaInputs(minBlockX, minBlockZ, maxBlockX, maxBlockZ, worldScale, worldScale, completed, progress);
+      completed = LAND_COVER.preloadAreaInputs(
+         minBlockX, minBlockZ, maxBlockX, maxBlockZ, projection, worldScale, completed, progress
+      );
       if (settings.customTrees()) {
          completed = CANOPY_HEIGHT.preloadAreaInputs(
-            minBlockX, minBlockZ, maxBlockX, maxBlockZ, worldScale, worldScale, completed, progress
+            minBlockX, minBlockZ, maxBlockX, maxBlockZ, projection, worldScale, completed, progress
          );
       }
 
@@ -471,7 +478,7 @@ public final class TellusWorldgenSources {
             minBlockZ,
             maxBlockX,
             maxBlockZ,
-            worldScale,
+            projection,
             settings.demSelection(),
             packagePreviewResolutionMeters,
             completed,
@@ -482,7 +489,7 @@ public final class TellusWorldgenSources {
             minBlockZ,
             maxBlockX,
             maxBlockZ,
-            worldScale,
+            projection,
             packagePreviewResolutionMeters,
             completed,
             progress
@@ -493,7 +500,7 @@ public final class TellusWorldgenSources {
                minBlockZ,
                maxBlockX,
                maxBlockZ,
-               worldScale,
+               projection,
                packagePreviewResolutionMeters,
                completed,
                progress
@@ -501,23 +508,23 @@ public final class TellusWorldgenSources {
          }
       }
 
-      completed = LAND_MASK.preloadAreaInputs(minBlockX, minBlockZ, maxBlockX, maxBlockZ, worldScale, completed, progress);
+      completed = LAND_MASK.preloadAreaInputs(minBlockX, minBlockZ, maxBlockX, maxBlockZ, projection, completed, progress);
 
       completed = OSM_SAND.downloadAreaTiles(
-         minBlockX, minBlockZ, maxBlockX, maxBlockZ, worldScale, Math.max(1, SAND_PREFETCH_RADIUS), completed, progress
+         minBlockX, minBlockZ, maxBlockX, maxBlockZ, projection, Math.max(1, SAND_PREFETCH_RADIUS), completed, progress
       );
 
       if (settings.enableWater()) {
-         completed = OSM_WATER.downloadAreaInputs(minBlockX, minBlockZ, maxBlockX, maxBlockZ, worldScale, marginBlocks, completed, progress);
+         completed = OSM_WATER.downloadAreaInputs(minBlockX, minBlockZ, maxBlockX, maxBlockZ, projection, marginBlocks, completed, progress);
       }
 
       if (settings.enableRoads() && worldScale > 0.0 && worldScale <= 15.0) {
-         completed = OSM_ROADS.downloadAreaInputs(minBlockX, minBlockZ, maxBlockX, maxBlockZ, worldScale, marginBlocks, completed, progress);
-         completed = OSM_INFRASTRUCTURE.downloadAreaInputs(minBlockX, minBlockZ, maxBlockX, maxBlockZ, worldScale, marginBlocks, completed, progress);
+         completed = OSM_ROADS.downloadAreaInputs(minBlockX, minBlockZ, maxBlockX, maxBlockZ, projection, marginBlocks, completed, progress);
+         completed = OSM_INFRASTRUCTURE.downloadAreaInputs(minBlockX, minBlockZ, maxBlockX, maxBlockZ, projection, marginBlocks, completed, progress);
       }
 
       if (settings.enableBuildings() && worldScale > 0.0 && worldScale <= 15.0) {
-         completed = OSM_BUILDINGS.downloadAreaInputs(minBlockX, minBlockZ, maxBlockX, maxBlockZ, worldScale, marginBlocks, completed, progress);
+         completed = OSM_BUILDINGS.downloadAreaInputs(minBlockX, minBlockZ, maxBlockX, maxBlockZ, projection, marginBlocks, completed, progress);
       }
    }
 
@@ -537,8 +544,9 @@ public final class TellusWorldgenSources {
          int centerX = pos.getMinBlockX() + 8;
          int centerZ = pos.getMinBlockZ() + 8;
          double worldScale = settings.worldScale();
+         WorldProjection projection = settings.projection();
          if (LAND_COVER_PREFETCH_RADIUS > 0) {
-            submitPrefetch(() -> LAND_COVER.prefetchTiles(centerX, centerZ, worldScale, LAND_COVER_PREFETCH_RADIUS, previewResolutionMeters), allowInlineExecution);
+            submitPrefetch(() -> LAND_COVER.prefetchTiles(centerX, centerZ, projection, LAND_COVER_PREFETCH_RADIUS, previewResolutionMeters), allowInlineExecution);
          }
 
          if (settings.customTrees() && CANOPY_HEIGHT_PREFETCH_RADIUS >= 0) {
@@ -546,7 +554,7 @@ public final class TellusWorldgenSources {
                () -> CANOPY_HEIGHT.prefetchTiles(
                   centerX,
                   centerZ,
-                  worldScale,
+                  projection,
                   Math.max(0, CANOPY_HEIGHT_PREFETCH_RADIUS),
                   previewResolutionMeters
                ),
@@ -561,13 +569,13 @@ public final class TellusWorldgenSources {
                ? 0
                : ELEVATION_PREFETCH_RADIUS;
             submitPrefetch(
-               () -> ELEVATION.prefetchTiles(centerX, centerZ, worldScale, elevationPrefetchRadius, settings.demSelection(), previewResolutionMeters),
+               () -> ELEVATION.prefetchTiles(centerX, centerZ, projection, elevationPrefetchRadius, settings.demSelection(), previewResolutionMeters),
                allowInlineExecution
             );
          }
 
          if (LAND_MASK_PREFETCH_RADIUS > 0) {
-            submitPrefetch(() -> LAND_MASK.prefetchTiles(centerX, centerZ, worldScale, LAND_MASK_PREFETCH_RADIUS), allowInlineExecution);
+            submitPrefetch(() -> LAND_MASK.prefetchTiles(centerX, centerZ, projection, LAND_MASK_PREFETCH_RADIUS), allowInlineExecution);
          }
       }
    }
@@ -584,12 +592,13 @@ public final class TellusWorldgenSources {
          int centerX = pos.getMinBlockX() + 8;
          int centerZ = pos.getMinBlockZ() + 8;
          double worldScale = settings.worldScale();
+         WorldProjection projection = settings.projection();
          if (WATER_PREFETCH_ENABLED && WATER_PREFETCH_RADIUS > 0 && settings.enableWater()) {
-            submitPrefetch(() -> OSM_WATER.prefetchTiles(centerX, centerZ, worldScale, WATER_PREFETCH_RADIUS), allowInlineExecution);
+            submitPrefetch(() -> OSM_WATER.prefetchTiles(centerX, centerZ, projection, WATER_PREFETCH_RADIUS), allowInlineExecution);
          }
 
          if (SAND_PREFETCH_RADIUS > 0 && worldScale > 0.0) {
-            submitPrefetch(() -> OSM_SAND.prefetchTiles(centerX, centerZ, worldScale, SAND_PREFETCH_RADIUS), allowInlineExecution);
+            submitPrefetch(() -> OSM_SAND.prefetchTiles(centerX, centerZ, projection, SAND_PREFETCH_RADIUS), allowInlineExecution);
          }
 
          if (includeDetailedWaterPrefetch && CHUNK_DETAIL_PREFETCH_RADIUS > 0) {
@@ -616,16 +625,17 @@ public final class TellusWorldgenSources {
          int centerX = pos.getMinBlockX() + 8;
          int centerZ = pos.getMinBlockZ() + 8;
          double worldScale = settings.worldScale();
+         WorldProjection projection = settings.projection();
          if (includeRoadsPrefetch && settings.enableRoads() && worldScale <= 15.0 && ROADS_PREFETCH_RADIUS > 0) {
-            submitPrefetch(() -> OSM_ROADS.prefetchTiles(centerX, centerZ, worldScale, ROADS_PREFETCH_RADIUS), allowInlineExecution);
+            submitPrefetch(() -> OSM_ROADS.prefetchTiles(centerX, centerZ, projection, ROADS_PREFETCH_RADIUS), allowInlineExecution);
          }
 
          if (includeRoadsPrefetch && settings.enableRoads() && worldScale <= 15.0 && INFRASTRUCTURE_PREFETCH_RADIUS > 0) {
-            submitPrefetch(() -> OSM_INFRASTRUCTURE.prefetchTiles(centerX, centerZ, worldScale, INFRASTRUCTURE_PREFETCH_RADIUS), allowInlineExecution);
+            submitPrefetch(() -> OSM_INFRASTRUCTURE.prefetchTiles(centerX, centerZ, projection, INFRASTRUCTURE_PREFETCH_RADIUS), allowInlineExecution);
          }
 
          if (includeBuildingsPrefetch && settings.enableBuildings() && worldScale > 0.0 && worldScale <= 15.0 && BUILDINGS_PREFETCH_RADIUS > 0) {
-            submitPrefetch(() -> OSM_BUILDINGS.prefetchTiles(centerX, centerZ, worldScale, BUILDINGS_PREFETCH_RADIUS), allowInlineExecution);
+            submitPrefetch(() -> OSM_BUILDINGS.prefetchTiles(centerX, centerZ, projection, BUILDINGS_PREFETCH_RADIUS), allowInlineExecution);
          }
       }
    }

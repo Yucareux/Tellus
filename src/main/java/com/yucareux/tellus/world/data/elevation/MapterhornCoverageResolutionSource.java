@@ -13,7 +13,7 @@ import com.yucareux.tellus.cache.TellusCacheRegistry;
 import com.yucareux.tellus.integration.distant_horizons.managed.ManagedTerrainNetworkPolicy;
 import com.yucareux.tellus.platform.TellusPlatform;
 import com.yucareux.tellus.world.data.source.InputStreamSafety;
-import com.yucareux.tellus.worldgen.EarthProjection;
+import com.yucareux.tellus.worldgen.WorldProjection;
 import io.github.sebasbaumh.mapbox.vectortile.VectorTile.Tile;
 import io.github.sebasbaumh.mapbox.vectortile.VectorTile.Tile.Feature;
 import io.github.sebasbaumh.mapbox.vectortile.VectorTile.Tile.GeomType;
@@ -85,40 +85,36 @@ final class MapterhornCoverageResolutionSource {
    }
 
    double lookupResolutionMeters(
-      double blockX, double blockZ, double worldScale, double previewResolutionMeters
+      double blockX, double blockZ, WorldProjection projection, double previewResolutionMeters
    ) {
       MapterhornCoverageResolutionSource.LookupMode mode = ManagedTerrainNetworkPolicy.isCacheOnly()
          ? MapterhornCoverageResolutionSource.LookupMode.LOCAL_ONLY
          : MapterhornCoverageResolutionSource.LookupMode.BLOCKING;
-      return this.lookupResolutionMeters(blockX, blockZ, worldScale, previewResolutionMeters, mode);
+      return this.lookupResolutionMeters(blockX, blockZ, projection, previewResolutionMeters, mode);
    }
 
    double lookupResolutionMetersLocalOnly(
-      double blockX, double blockZ, double worldScale, double previewResolutionMeters
+      double blockX, double blockZ, WorldProjection projection, double previewResolutionMeters
    ) {
       return this.lookupResolutionMeters(
-         blockX, blockZ, worldScale, previewResolutionMeters, MapterhornCoverageResolutionSource.LookupMode.LOCAL_ONLY
+         blockX, blockZ, projection, previewResolutionMeters, MapterhornCoverageResolutionSource.LookupMode.LOCAL_ONLY
       );
    }
 
    private double lookupResolutionMeters(
       double blockX,
       double blockZ,
-      double worldScale,
+      WorldProjection projection,
       double previewResolutionMeters,
       MapterhornCoverageResolutionSource.LookupMode lookupMode
    ) {
+      double worldScale = projection.worldScale();
       if (!(worldScale > 0.0)) {
          return Double.NaN;
       }
 
-      double blocksPerDegree = EarthProjection.blocksPerDegree(worldScale);
-      if (!(blocksPerDegree > 0.0)) {
-         return Double.NaN;
-      }
-
-      double lon = blockX / blocksPerDegree;
-      double lat = EarthProjection.blockZToLat(blockZ, worldScale);
+      double lon = projection.blockXToLon(blockX);
+      double lat = projection.blockZToLat(blockZ);
       double effectiveResolutionMeters = Double.isFinite(previewResolutionMeters) && previewResolutionMeters > 0.0
          ? Math.max(worldScale, previewResolutionMeters)
          : worldScale;

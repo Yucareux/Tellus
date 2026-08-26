@@ -24,10 +24,11 @@ class LandlockedSeaLevelTest {
    @Test
    void blockLookupUsesTheActiveEarthProjection() {
       double worldScale = 30.0;
-      int blockX = (int)Math.round(51.0 * EarthProjection.blocksPerDegree(worldScale));
-      int blockZ = (int)Math.round(EarthProjection.latToBlockZ(42.0, worldScale));
+      WorldProjection projection = WorldProjection.global(worldScale);
+      int blockX = (int)Math.round(projection.lonToBlockX(51.0));
+      int blockZ = (int)Math.round(projection.latToBlockZ(42.0));
 
-      assertEquals(-28.0, LandlockedSeaLevel.surfaceElevationMetersAtBlock(blockX, blockZ, worldScale));
+      assertEquals(-28.0, LandlockedSeaLevel.surfaceElevationMetersAtBlock(blockX, blockZ, projection));
    }
 
    private static void assertNoOverride(double longitude, double latitude) {

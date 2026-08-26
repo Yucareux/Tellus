@@ -101,8 +101,9 @@ public final class ExperimentalHeightSupport {
          return;
       }
 
-      int spawnX = projectedBlockX(settings.spawnLongitude(), settings.worldScale());
-      int spawnZ = projectedBlockZ(settings.spawnLatitude(), settings.worldScale());
+      WorldProjection projection = settings.projection();
+      int spawnX = projectedBlockX(settings.spawnLongitude(), projection);
+      int spawnZ = projectedBlockZ(settings.spawnLatitude(), projection);
       if (HighYPackedCoordinateProfile.containsHorizontal(spawnX, spawnZ)) {
          return;
       }
@@ -110,7 +111,8 @@ public final class ExperimentalHeightSupport {
       double minimumScale = findMinimumSupportedWorldScale(
          settings.worldScale(),
          scale -> HighYPackedCoordinateProfile.containsHorizontal(
-            projectedBlockX(settings.spawnLongitude(), scale), projectedBlockZ(settings.spawnLatitude(), scale)
+            projectedBlockX(settings.spawnLongitude(), projection.withWorldScale(scale)),
+            projectedBlockZ(settings.spawnLatitude(), projection.withWorldScale(scale))
          )
       );
       throw horizontalRangeException(
@@ -137,7 +139,10 @@ public final class ExperimentalHeightSupport {
       double minimumScale = findMinimumSupportedWorldScale(
          area.worldScale(), scale -> {
             TerrainPreloadArea scaledArea = TerrainPreloadArea.centered(
-               area.centerLatitude(), area.centerLongitude(), area.chunksPerSide(), scale
+               area.centerLatitude(),
+               area.centerLongitude(),
+               area.chunksPerSide(),
+               settings.projection().withWorldScale(scale)
             );
             return HighYPackedCoordinateProfile.containsHorizontalRange(
                scaledArea.minBlockX(), scaledArea.maxBlockX(), scaledArea.minBlockZ(), scaledArea.maxBlockZ()
@@ -261,12 +266,12 @@ public final class ExperimentalHeightSupport {
       }
    }
 
-   private static int projectedBlockX(double longitude, double worldScale) {
-      return Mth.floor(longitude * EarthProjection.blocksPerDegree(worldScale));
+   private static int projectedBlockX(double longitude, WorldProjection projection) {
+      return Mth.floor(projection.lonToBlockX(longitude));
    }
 
-   private static int projectedBlockZ(double latitude, double worldScale) {
-      return Mth.floor(EarthProjection.latToBlockZ(latitude, worldScale));
+   private static int projectedBlockZ(double latitude, WorldProjection projection) {
+      return Mth.floor(projection.latToBlockZ(latitude));
    }
 
    private static double findMinimumSupportedWorldScale(double currentScale, DoublePredicate supportedAtScale) {

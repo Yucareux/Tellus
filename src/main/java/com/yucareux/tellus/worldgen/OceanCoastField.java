@@ -32,6 +32,7 @@ public final class OceanCoastField {
    private static final ThreadLocal<Scratch> SCRATCH = ThreadLocal.withInitial(Scratch::new);
 
    private final TellusOsmWaterSource waterSource;
+   private final WorldProjection projection;
    private final double worldScale;
    private final int transitionBlocks;
    private final RawDepthSampler rawDepthSampler;
@@ -39,12 +40,13 @@ public final class OceanCoastField {
 
    public OceanCoastField(
       TellusOsmWaterSource waterSource,
-      double worldScale,
+      WorldProjection projection,
       int transitionBlocks,
       RawDepthSampler rawDepthSampler
    ) {
       this.waterSource = waterSource;
-      this.worldScale = worldScale;
+      this.projection = projection;
+      this.worldScale = projection.worldScale();
       this.transitionBlocks = OceanFloorProfile.clampTransitionDistance(transitionBlocks);
       this.rawDepthSampler = rawDepthSampler;
    }
@@ -86,7 +88,7 @@ public final class OceanCoastField {
       int maxX = minX + size - 1;
       int maxZ = minZ + size - 1;
       TellusOsmWaterSource.WaterQueryResult query = this.waterSource.waterForAreaWithStatus(
-         minX, minZ, maxX, maxZ, this.worldScale, 0, OsmQueryMode.BLOCKING
+         minX, minZ, maxX, maxZ, this.projection, 0, OsmQueryMode.BLOCKING
       );
       if (!query.complete()) {
          return MacroTile.incomplete(query.coverageStatus(), this.transitionBlocks);
@@ -271,6 +273,9 @@ public final class OceanCoastField {
    }
 
    private void rasterize(OsmWaterFeature feature, int gridMinX, int gridMinZ, int gridSize, boolean[] ocean) {
+      if (feature.crossesWorldSeam(this.projection)) {
+         return;
+      }
       int partCount = feature.partCount();
       double[][] partXs = new double[partCount][];
       double[][] partZs = new double[partCount][];
@@ -278,14 +283,13 @@ public final class OceanCoastField {
       int maxWorldX = Integer.MIN_VALUE;
       int minWorldZ = Integer.MAX_VALUE;
       int maxWorldZ = Integer.MIN_VALUE;
-      double blocksPerDegree = EarthProjection.blocksPerDegree(this.worldScale);
       for (int part = 0; part < partCount; part++) {
          int count = feature.pointCount(part);
          partXs[part] = new double[count];
          partZs[part] = new double[count];
          for (int point = 0; point < count; point++) {
-            double worldX = feature.lonAt(part, point) * blocksPerDegree;
-            double worldZ = EarthProjection.latToBlockZ(feature.latAt(part, point), this.worldScale);
+            double worldX = this.projection.lonToBlockX(feature.lonAt(part, point));
+            double worldZ = this.projection.latToBlockZ(feature.latAt(part, point));
             partXs[part][point] = worldX;
             partZs[part][point] = worldZ;
             minWorldX = Math.min(minWorldX, Mth.floor(worldX));

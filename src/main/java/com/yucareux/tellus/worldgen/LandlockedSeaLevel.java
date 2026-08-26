@@ -18,14 +18,13 @@ public final class LandlockedSeaLevel {
    private LandlockedSeaLevel() {
    }
 
-   public static double surfaceElevationMetersAtBlock(int blockX, int blockZ, double worldScale) {
-      double blocksPerDegree = EarthProjection.blocksPerDegree(worldScale);
-      if (!(blocksPerDegree > 0.0)) {
+   public static double surfaceElevationMetersAtBlock(int blockX, int blockZ, WorldProjection projection) {
+      if (!(projection.worldScale() > 0.0)) {
          return Double.NaN;
       }
 
-      double longitude = blockX / blocksPerDegree;
-      double latitude = EarthProjection.blockZToLat(blockZ, worldScale);
+      double longitude = projection.blockXToLon(blockX);
+      double latitude = projection.blockZToLat(blockZ);
       return surfaceElevationMeters(longitude, latitude);
    }
 

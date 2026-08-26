@@ -1,6 +1,7 @@
 package com.yucareux.tellus.world.data.osm;
 
-import com.yucareux.tellus.worldgen.EarthProjection;
+import com.yucareux.tellus.worldgen.WorldProjection;
+import java.util.Arrays;
 import java.util.function.Consumer;
 import net.minecraft.util.Mth;
 
@@ -14,33 +15,77 @@ public final class BridgeSupportLayout {
    private BridgeSupportLayout() {
    }
 
-   public static void forEachSupport(RoadFeature road, double blocksPerDegree, double worldScale, int roadWidth, Consumer<BridgeSupportLayout.SupportPlacement> consumer) {
+   public static boolean crossesWorldSeam(RoadFeature road, WorldProjection projection) {
+      if (road == null || projection == null || road.pointCount() < 2) {
+         return false;
+      }
+      double previousX = projection.lonToBlockX(road.lonAt(0));
+      for (int point = 1; point < road.pointCount(); point++) {
+         double currentX = projection.lonToBlockX(road.lonAt(point));
+         if (projection.crossesWorldSeam(previousX, currentX)) {
+            return true;
+         }
+         previousX = currentX;
+      }
+      return false;
+   }
+
+   public static void forEachSupport(
+      RoadFeature road, WorldProjection projection, int roadWidth, Consumer<BridgeSupportLayout.SupportPlacement> consumer
+   ) {
       if (road == null || consumer == null || road.pointCount() < 2 || roadWidth <= 0) {
          return;
       }
 
       double[] worldXs = new double[road.pointCount()];
       double[] worldZs = new double[road.pointCount()];
-      double[] segmentLengths = new double[Math.max(0, road.pointCount() - 1)];
-      double totalLength = 0.0;
-
       for (int i = 0; i < road.pointCount(); i++) {
-         worldXs[i] = road.lonAt(i) * blocksPerDegree;
-         worldZs[i] = EarthProjection.latToBlockZ(road.latAt(i), worldScale);
-         if (i > 0) {
-            double dx = worldXs[i] - worldXs[i - 1];
-            double dz = worldZs[i] - worldZs[i - 1];
-            double segmentLength = Math.sqrt(dx * dx + dz * dz);
-            segmentLengths[i - 1] = segmentLength;
-            totalLength += segmentLength;
+         worldXs[i] = projection.lonToBlockX(road.lonAt(i));
+         worldZs[i] = projection.latToBlockZ(road.latAt(i));
+      }
+
+      int runStart = 0;
+      for (int i = 1; i < road.pointCount(); i++) {
+         if (projection.crossesWorldSeam(worldXs[i - 1], worldXs[i])) {
+            emitSupportsForRun(road, projection, roadWidth, consumer, worldXs, worldZs, runStart, i);
+            runStart = i;
          }
+      }
+      emitSupportsForRun(road, projection, roadWidth, consumer, worldXs, worldZs, runStart, road.pointCount());
+   }
+
+   private static void emitSupportsForRun(
+      RoadFeature road,
+      WorldProjection projection,
+      int roadWidth,
+      Consumer<BridgeSupportLayout.SupportPlacement> consumer,
+      double[] allWorldXs,
+      double[] allWorldZs,
+      int startInclusive,
+      int endExclusive
+   ) {
+      int pointCount = endExclusive - startInclusive;
+      if (pointCount < 2) {
+         return;
+      }
+
+      double[] worldXs = Arrays.copyOfRange(allWorldXs, startInclusive, endExclusive);
+      double[] worldZs = Arrays.copyOfRange(allWorldZs, startInclusive, endExclusive);
+      double[] segmentLengths = new double[pointCount - 1];
+      double totalLength = 0.0;
+      for (int i = 1; i < pointCount; i++) {
+         double dx = worldXs[i] - worldXs[i - 1];
+         double dz = worldZs[i] - worldZs[i - 1];
+         double segmentLength = Math.sqrt(dx * dx + dz * dz);
+         segmentLengths[i - 1] = segmentLength;
+         totalLength += segmentLength;
       }
 
       if (totalLength <= 1.0E-6) {
          return;
       }
 
-      double targetSpan = targetSpanBlocks(road.roadClass(), worldScale);
+      double targetSpan = targetSpanBlocks(road.roadClass(), projection.worldScale());
       double endInset = endInsetBlocks(roadWidth, targetSpan);
       double usableStart = Math.min(endInset, totalLength * 0.5);
       double usableEnd = Math.max(usableStart, totalLength - endInset);

@@ -10,7 +10,7 @@ import com.yucareux.tellus.preload.TerrainPreloadStage;
 import com.yucareux.tellus.world.data.source.DownloadProgressReporter;
 import com.yucareux.tellus.worldgen.EarthChunkGenerator;
 import com.yucareux.tellus.worldgen.EarthGeneratorSettings;
-import com.yucareux.tellus.worldgen.EarthProjection;
+import com.yucareux.tellus.worldgen.WorldProjection;
 import com.yucareux.tellus.worldgen.TellusWorldgenSources;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -293,7 +293,7 @@ public final class ManagedTerrainDownloadManager {
       RuntimeException failure = null;
       progress.startedAtMillis = System.currentTimeMillis();
       try {
-         TerrainPreloadArea area = areaForCells(request.cells, generatorState.settings.worldScale());
+         TerrainPreloadArea area = areaForCells(request.cells, generatorState.settings.projection());
          for (int attempt = 1; attempt <= MAX_CORE_ATTEMPTS; attempt++) {
             progress.detail = request.buildPackage
                ? "Running player-centered terrain preload (attempt " + attempt + "/" + MAX_CORE_ATTEMPTS + ")"
@@ -442,26 +442,29 @@ public final class ManagedTerrainDownloadManager {
       }
    }
 
-   static TerrainPreloadArea areaForCells(List<ManagedTerrainCell> cells, double worldScale) {
+   static TerrainPreloadArea areaForCells(List<ManagedTerrainCell> cells, WorldProjection projection) {
       int minChunkX = cells.stream().mapToInt(ManagedTerrainCell::minChunkX).min().orElseThrow();
       int minChunkZ = cells.stream().mapToInt(ManagedTerrainCell::minChunkZ).min().orElseThrow();
       int maxChunkX = cells.stream().mapToInt(ManagedTerrainCell::maxChunkX).max().orElseThrow();
       int maxChunkZ = cells.stream().mapToInt(ManagedTerrainCell::maxChunkZ).max().orElseThrow();
       double centerBlockX = ((long)minChunkX + maxChunkX + 1L) * 8.0;
       double centerBlockZ = ((long)minChunkZ + maxChunkZ + 1L) * 8.0;
-      double blocksPerDegree = EarthProjection.blocksPerDegree(worldScale);
-      double longitude = centerBlockX / blocksPerDegree;
-      double latitude = EarthProjection.blockZToLat(centerBlockZ, worldScale);
+      double longitude = projection.blockXToLon(centerBlockX);
+      double latitude = projection.blockZToLat(centerBlockZ);
       return TerrainPreloadArea.fromChunkBounds(
          latitude,
          longitude,
          Math.max(maxChunkX - minChunkX + 1, maxChunkZ - minChunkZ + 1),
-         worldScale,
+         projection,
          minChunkX,
          minChunkZ,
          maxChunkX,
          maxChunkZ
       );
+   }
+
+   static TerrainPreloadArea areaForCells(List<ManagedTerrainCell> cells, double worldScale) {
+      return areaForCells(cells, WorldProjection.global(worldScale));
    }
 
    private static void sleepBeforeRetry(int attempt) {

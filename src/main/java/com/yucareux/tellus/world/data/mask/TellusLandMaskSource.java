@@ -12,7 +12,7 @@ import com.yucareux.tellus.integration.distant_horizons.managed.ManagedTerrainNe
 import com.yucareux.tellus.platform.TellusPlatform;
 import com.yucareux.tellus.world.data.source.ParallelDownloadRunner;
 import com.yucareux.tellus.world.data.source.MapTileImageValidator;
-import com.yucareux.tellus.worldgen.EarthProjection;
+import com.yucareux.tellus.worldgen.WorldProjection;
 import java.awt.image.BufferedImage;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
@@ -84,25 +84,24 @@ public final class TellusLandMaskSource implements TellusCacheHandle {
       TellusCacheRegistry.register(this);
    }
 
-   public TellusLandMaskSource.LandMaskSample sampleLandMask(double blockX, double blockZ, double worldScale) {
-      return this.sampleLandMask(blockX, blockZ, worldScale, ManagedTerrainNetworkPolicy.isCacheOnly());
+   public TellusLandMaskSource.LandMaskSample sampleLandMask(double blockX, double blockZ, WorldProjection projection) {
+      return this.sampleLandMask(blockX, blockZ, projection, ManagedTerrainNetworkPolicy.isCacheOnly());
    }
 
-   public TellusLandMaskSource.LandMaskSample sampleLandMaskLocalOnly(double blockX, double blockZ, double worldScale) {
-      return this.sampleLandMask(blockX, blockZ, worldScale, true);
+   public TellusLandMaskSource.LandMaskSample sampleLandMaskLocalOnly(double blockX, double blockZ, WorldProjection projection) {
+      return this.sampleLandMask(blockX, blockZ, projection, true);
    }
 
    public TellusLandMaskSource.LandMaskSampler newSampler() {
       return new TellusLandMaskSource.LandMaskSampler();
    }
 
-   private TellusLandMaskSource.LandMaskSample sampleLandMask(double blockX, double blockZ, double worldScale, boolean localOnly) {
-      if (this.available && !(worldScale <= 0.0)) {
-         double blocksPerDegree = EarthProjection.blocksPerDegree(worldScale);
-         double lon = blockX / blocksPerDegree;
-         double lat = EarthProjection.blockZToLat(blockZ, worldScale);
+   private TellusLandMaskSource.LandMaskSample sampleLandMask(double blockX, double blockZ, WorldProjection projection, boolean localOnly) {
+      if (this.available && !(projection.worldScale() <= 0.0)) {
+         double lon = projection.blockXToLon(blockX);
+         double lat = projection.blockZToLat(blockZ);
          if (!(lat < MIN_LAT) && !(lat > MAX_LAT) && !(lon < MIN_LON) && !(lon > MAX_LON)) {
-            int zoom = this.selectZoom(worldScale);
+            int zoom = this.selectZoom(projection.worldScale());
             TellusLandMaskSource.TileKey key = tileKeyForLonLat(lon, lat, zoom);
             if (key == null) {
                return TellusLandMaskSource.LandMaskSample.unknown();
@@ -134,10 +133,10 @@ public final class TellusLandMaskSource implements TellusCacheHandle {
       }
    }
 
-   public void prefetchTiles(double blockX, double blockZ, double worldScale, int radius) {
-      if (this.available && !(worldScale <= 0.0) && radius > 0) {
-         int zoom = this.selectZoom(worldScale);
-         TellusLandMaskSource.TileKey center = tileKeyForBlock(blockX, blockZ, worldScale, zoom);
+   public void prefetchTiles(double blockX, double blockZ, WorldProjection projection, int radius) {
+      if (this.available && !(projection.worldScale() <= 0.0) && radius > 0) {
+         int zoom = this.selectZoom(projection.worldScale());
+         TellusLandMaskSource.TileKey center = tileKeyForBlock(blockX, blockZ, projection, zoom);
          if (center != null) {
             int tilesPerAxis = 1 << zoom;
             int minX = Math.max(0, center.x() - radius);
@@ -154,8 +153,8 @@ public final class TellusLandMaskSource implements TellusCacheHandle {
       }
    }
 
-   public int preloadAreaTaskCount(double minBlockX, double minBlockZ, double maxBlockX, double maxBlockZ, double worldScale) {
-      return Math.max(1, this.areaTileKeys(minBlockX, minBlockZ, maxBlockX, maxBlockZ, worldScale).size());
+   public int preloadAreaTaskCount(double minBlockX, double minBlockZ, double maxBlockX, double maxBlockZ, WorldProjection projection) {
+      return Math.max(1, this.areaTileKeys(minBlockX, minBlockZ, maxBlockX, maxBlockZ, projection).size());
    }
 
    public int preloadAreaInputs(
@@ -163,7 +162,7 @@ public final class TellusLandMaskSource implements TellusCacheHandle {
       double minBlockZ,
       double maxBlockX,
       double maxBlockZ,
-      double worldScale,
+      WorldProjection projection,
       int completedUnits,
       BiConsumer<Integer, String> progressConsumer
    ) {
@@ -172,7 +171,7 @@ public final class TellusLandMaskSource implements TellusCacheHandle {
          minBlockZ,
          maxBlockX,
          maxBlockZ,
-         worldScale,
+         projection,
          completedUnits,
          progressConsumer,
          false
@@ -184,7 +183,7 @@ public final class TellusLandMaskSource implements TellusCacheHandle {
       double minBlockZ,
       double maxBlockX,
       double maxBlockZ,
-      double worldScale,
+      WorldProjection projection,
       int completedUnits,
       BiConsumer<Integer, String> progressConsumer
    ) {
@@ -193,7 +192,7 @@ public final class TellusLandMaskSource implements TellusCacheHandle {
          minBlockZ,
          maxBlockX,
          maxBlockZ,
-         worldScale,
+         projection,
          completedUnits,
          progressConsumer,
          true
@@ -205,14 +204,14 @@ public final class TellusLandMaskSource implements TellusCacheHandle {
       double minBlockZ,
       double maxBlockX,
       double maxBlockZ,
-      double worldScale,
+      WorldProjection projection,
       int completedUnits,
       BiConsumer<Integer, String> progressConsumer,
       boolean loadIntoMemory
    ) {
       BiConsumer<Integer, String> progress = progressConsumer == null ? (completed, detail) -> {
       } : progressConsumer;
-      List<TellusLandMaskSource.TileKey> keys = this.areaTileKeys(minBlockX, minBlockZ, maxBlockX, maxBlockZ, worldScale);
+      List<TellusLandMaskSource.TileKey> keys = this.areaTileKeys(minBlockX, minBlockZ, maxBlockX, maxBlockZ, projection);
       if (keys.isEmpty()) {
          progress.accept(completedUnits, "Skipping land mask preload because land mask data is unavailable");
          return completedUnits + 1;
@@ -243,24 +242,26 @@ public final class TellusLandMaskSource implements TellusCacheHandle {
    }
 
    private List<TellusLandMaskSource.TileKey> areaTileKeys(
-      double minBlockX, double minBlockZ, double maxBlockX, double maxBlockZ, double worldScale
+      double minBlockX, double minBlockZ, double maxBlockX, double maxBlockZ, WorldProjection projection
    ) {
-      if (!this.available || worldScale <= 0.0) {
+      if (!this.available || projection.worldScale() <= 0.0) {
          return List.of();
       }
 
       LinkedHashSet<TellusLandMaskSource.TileKey> keys = new LinkedHashSet<>();
-      TellusLandMaskSource.TileBounds bounds = this.tileBoundsForArea(minBlockX, minBlockZ, maxBlockX, maxBlockZ, worldScale);
+      TellusLandMaskSource.TileBounds bounds = this.tileBoundsForArea(minBlockX, minBlockZ, maxBlockX, maxBlockZ, projection);
       if (bounds != null && bounds.count() <= AREA_PREFETCH_TILE_LIMIT) {
          for (int tileY = bounds.minY(); tileY <= bounds.maxY(); tileY++) {
-            for (int tileX = bounds.minX(); tileX <= bounds.maxX(); tileX++) {
-               keys.add(new TellusLandMaskSource.TileKey(bounds.zoom(), tileX, tileY));
+            for (TellusLandMaskSource.TileXRange range : bounds.xRanges()) {
+               for (int tileX = range.minX(); tileX <= range.maxX(); tileX++) {
+                  keys.add(new TellusLandMaskSource.TileKey(bounds.zoom(), tileX, tileY));
+               }
             }
          }
       } else {
-         int zoom = this.selectZoom(worldScale);
+         int zoom = this.selectZoom(projection.worldScale());
          for (TellusLandMaskSource.AreaSample sample : areaSamples(minBlockX, minBlockZ, maxBlockX, maxBlockZ)) {
-            TellusLandMaskSource.TileKey key = tileKeyForBlock(sample.blockX(), sample.blockZ(), worldScale, zoom);
+            TellusLandMaskSource.TileKey key = tileKeyForBlock(sample.blockX(), sample.blockZ(), projection, zoom);
             if (key != null) {
                keys.add(key);
             }
@@ -270,13 +271,13 @@ public final class TellusLandMaskSource implements TellusCacheHandle {
    }
 
    private TellusLandMaskSource.TileBounds tileBoundsForArea(
-      double minBlockX, double minBlockZ, double maxBlockX, double maxBlockZ, double worldScale
+      double minBlockX, double minBlockZ, double maxBlockX, double maxBlockZ, WorldProjection projection
    ) {
-      if (!this.available || worldScale <= 0.0) {
+      if (!this.available || projection.worldScale() <= 0.0) {
          return null;
       }
 
-      int zoom = this.selectZoom(worldScale);
+      int zoom = this.selectZoom(projection.worldScale());
       int tilesPerAxis = 1 << zoom;
       Set<TellusLandMaskSource.TileKey> corners = new LinkedHashSet<>(4);
       double minX = Math.min(minBlockX, maxBlockX);
@@ -287,7 +288,7 @@ public final class TellusLandMaskSource implements TellusCacheHandle {
       double[] zs = new double[]{minZ, maxZ};
       for (double x : xs) {
          for (double z : zs) {
-            TellusLandMaskSource.TileKey key = tileKeyForBlock(x, z, worldScale, zoom);
+            TellusLandMaskSource.TileKey key = tileKeyForBlock(x, z, projection, zoom);
             if (key != null) {
                corners.add(key);
             }
@@ -309,12 +310,18 @@ public final class TellusLandMaskSource implements TellusCacheHandle {
          tileMaxY = Math.max(tileMaxY, key.y());
       }
 
+      int clampedMinX = Mth.clamp(tileMinX, 0, tilesPerAxis - 1);
+      int clampedMaxX = Mth.clamp(tileMaxX, 0, tilesPerAxis - 1);
+      boolean wrapsLongitude = projection.isCentered()
+         && projection.blockXToLon(minX) > projection.blockXToLon(maxX);
+      List<TellusLandMaskSource.TileXRange> xRanges = wrapsLongitude
+         ? List.of(
+            new TellusLandMaskSource.TileXRange(clampedMaxX, tilesPerAxis - 1),
+            new TellusLandMaskSource.TileXRange(0, clampedMinX)
+         )
+         : List.of(new TellusLandMaskSource.TileXRange(clampedMinX, clampedMaxX));
       return new TellusLandMaskSource.TileBounds(
-         zoom,
-         Mth.clamp(tileMinX, 0, tilesPerAxis - 1),
-         Mth.clamp(tileMaxX, 0, tilesPerAxis - 1),
-         Mth.clamp(tileMinY, 0, tilesPerAxis - 1),
-         Mth.clamp(tileMaxY, 0, tilesPerAxis - 1)
+         zoom, xRanges, Mth.clamp(tileMinY, 0, tilesPerAxis - 1), Mth.clamp(tileMaxY, 0, tilesPerAxis - 1)
       );
    }
 
@@ -515,10 +522,9 @@ public final class TellusLandMaskSource implements TellusCacheHandle {
       return Mth.clamp((int)Math.round(raw), low, high);
    }
 
-   private static TellusLandMaskSource.TileKey tileKeyForBlock(double blockX, double blockZ, double worldScale, int zoom) {
-      double blocksPerDegree = EarthProjection.blocksPerDegree(worldScale);
-      double lon = blockX / blocksPerDegree;
-      double lat = EarthProjection.blockZToLat(blockZ, worldScale);
+   private static TellusLandMaskSource.TileKey tileKeyForBlock(double blockX, double blockZ, WorldProjection projection, int zoom) {
+      double lon = projection.blockXToLon(blockX);
+      double lat = projection.blockZToLat(blockZ);
       return tileKeyForLonLat(lon, lat, zoom);
    }
 
@@ -583,9 +589,8 @@ public final class TellusLandMaskSource implements TellusCacheHandle {
    }
 
    public final class LandMaskSampler {
-      private double cachedWorldScale = Double.NaN;
+      private WorldProjection cachedProjection;
       private int cachedZoom;
-      private double cachedBlocksPerDegree;
       private int cachedTileX = Integer.MIN_VALUE;
       private int cachedTileY = Integer.MIN_VALUE;
       private TellusLandMaskSource.LandMaskTile cachedTile;
@@ -594,20 +599,19 @@ public final class TellusLandMaskSource implements TellusCacheHandle {
       private LandMaskSampler() {
       }
 
-      public TellusLandMaskSource.LandMaskSample sample(double blockX, double blockZ, double worldScale) {
-         if (!TellusLandMaskSource.this.available || worldScale <= 0.0) {
+      public TellusLandMaskSource.LandMaskSample sample(double blockX, double blockZ, WorldProjection projection) {
+         if (!TellusLandMaskSource.this.available || projection.worldScale() <= 0.0) {
             return TellusLandMaskSource.LandMaskSample.unknown();
          }
 
-         if (worldScale != this.cachedWorldScale) {
-            this.cachedWorldScale = worldScale;
-            this.cachedZoom = TellusLandMaskSource.this.selectZoom(worldScale);
-            this.cachedBlocksPerDegree = EarthProjection.blocksPerDegree(worldScale);
+         if (!projection.equals(this.cachedProjection)) {
+            this.cachedProjection = projection;
+            this.cachedZoom = TellusLandMaskSource.this.selectZoom(projection.worldScale());
             this.cachedTileSet = false;
          }
 
-         double lon = blockX / this.cachedBlocksPerDegree;
-         double lat = EarthProjection.blockZToLat(blockZ, worldScale);
+         double lon = projection.blockXToLon(blockX);
+         double lat = projection.blockZToLat(blockZ);
          if (lat < MIN_LAT || lat > MAX_LAT || lon < MIN_LON || lon > MAX_LON) {
             return TellusLandMaskSource.LandMaskSample.unknown();
          }
@@ -703,12 +707,18 @@ public final class TellusLandMaskSource implements TellusCacheHandle {
    private record AreaSample(double blockX, double blockZ) {
    }
 
-   private record TileBounds(int zoom, int minX, int maxX, int minY, int maxY) {
+   private record TileBounds(int zoom, List<TellusLandMaskSource.TileXRange> xRanges, int minY, int maxY) {
       private int count() {
-         long width = (long)this.maxX - this.minX + 1L;
+         long width = this.xRanges.stream().mapToLong(TellusLandMaskSource.TileXRange::count).sum();
          long height = (long)this.maxY - this.minY + 1L;
          long count = Math.max(0L, width) * Math.max(0L, height);
          return count > Integer.MAX_VALUE ? Integer.MAX_VALUE : (int)count;
+      }
+   }
+
+   private record TileXRange(int minX, int maxX) {
+      private long count() {
+         return Math.max(0L, (long)this.maxX - this.minX + 1L);
       }
    }
 

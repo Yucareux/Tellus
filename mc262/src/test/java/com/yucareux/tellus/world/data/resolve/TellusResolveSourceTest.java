@@ -5,6 +5,7 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.yucareux.tellus.worldgen.EarthProjection;
+import com.yucareux.tellus.worldgen.WorldProjection;
 import org.junit.jupiter.api.Test;
 
 class TellusResolveSourceTest {
@@ -71,19 +72,20 @@ class TellusResolveSourceTest {
    @Test
    void convertsTellusBlockCoordinatesUsingTheEarthProjection() {
       double worldScale = 1.0;
+      WorldProjection projection = WorldProjection.global(worldScale);
       double longitude = -122.3321;
       double latitude = 47.6062;
-      double blockX = longitude * EarthProjection.blocksPerDegree(worldScale);
-      double blockZ = EarthProjection.latToBlockZ(latitude, worldScale);
+      double blockX = projection.lonToBlockX(longitude);
+      double blockZ = projection.latToBlockZ(latitude);
 
-      assertEquals(364, this.source.sampleEcoregion(blockX, blockZ, worldScale).ecoId());
+      assertEquals(364, this.source.sampleEcoregion(blockX, blockZ, projection).ecoId());
    }
 
    @Test
    void rejectsCoordinatesOutsideTheEarthLookup() {
       assertFalse(this.source.sampleAtLonLat(181.0, 0.0).available());
       assertFalse(this.source.sampleAtLonLat(0.0, 91.0).available());
-      assertFalse(this.source.sampleEcoregion(0.0, 0.0, 0.0).available());
+      assertFalse(this.source.sampleEcoregion(0.0, 0.0, WorldProjection.global(0.0)).available());
    }
 
    private static void assertEcoregion(

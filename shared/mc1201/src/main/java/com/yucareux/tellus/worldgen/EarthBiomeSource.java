@@ -81,6 +81,7 @@ public final class EarthBiomeSource extends BiomeSource {
    private final HolderGetter<Biome> biomeLookup;
    
    private final EarthGeneratorSettings settings;
+   private final WorldProjection projection;
    
    private final Set<Holder<Biome>> possibleBiomes;
    
@@ -134,6 +135,7 @@ public final class EarthBiomeSource extends BiomeSource {
    public EarthBiomeSource(HolderGetter<Biome> biomeLookup, EarthGeneratorSettings settings) {
       this.biomeLookup = Objects.requireNonNull(biomeLookup, "biomeLookup");
       this.settings = Objects.requireNonNull(settings, "settings");
+      this.projection = settings.projection();
       this.structureBiomeProbeCeilingY = EarthGeneratorSettings.resolveHeightLimits(settings).minY()
          + STRUCTURE_BIOME_PROBE_CEILING_ABOVE_MIN_Y;
       this.plains = this.biomeLookup.getOrThrow(Biomes.PLAINS);
@@ -317,7 +319,7 @@ public final class EarthBiomeSource extends BiomeSource {
       if (this.fastSpawnMode) {
          return this.resolveFastSpawnSurfaceBiome(blockX, blockZ);
       } else {
-         int rawCoverClass = LAND_COVER_SOURCE.sampleCoverClass(blockX, blockZ, this.settings.worldScale());
+         int rawCoverClass = LAND_COVER_SOURCE.sampleCoverClass(blockX, blockZ, this.projection);
          int visualCoverClass = this.sampleVisualCoverClass(blockX, blockZ, rawCoverClass);
          return this.resolveSurfaceBiomeAtBlock(blockX, blockZ, rawCoverClass, visualCoverClass, null, null);
       }
@@ -337,7 +339,7 @@ public final class EarthBiomeSource extends BiomeSource {
    }
 
    private EarthBiomeSource.ResolvedBiomeColumn resolveBiomeColumn(int blockX, int blockZ, boolean exact) {
-      int rawCoverClass = LAND_COVER_SOURCE.sampleCoverClass(blockX, blockZ, this.settings.worldScale());
+      int rawCoverClass = LAND_COVER_SOURCE.sampleCoverClass(blockX, blockZ, this.projection);
       int visualCoverClass = this.sampleVisualCoverClass(blockX, blockZ, rawCoverClass);
       WaterSurfaceResolver.WaterColumnData column = exact
          ? this.waterResolver.resolveColumnData(blockX, blockZ, rawCoverClass)
@@ -375,7 +377,7 @@ public final class EarthBiomeSource extends BiomeSource {
 
    
    private Holder<Biome> resolveFastSpawnSurfaceBiome(int blockX, int blockZ) {
-      int rawCoverClass = LAND_COVER_SOURCE.sampleCoverClass(blockX, blockZ, this.settings.worldScale());
+      int rawCoverClass = LAND_COVER_SOURCE.sampleCoverClass(blockX, blockZ, this.projection);
       int visualCoverClass = this.sampleVisualCoverClass(blockX, blockZ, rawCoverClass);
       if (rawCoverClass == ESA_MANGROVES) {
          return this.mangrove;
@@ -451,7 +453,7 @@ public final class EarthBiomeSource extends BiomeSource {
       }
 
       int nearest = LAND_COVER_SOURCE.sampleNearestLandCoverClassLocalOnly(
-         blockX, blockZ, this.settings.worldScale(), ESA_BARE
+         blockX, blockZ, this.projection, ESA_BARE
       );
       return nearest == Integer.MIN_VALUE ? ESA_BARE : nearest;
    }
@@ -463,7 +465,7 @@ public final class EarthBiomeSource extends BiomeSource {
    private Holder<Biome> resolveOceanBiome(
       int blockX, int blockZ, WaterSurfaceResolver.WaterColumnData column, double previewResolutionMeters
    ) {
-      OisstOceanClimateSource.Sample climate = OCEAN_CLIMATE_SOURCE.sample(blockX, blockZ, this.settings.worldScale());
+      OisstOceanClimateSource.Sample climate = OCEAN_CLIMATE_SOURCE.sample(blockX, blockZ, this.projection);
       boolean deep = this.isDeepOcean(blockX, blockZ, column, previewResolutionMeters);
       Holder<Biome> biome;
       if (climate.maxIceFraction() >= FROZEN_OCEAN_ICE_FRACTION || climate.meanSstC() <= FROZEN_OCEAN_SST_C) {
@@ -491,10 +493,10 @@ public final class EarthBiomeSource extends BiomeSource {
    ) {
       double oceanElevation = Double.isFinite(previewResolutionMeters) && previewResolutionMeters > 0.0
          ? ELEVATION_SOURCE.samplePreviewOceanElevationMeters(
-            blockX, blockZ, this.settings.worldScale(), this.settings.demSelection(), previewResolutionMeters
+            blockX, blockZ, this.projection, this.settings.demSelection(), previewResolutionMeters
          )
          : ELEVATION_SOURCE.sampleOceanElevationMeters(
-            blockX, blockZ, this.settings.worldScale(), this.settings.demSelection()
+            blockX, blockZ, this.projection, this.settings.demSelection()
          );
       if (Double.isFinite(oceanElevation) && oceanElevation < 0.0) {
          return -oceanElevation;
@@ -512,14 +514,14 @@ public final class EarthBiomeSource extends BiomeSource {
 
       String koppen = precomputedKoppen;
       if (koppen == null) {
-         koppen = KOPPEN_SOURCE.sampleDitheredCode(blockX, blockZ, this.settings.worldScale());
+         koppen = KOPPEN_SOURCE.sampleDitheredCode(blockX, blockZ, this.projection);
          if (koppen == null) {
-            koppen = KOPPEN_SOURCE.findNearestCode(blockX, blockZ, this.settings.worldScale());
+            koppen = KOPPEN_SOURCE.findNearestCode(blockX, blockZ, this.projection);
          }
       }
 
       if (BadlandsTerrainPolicy.isDryCanyonCover(visualCoverClass)) {
-         String coherentKoppen = KOPPEN_SOURCE.sampleSmoothedCode(blockX, blockZ, this.settings.worldScale());
+         String coherentKoppen = KOPPEN_SOURCE.sampleSmoothedCode(blockX, blockZ, this.projection);
          if (BadlandsTerrainPolicy.shouldUseCoherentAridClimate(visualCoverClass, coherentKoppen)) {
             koppen = coherentKoppen;
          }
@@ -593,16 +595,16 @@ public final class EarthBiomeSource extends BiomeSource {
          return false;
       }
 
-      double center = ELEVATION_SOURCE.sampleElevationMeters(blockX, blockZ, worldScale, false, this.settings.demSelection());
+      double center = ELEVATION_SOURCE.sampleElevationMeters(blockX, blockZ, this.projection, false, this.settings.demSelection());
       if (!Double.isFinite(center) || center < CHERRY_GROVE_MIN_ELEVATION_METERS || center > CHERRY_GROVE_MAX_ELEVATION_METERS) {
          return false;
       }
 
       int sampleOffset = Math.max(4, Mth.ceil(CHERRY_GROVE_RELIEF_SAMPLE_METERS / Math.max(1.0, worldScale)));
-      double east = ELEVATION_SOURCE.sampleElevationMeters(blockX + sampleOffset, blockZ, worldScale, false, this.settings.demSelection());
-      double west = ELEVATION_SOURCE.sampleElevationMeters(blockX - sampleOffset, blockZ, worldScale, false, this.settings.demSelection());
-      double south = ELEVATION_SOURCE.sampleElevationMeters(blockX, blockZ + sampleOffset, worldScale, false, this.settings.demSelection());
-      double north = ELEVATION_SOURCE.sampleElevationMeters(blockX, blockZ - sampleOffset, worldScale, false, this.settings.demSelection());
+      double east = ELEVATION_SOURCE.sampleElevationMeters(blockX + sampleOffset, blockZ, this.projection, false, this.settings.demSelection());
+      double west = ELEVATION_SOURCE.sampleElevationMeters(blockX - sampleOffset, blockZ, this.projection, false, this.settings.demSelection());
+      double south = ELEVATION_SOURCE.sampleElevationMeters(blockX, blockZ + sampleOffset, this.projection, false, this.settings.demSelection());
+      double north = ELEVATION_SOURCE.sampleElevationMeters(blockX, blockZ - sampleOffset, this.projection, false, this.settings.demSelection());
       double min = center;
       double max = center;
       int samples = 1;
@@ -653,11 +655,11 @@ public final class EarthBiomeSource extends BiomeSource {
       int sampleZ = cellCenter(cellZ, cellSize);
       int offset = Math.max(4, Mth.ceil(BadlandsTerrainPolicy.CANYON_RELIEF_SAMPLE_METERS / worldScale));
       double[] elevations = new double[]{
-         ELEVATION_SOURCE.sampleElevationMeters(sampleX, sampleZ, worldScale, false, this.settings.demSelection()),
-         ELEVATION_SOURCE.sampleElevationMeters(offsetCoordinate(sampleX, offset), sampleZ, worldScale, false, this.settings.demSelection()),
-         ELEVATION_SOURCE.sampleElevationMeters(offsetCoordinate(sampleX, -offset), sampleZ, worldScale, false, this.settings.demSelection()),
-         ELEVATION_SOURCE.sampleElevationMeters(sampleX, offsetCoordinate(sampleZ, offset), worldScale, false, this.settings.demSelection()),
-         ELEVATION_SOURCE.sampleElevationMeters(sampleX, offsetCoordinate(sampleZ, -offset), worldScale, false, this.settings.demSelection())
+         ELEVATION_SOURCE.sampleElevationMeters(sampleX, sampleZ, this.projection, false, this.settings.demSelection()),
+         ELEVATION_SOURCE.sampleElevationMeters(offsetCoordinate(sampleX, offset), sampleZ, this.projection, false, this.settings.demSelection()),
+         ELEVATION_SOURCE.sampleElevationMeters(offsetCoordinate(sampleX, -offset), sampleZ, this.projection, false, this.settings.demSelection()),
+         ELEVATION_SOURCE.sampleElevationMeters(sampleX, offsetCoordinate(sampleZ, offset), this.projection, false, this.settings.demSelection()),
+         ELEVATION_SOURCE.sampleElevationMeters(sampleX, offsetCoordinate(sampleZ, -offset), this.projection, false, this.settings.demSelection())
       };
       double min = Double.POSITIVE_INFINITY;
       double max = Double.NEGATIVE_INFINITY;
@@ -689,7 +691,9 @@ public final class EarthBiomeSource extends BiomeSource {
 
    private int sampleVisualCoverClass(int blockX, int blockZ, int rawCoverClass) {
       double worldScale = this.settings.worldScale();
-      return worldScale > 0.0 && worldScale < 10.0 ? LAND_COVER_SOURCE.sampleVisualCoverClass(blockX, blockZ, worldScale) : rawCoverClass;
+      return worldScale > 0.0 && worldScale < 10.0
+         ? LAND_COVER_SOURCE.sampleVisualCoverClass(blockX, blockZ, this.projection)
+         : rawCoverClass;
    }
 
    

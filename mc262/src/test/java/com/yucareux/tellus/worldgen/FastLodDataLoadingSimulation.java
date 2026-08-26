@@ -24,8 +24,8 @@ public final class FastLodDataLoadingSimulation {
    public static void main(String[] args) {
       Options options = Options.parse(args);
       EarthGeneratorSettings settings = experimentalOneToOneSettings();
-      int centerX = (int)Math.round(options.longitude() * EarthProjection.blocksPerDegree(settings.worldScale()));
-      int centerZ = (int)Math.round(EarthProjection.latToBlockZ(options.latitude(), settings.worldScale()));
+      int centerX = (int)Math.round(settings.projection().lonToBlockX(options.longitude()));
+      int centerZ = (int)Math.round(settings.projection().latToBlockZ(options.latitude()));
 
       System.out.printf(
          Locale.ROOT,

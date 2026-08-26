@@ -1,6 +1,7 @@
 package com.yucareux.tellus.world.data.biome;
 
 import com.yucareux.tellus.Tellus;
+import com.yucareux.tellus.worldgen.WorldProjection;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
@@ -23,10 +24,10 @@ public final class BiomeClassificationProviders {
       String koppenCode,
       int blockX,
       int blockZ,
-      double worldScale
+      WorldProjection projection
    ) {
       for (BiomeClassificationProvider provider : PROVIDERS) {
-         ResourceKey<Biome> key = provider.findBiomeKey(esaCode, koppenCode, blockX, blockZ, worldScale);
+         ResourceKey<Biome> key = provider.findBiomeKey(esaCode, koppenCode, blockX, blockZ, projection);
          if (key != null) {
             return key;
          }

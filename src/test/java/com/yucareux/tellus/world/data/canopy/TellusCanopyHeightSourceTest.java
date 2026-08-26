@@ -1,5 +1,6 @@
 package com.yucareux.tellus.world.data.canopy;
 
+import com.yucareux.tellus.worldgen.WorldProjection;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -25,12 +26,13 @@ class TellusCanopyHeightSourceTest {
    @Test
    void coarsensLargePreviewAreasToTheirTileBudget() {
       double requestedResolution = 60.0;
-      int initialTiles = TellusCanopyHeightSource.areaTileCount(-512, -512, 512, 512, 30.0, requestedResolution);
+      WorldProjection projection = WorldProjection.global(30.0);
+      int initialTiles = TellusCanopyHeightSource.areaTileCount(-512, -512, 512, 512, projection, requestedResolution);
 
       double adjustedResolution = TellusCanopyHeightSource.resolutionForAreaTileBudget(
-         -512, -512, 512, 512, 30.0, requestedResolution, 32
+         -512, -512, 512, 512, projection, requestedResolution, 32
       );
-      int adjustedTiles = TellusCanopyHeightSource.areaTileCount(-512, -512, 512, 512, 30.0, adjustedResolution);
+      int adjustedTiles = TellusCanopyHeightSource.areaTileCount(-512, -512, 512, 512, projection, adjustedResolution);
 
       assertTrue(initialTiles > 32);
       assertTrue(adjustedTiles <= 32);

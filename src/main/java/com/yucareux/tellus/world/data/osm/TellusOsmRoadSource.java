@@ -15,7 +15,7 @@ import com.yucareux.tellus.Tellus;
 import com.yucareux.tellus.integration.distant_horizons.managed.ManagedTerrainNetworkPolicy;
 import com.yucareux.tellus.world.data.pmtiles.PmTilesSafety;
 import com.yucareux.tellus.world.data.source.ParallelDownloadRunner;
-import com.yucareux.tellus.worldgen.EarthProjection;
+import com.yucareux.tellus.worldgen.WorldProjection;
 import io.github.sebasbaumh.mapbox.vectortile.VectorTile.Tile;
 import io.github.sebasbaumh.mapbox.vectortile.VectorTile.Tile.Feature;
 import io.github.sebasbaumh.mapbox.vectortile.VectorTile.Tile.GeomType;
@@ -98,20 +98,20 @@ public final class TellusOsmRoadSource implements TellusCacheHandle {
       return this.available;
    }
 
-   public List<RoadFeature> roadsForArea(int minBlockX, int minBlockZ, int maxBlockX, int maxBlockZ, double worldScale, int marginBlocks) {
-      return this.roadsForArea(minBlockX, minBlockZ, maxBlockX, maxBlockZ, worldScale, marginBlocks, OsmQueryMode.BLOCKING);
+   public List<RoadFeature> roadsForArea(int minBlockX, int minBlockZ, int maxBlockX, int maxBlockZ, WorldProjection projection, int marginBlocks) {
+      return this.roadsForArea(minBlockX, minBlockZ, maxBlockX, maxBlockZ, projection, marginBlocks, OsmQueryMode.BLOCKING);
    }
 
-   public List<RoadFeature> roadsForArea(int minBlockX, int minBlockZ, int maxBlockX, int maxBlockZ, double worldScale, int marginBlocks, OsmQueryMode mode) {
-      return this.roadsForAreaWithStatus(minBlockX, minBlockZ, maxBlockX, maxBlockZ, worldScale, marginBlocks, mode).features();
+   public List<RoadFeature> roadsForArea(int minBlockX, int minBlockZ, int maxBlockX, int maxBlockZ, WorldProjection projection, int marginBlocks, OsmQueryMode mode) {
+      return this.roadsForAreaWithStatus(minBlockX, minBlockZ, maxBlockX, maxBlockZ, projection, marginBlocks, mode).features();
    }
 
    public TellusOsmRoadSource.RoadQueryResult roadsForAreaWithStatus(
-      int minBlockX, int minBlockZ, int maxBlockX, int maxBlockZ, double worldScale, int marginBlocks, OsmQueryMode mode
+      int minBlockX, int minBlockZ, int maxBlockX, int maxBlockZ, WorldProjection projection, int marginBlocks, OsmQueryMode mode
    ) {
       this.ensureInitialized();
-      if (this.available && !(worldScale <= 0.0)) {
-         TellusOsmRoadSource.GeoBounds bounds = geoBoundsForBlockArea(minBlockX, minBlockZ, maxBlockX, maxBlockZ, marginBlocks, worldScale);
+      if (this.available && !(projection.worldScale() <= 0.0)) {
+         TellusOsmRoadSource.GeoBounds bounds = geoBoundsForBlockArea(minBlockX, minBlockZ, maxBlockX, maxBlockZ, marginBlocks, projection);
          if (bounds == null) {
             return new TellusOsmRoadSource.RoadQueryResult(List.of(), false);
          } else {
@@ -127,8 +127,12 @@ public final class TellusOsmRoadSource implements TellusCacheHandle {
                   hadCacheMiss |= lookup.cacheMiss();
                   OverpassRoadTile tile = lookup.tile();
                   if (!tile.isEmpty()) {
-                     List<RoadFeature> tileFeatures = tile.featuresInBounds(bounds.south(), bounds.west(), bounds.north(), bounds.east());
-                     roads.addAll(tileFeatures);
+                     if (bounds.wrapsLongitude()) {
+                        roads.addAll(tile.featuresInBounds(bounds.south(), bounds.west(), bounds.north(), 180.0));
+                        roads.addAll(tile.featuresInBounds(bounds.south(), -180.0, bounds.north(), bounds.east()));
+                     } else {
+                        roads.addAll(tile.featuresInBounds(bounds.south(), bounds.west(), bounds.north(), bounds.east()));
+                     }
                   }
                }
 
@@ -141,17 +145,17 @@ public final class TellusOsmRoadSource implements TellusCacheHandle {
    }
 
    public List<RoadAreaFeature> roadAreasForArea(
-      int minBlockX, int minBlockZ, int maxBlockX, int maxBlockZ, double worldScale, int marginBlocks, OsmQueryMode mode
+      int minBlockX, int minBlockZ, int maxBlockX, int maxBlockZ, WorldProjection projection, int marginBlocks, OsmQueryMode mode
    ) {
-      return this.roadAreasForAreaWithStatus(minBlockX, minBlockZ, maxBlockX, maxBlockZ, worldScale, marginBlocks, mode).features();
+      return this.roadAreasForAreaWithStatus(minBlockX, minBlockZ, maxBlockX, maxBlockZ, projection, marginBlocks, mode).features();
    }
 
    public TellusOsmRoadSource.RoadAreaQueryResult roadAreasForAreaWithStatus(
-      int minBlockX, int minBlockZ, int maxBlockX, int maxBlockZ, double worldScale, int marginBlocks, OsmQueryMode mode
+      int minBlockX, int minBlockZ, int maxBlockX, int maxBlockZ, WorldProjection projection, int marginBlocks, OsmQueryMode mode
    ) {
       this.ensureInitialized();
-      if (this.available && !(worldScale <= 0.0)) {
-         TellusOsmRoadSource.GeoBounds bounds = geoBoundsForBlockArea(minBlockX, minBlockZ, maxBlockX, maxBlockZ, marginBlocks, worldScale);
+      if (this.available && !(projection.worldScale() <= 0.0)) {
+         TellusOsmRoadSource.GeoBounds bounds = geoBoundsForBlockArea(minBlockX, minBlockZ, maxBlockX, maxBlockZ, marginBlocks, projection);
          if (bounds == null) {
             return new TellusOsmRoadSource.RoadAreaQueryResult(List.of(), false);
          } else {
@@ -167,7 +171,12 @@ public final class TellusOsmRoadSource implements TellusCacheHandle {
                   hadCacheMiss |= lookup.cacheMiss();
                   OverpassRoadTile tile = lookup.tile();
                   if (!tile.isEmpty()) {
-                     areas.addAll(tile.areaFeaturesInBounds(bounds.south(), bounds.west(), bounds.north(), bounds.east()));
+                     if (bounds.wrapsLongitude()) {
+                        areas.addAll(tile.areaFeaturesInBounds(bounds.south(), bounds.west(), bounds.north(), 180.0));
+                        areas.addAll(tile.areaFeaturesInBounds(bounds.south(), -180.0, bounds.north(), bounds.east()));
+                     } else {
+                        areas.addAll(tile.areaFeaturesInBounds(bounds.south(), bounds.west(), bounds.north(), bounds.east()));
+                     }
                   }
                }
 
@@ -179,17 +188,17 @@ public final class TellusOsmRoadSource implements TellusCacheHandle {
       }
    }
 
-   public int downloadAreaTaskCount(int minBlockX, int minBlockZ, int maxBlockX, int maxBlockZ, double worldScale, int marginBlocks) {
-      return Math.max(1, this.downloadAreaTileKeys(minBlockX, minBlockZ, maxBlockX, maxBlockZ, worldScale, marginBlocks).size());
+   public int downloadAreaTaskCount(int minBlockX, int minBlockZ, int maxBlockX, int maxBlockZ, WorldProjection projection, int marginBlocks) {
+      return Math.max(1, this.downloadAreaTileKeys(minBlockX, minBlockZ, maxBlockX, maxBlockZ, projection, marginBlocks).size());
    }
 
    public int downloadAreaInputs(
-      int minBlockX, int minBlockZ, int maxBlockX, int maxBlockZ, double worldScale, int marginBlocks,
+      int minBlockX, int minBlockZ, int maxBlockX, int maxBlockZ, WorldProjection projection, int marginBlocks,
       int completedUnits, BiConsumer<Integer, String> progressConsumer
    ) {
       BiConsumer<Integer, String> progress = progressConsumer == null ? (completed, detail) -> {
       } : progressConsumer;
-      List<TellusOsmRoadSource.TileKey> keys = this.downloadAreaTileKeys(minBlockX, minBlockZ, maxBlockX, maxBlockZ, worldScale, marginBlocks);
+      List<TellusOsmRoadSource.TileKey> keys = this.downloadAreaTileKeys(minBlockX, minBlockZ, maxBlockX, maxBlockZ, projection, marginBlocks);
       if (keys.isEmpty()) {
          progress.accept(completedUnits, "Skipping OSM road tiles because the source is unavailable");
          return completedUnits + 1;
@@ -202,13 +211,13 @@ public final class TellusOsmRoadSource implements TellusCacheHandle {
    }
 
    public int preloadAreaInputs(
-      int minBlockX, int minBlockZ, int maxBlockX, int maxBlockZ, double worldScale, int marginBlocks,
+      int minBlockX, int minBlockZ, int maxBlockX, int maxBlockZ, WorldProjection projection, int marginBlocks,
       int completedUnits, BiConsumer<Integer, String> progressConsumer
    ) {
       BiConsumer<Integer, String> progress = progressConsumer == null ? (completed, detail) -> {
       } : progressConsumer;
       List<TellusOsmRoadSource.TileKey> keys = this.downloadAreaTileKeys(
-         minBlockX, minBlockZ, maxBlockX, maxBlockZ, worldScale, marginBlocks
+         minBlockX, minBlockZ, maxBlockX, maxBlockZ, projection, marginBlocks
       );
       if (keys.isEmpty()) {
          progress.accept(completedUnits, "Skipping OSM road tiles because the source is unavailable");
@@ -242,24 +251,24 @@ public final class TellusOsmRoadSource implements TellusCacheHandle {
    }
 
    private List<TellusOsmRoadSource.TileKey> downloadAreaTileKeys(
-      int minBlockX, int minBlockZ, int maxBlockX, int maxBlockZ, double worldScale, int marginBlocks
+      int minBlockX, int minBlockZ, int maxBlockX, int maxBlockZ, WorldProjection projection, int marginBlocks
    ) {
       this.ensureInitialized();
-      if (!this.available || worldScale <= 0.0) {
+      if (!this.available || projection.worldScale() <= 0.0) {
          return List.of();
       }
 
-      TellusOsmRoadSource.GeoBounds bounds = geoBoundsForBlockArea(minBlockX, minBlockZ, maxBlockX, maxBlockZ, marginBlocks, worldScale);
+      TellusOsmRoadSource.GeoBounds bounds = geoBoundsForBlockArea(minBlockX, minBlockZ, maxBlockX, maxBlockZ, marginBlocks, projection);
       if (bounds == null) {
          return List.of();
       }
       return tileKeysForBounds(bounds, this.queryZoom);
    }
 
-   public void prefetchTiles(double blockX, double blockZ, double worldScale, int radius) {
+   public void prefetchTiles(double blockX, double blockZ, WorldProjection projection, int radius) {
       this.ensureInitialized();
-      if (this.available && !(worldScale <= 0.0) && radius > 0) {
-         TellusOsmRoadSource.TileKey center = tileKeyForBlock(blockX, blockZ, worldScale, this.queryZoom);
+      if (this.available && !(projection.worldScale() <= 0.0) && radius > 0) {
+         TellusOsmRoadSource.TileKey center = tileKeyForBlock(blockX, blockZ, projection, this.queryZoom);
          if (center != null) {
             int tilesPerAxis = 1 << this.queryZoom;
             int minX = Math.max(0, center.x() - radius);
@@ -1623,17 +1632,16 @@ public final class TellusOsmRoadSource implements TellusCacheHandle {
 
    
    private static TellusOsmRoadSource.GeoBounds geoBoundsForBlockArea(
-      int minBlockX, int minBlockZ, int maxBlockX, int maxBlockZ, int marginBlocks, double worldScale
+      int minBlockX, int minBlockZ, int maxBlockX, int maxBlockZ, int marginBlocks, WorldProjection projection
    ) {
-      if (worldScale <= 0.0) {
+      if (projection.worldScale() <= 0.0) {
          return null;
       } else {
          int margin = Math.max(0, marginBlocks);
-         double blocksPerDegree = METERS_PER_DEGREE / worldScale;
-         double west = clampLon((Math.min(minBlockX, maxBlockX) - margin) / blocksPerDegree);
-         double east = clampLon((Math.max(minBlockX, maxBlockX) + margin) / blocksPerDegree);
-         double north = clampLat(EarthProjection.blockZToLat(Math.min(minBlockZ, maxBlockZ) - margin, worldScale));
-         double south = clampLat(EarthProjection.blockZToLat(Math.max(minBlockZ, maxBlockZ) + margin, worldScale));
+         double west = projection.blockXToLon(Math.min(minBlockX, maxBlockX) - margin);
+         double east = projection.blockXToLon(Math.max(minBlockX, maxBlockX) + margin);
+         double north = clampLat(projection.blockZToLat(Math.min(minBlockZ, maxBlockZ) - margin));
+         double south = clampLat(projection.blockZToLat(Math.max(minBlockZ, maxBlockZ) + margin));
          if (south > north) {
             double swap = south;
             south = north;
@@ -1650,29 +1658,41 @@ public final class TellusOsmRoadSource implements TellusCacheHandle {
       int maxX = Mth.clamp(lonToTileX(bounds.east(), zoom), 0, tilesPerAxis - 1);
       int minY = Mth.clamp(latToTileY(bounds.north(), zoom), 0, tilesPerAxis - 1);
       int maxY = Mth.clamp(latToTileY(bounds.south(), zoom), 0, tilesPerAxis - 1);
-      if (maxX >= minX && maxY >= minY) {
-         List<TellusOsmRoadSource.TileKey> keys = new ArrayList<>((maxX - minX + 1) * (maxY - minY + 1));
-
-         for (int y = minY; y <= maxY; y++) {
-            for (int x = minX; x <= maxX; x++) {
-               keys.add(new TellusOsmRoadSource.TileKey(zoom, x, y));
-            }
-         }
-
-         return keys;
-      } else {
+      if (maxY < minY) {
          return List.of();
+      }
+
+      int columns = bounds.wrapsLongitude() ? tilesPerAxis - minX + maxX + 1 : maxX - minX + 1;
+      if (columns <= 0) {
+         return List.of();
+      }
+      List<TellusOsmRoadSource.TileKey> keys = new ArrayList<>(columns * (maxY - minY + 1));
+      for (int y = minY; y <= maxY; y++) {
+         if (bounds.wrapsLongitude()) {
+            addTileKeys(keys, zoom, y, minX, tilesPerAxis - 1);
+            addTileKeys(keys, zoom, y, 0, maxX);
+         } else {
+            addTileKeys(keys, zoom, y, minX, maxX);
+         }
+      }
+      return keys;
+   }
+
+   private static void addTileKeys(
+      List<TellusOsmRoadSource.TileKey> keys, int zoom, int tileY, int minTileX, int maxTileX
+   ) {
+      for (int tileX = minTileX; tileX <= maxTileX; tileX++) {
+         keys.add(new TellusOsmRoadSource.TileKey(zoom, tileX, tileY));
       }
    }
 
    
-   private static TellusOsmRoadSource.TileKey tileKeyForBlock(double blockX, double blockZ, double worldScale, int zoom) {
-      if (worldScale <= 0.0) {
+   private static TellusOsmRoadSource.TileKey tileKeyForBlock(double blockX, double blockZ, WorldProjection projection, int zoom) {
+      if (projection.worldScale() <= 0.0) {
          return null;
       } else {
-         double blocksPerDegree = METERS_PER_DEGREE / worldScale;
-         double lon = clampLon(blockX / blocksPerDegree);
-         double lat = clampLat(EarthProjection.blockZToLat(blockZ, worldScale));
+         double lon = clampLon(projection.blockXToLon(blockX));
+         double lat = clampLat(projection.blockZToLat(blockZ));
          double n = tilesPerAxis(zoom);
          double x = (lon + 180.0) / 360.0 * n;
          double y = (1.0 - Math.log(Math.tan(Math.toRadians(lat)) + 1.0 / Math.cos(Math.toRadians(lat))) / Math.PI) / 2.0 * n;
@@ -1809,6 +1829,9 @@ public final class TellusOsmRoadSource implements TellusCacheHandle {
    }
 
    private record GeoBounds(double south, double west, double north, double east) {
+      private boolean wrapsLongitude() {
+         return this.east < this.west;
+      }
    }
 
    private record LineString(List<TellusOsmRoadSource.TilePoint> points, double lengthScore) {

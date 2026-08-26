@@ -8,6 +8,7 @@ import com.yucareux.tellus.world.data.resolve.ResolveBiome;
 import com.yucareux.tellus.world.data.resolve.ResolveEcoregion;
 import com.yucareux.tellus.world.data.resolve.ResolveRealm;
 import com.yucareux.tellus.worldgen.EarthProjection;
+import com.yucareux.tellus.worldgen.WorldProjection;
 import net.minecraft.world.level.biome.Biomes;
 import org.junit.jupiter.api.Test;
 
@@ -15,12 +16,13 @@ class ResolveBiomeClassificationTest {
    @Test
    void fabric262ServiceLoadsTheResolveProvider() {
       double worldScale = 1.0;
-      int blockX = (int)Math.round(-122.3321 * EarthProjection.blocksPerDegree(worldScale));
-      int blockZ = (int)Math.round(EarthProjection.latToBlockZ(47.6062, worldScale));
+      WorldProjection projection = WorldProjection.global(worldScale);
+      int blockX = (int)Math.round(projection.lonToBlockX(-122.3321));
+      int blockZ = (int)Math.round(projection.latToBlockZ(47.6062));
 
       assertEquals(
          Biomes.OLD_GROWTH_SPRUCE_TAIGA,
-         BiomeClassificationProviders.findBiomeKey(10, "Cfb", blockX, blockZ, worldScale)
+         BiomeClassificationProviders.findBiomeKey(10, "Cfb", blockX, blockZ, projection)
       );
    }
 

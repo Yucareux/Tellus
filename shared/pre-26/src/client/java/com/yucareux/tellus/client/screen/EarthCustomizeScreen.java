@@ -25,6 +25,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Map.Entry;
+import java.util.function.Consumer;
 import java.util.function.DoubleFunction;
 import net.minecraft.ChatFormatting;
 import net.minecraft.client.Minecraft;
@@ -190,7 +191,7 @@ public class EarthCustomizeScreen extends EarthCustomizeScreenVersionCompat {
          info.maxElevationMeters(), targetWorldScale, current.terrestrialHeightScale(), current.oceanicHeightScale(), targetHeightOffset,
          current.spawnLatitude(), current.automaticHeightScaling()
       );
-      this.setSliderValue("world_scale", targetWorldScale);
+      this.setSliderValue("world_scale", this.displayedWorldScale(targetWorldScale, this.isWorldScaleAtSpawnEnabled()));
       this.setSliderValue("height_offset", targetHeightOffset);
       this.setSliderValue("min_altitude", targetMinSurface - current.undergroundDepth());
       this.setSliderValue("max_altitude", targetMaxSurface + 50);
@@ -376,7 +377,9 @@ public class EarthCustomizeScreen extends EarthCustomizeScreenVersionCompat {
       Objects.requireNonNull(settings, "settings");
       this.spawnLatitude = settings.spawnLatitude();
       this.spawnLongitude = settings.spawnLongitude();
-      this.setSliderValue("world_scale", settings.worldScale());
+      this.setToggleValue("world_scale_at_spawn", settings.worldScaleAtSpawn());
+      this.setToggleValue("center_world_on_spawn", settings.centerWorldOnSpawn());
+      this.setSliderValue("world_scale", this.displayedWorldScale(settings.worldScale(), settings.worldScaleAtSpawn()));
       this.setSliderValue("underground_depth", settings.undergroundDepth());
       this.setToggleValue("cave_generation", settings.caveGeneration());
       this.setToggleValue("caves_reach_surface", settings.cavesReachSurface());
@@ -424,7 +427,21 @@ public class EarthCustomizeScreen extends EarthCustomizeScreenVersionCompat {
 
    
    private EarthGeneratorSettings buildSettings() {
-      double worldScale = this.findSliderValue("world_scale", EarthGeneratorSettings.DEFAULT.worldScale());
+      boolean worldScaleAtSpawn = this.findToggleValue("world_scale_at_spawn", EarthGeneratorSettings.DEFAULT.worldScaleAtSpawn());
+      boolean centerWorldOnSpawn = this.findToggleValue(
+         "center_world_on_spawn", EarthGeneratorSettings.DEFAULT.centerWorldOnSpawn()
+      );
+      double requestedWorldScale = this.findSliderValue("world_scale", EarthGeneratorSettings.DEFAULT.worldScale());
+      double worldScale = Math.min(
+         EarthGeneratorSettings.MAX_WORLD_SCALE,
+         EarthGeneratorSettings.equatorialWorldScale(requestedWorldScale, this.spawnLatitude, worldScaleAtSpawn)
+      );
+      double effectiveDisplayedScale = EarthGeneratorSettings.displayedWorldScale(
+         worldScale, this.spawnLatitude, worldScaleAtSpawn
+      );
+      if (Math.abs(effectiveDisplayedScale - requestedWorldScale) > 1.0E-6) {
+         this.setSliderValue("world_scale", effectiveDisplayedScale);
+      }
       EarthGeneratorSettings.DemSelection demSelection = this.buildDemSelection();
       boolean experimentalIncreaseHeight = this.findToggleValue(
          "experimental_increase_height", EarthGeneratorSettings.DEFAULT.experimentalIncreaseHeight()
@@ -583,7 +600,9 @@ public class EarthCustomizeScreen extends EarthCustomizeScreenVersionCompat {
          undergroundDepth,
          customTrees,
          automaticHeightScaling,
-         hugeRedMushrooms
+         hugeRedMushrooms,
+         worldScaleAtSpawn,
+         centerWorldOnSpawn
       );
    }
 
@@ -614,7 +633,9 @@ public class EarthCustomizeScreen extends EarthCustomizeScreenVersionCompat {
          this.spawnLongitude = initialSettings.spawnLongitude();
       }
 
-      this.setSliderValue("world_scale", initialSettings.worldScale());
+      this.setToggleValue("world_scale_at_spawn", initialSettings.worldScaleAtSpawn());
+      this.setToggleValue("center_world_on_spawn", initialSettings.centerWorldOnSpawn());
+      this.setSliderValue("world_scale", this.displayedWorldScale(initialSettings.worldScale(), initialSettings.worldScaleAtSpawn()));
       this.setSliderValue("underground_depth", initialSettings.undergroundDepth());
       this.setDemSelectionValue(initialSettings.demSelection());
       this.setSliderValue("terrestrial_height_scale", initialSettings.terrestrialHeightScale());
@@ -761,6 +782,8 @@ public class EarthCustomizeScreen extends EarthCustomizeScreenVersionCompat {
             slider("world_scale", 30.0, 1.0, EarthGeneratorSettings.MAX_WORLD_SCALE, 5.0)
                .withDisplay(EarthCustomizeScreen::formatWorldScale)
                .withScale(EarthCustomizeScreen.SliderScale.power(3.0)),
+            toggle("world_scale_at_spawn", EarthGeneratorSettings.DEFAULT.worldScaleAtSpawn()).onToggled(this::onWorldScaleAtSpawnToggled),
+            toggle("center_world_on_spawn", EarthGeneratorSettings.DEFAULT.centerWorldOnSpawn()),
             new AutoAdjustDefinition(),
             toggle("automatic_height_scaling", EarthGeneratorSettings.DEFAULT.automaticHeightScaling()),
             toggle("experimental_increase_height", EarthGeneratorSettings.DEFAULT.experimentalIncreaseHeight())
@@ -1642,7 +1665,32 @@ public class EarthCustomizeScreen extends EarthCustomizeScreenVersionCompat {
    }
 
    private boolean roadsAndBuildingsSupportedForSelectedScale() {
-      return roadsAndBuildingsSupportedForWorldScale(this.findSliderValue("world_scale", EarthGeneratorSettings.DEFAULT.worldScale()));
+      return roadsAndBuildingsSupportedForWorldScale(this.selectedEquatorialWorldScale());
+   }
+
+   private boolean isWorldScaleAtSpawnEnabled() {
+      return this.findToggleValue("world_scale_at_spawn", EarthGeneratorSettings.DEFAULT.worldScaleAtSpawn());
+   }
+
+   /** The stored (equatorial) world scale implied by the current slider value and presentation mode. */
+   private double selectedEquatorialWorldScale() {
+      return EarthGeneratorSettings.equatorialWorldScale(
+         this.findSliderValue("world_scale", EarthGeneratorSettings.DEFAULT.worldScale()), this.spawnLatitude, this.isWorldScaleAtSpawnEnabled()
+      );
+   }
+
+   private double displayedWorldScale(double equatorialWorldScale, boolean worldScaleAtSpawn) {
+      return EarthGeneratorSettings.displayedWorldScale(equatorialWorldScale, this.spawnLatitude, worldScaleAtSpawn);
+   }
+
+   /**
+    * Re-expresses the World Scale slider when its presentation mode changes so the stored equatorial
+    * scale, and therefore the generated world, stays the same.
+    */
+   private void onWorldScaleAtSpawnToggled(boolean worldScaleAtSpawn) {
+      double sliderValue = this.findSliderValue("world_scale", EarthGeneratorSettings.DEFAULT.worldScale());
+      double equatorialWorldScale = EarthGeneratorSettings.equatorialWorldScale(sliderValue, this.spawnLatitude, !worldScaleAtSpawn);
+      this.setSliderValue("world_scale", this.displayedWorldScale(equatorialWorldScale, worldScaleAtSpawn));
    }
 
    private static boolean isExperimentalAltitudeControl(String key) {
@@ -2476,10 +2524,16 @@ public class EarthCustomizeScreen extends EarthCustomizeScreenVersionCompat {
       
       private Component forceDisabledTooltip;
       private Component tooltipOverride;
+      private Consumer<Boolean> onToggled;
 
       private ToggleDefinition(String key, boolean defaultValue) {
          this.key = key;
          this.value = defaultValue;
+      }
+
+      private EarthCustomizeScreen.ToggleDefinition onToggled(Consumer<Boolean> onToggled) {
+         this.onToggled = Objects.requireNonNull(onToggled, "onToggled");
+         return this;
       }
 
       private EarthCustomizeScreen.ToggleDefinition locked(boolean locked) {
@@ -2530,6 +2584,9 @@ public class EarthCustomizeScreen extends EarthCustomizeScreenVersionCompat {
             .withTooltip(value -> Tooltip.create(tooltip));
          CycleButton<Boolean> button = builder.create(0, 0, 0, 20, name, (btn, value) -> {
             this.value = value;
+            if (this.onToggled != null) {
+               this.onToggled.accept(value);
+            }
             onChange.run();
          });
          button.active = !this.locked && !this.forceDisabled && !this.unavailable;

@@ -14,12 +14,12 @@ class WaterSurfaceResolverTest {
    @Test
    void waterDemSamplesUseTheSameAutomaticLatitudeTransformAsTerrain() {
       EarthGeneratorSettings settings = EarthGeneratorSettings.DEFAULT;
-      double blockZ = EarthProjection.latToBlockZ(20.72, settings.worldScale());
+      double blockZ = settings.projection().latToBlockZ(20.72);
       double elevationMeters = 1_500.0;
       int expected = TerrainHeightTransform.blockOffset(
          elevationMeters,
          blockZ,
-         settings.effectiveVerticalWorldScale(),
+         settings.projection(),
          settings.effectiveTerrestrialHeightScale(),
          settings.effectiveOceanicHeightScale(),
          settings.experimentalIncreaseHeight(),

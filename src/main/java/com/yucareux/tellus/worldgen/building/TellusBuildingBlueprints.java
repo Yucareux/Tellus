@@ -2,6 +2,7 @@ package com.yucareux.tellus.worldgen.building;
 
 import com.yucareux.tellus.world.data.osm.OsmBuildingFeature;
 import com.yucareux.tellus.world.data.osm.RoadFeature;
+import com.yucareux.tellus.worldgen.WorldProjection;
 import java.util.List;
 import java.util.Objects;
 import net.minecraft.core.Direction;
@@ -21,27 +22,27 @@ public final class TellusBuildingBlueprints {
       int roofBaseY,
       int topY,
       List<RoadFeature> nearbyRoads,
-      double worldScale
+      WorldProjection projection
    ) {
       Objects.requireNonNull(groupId, "groupId");
       Objects.requireNonNull(feature, "feature");
       Objects.requireNonNull(profile, "profile");
-      int minWorldX = Mth.floor(feature.minBlockXForScale(worldScale));
-      int maxWorldX = Mth.ceil(feature.maxBlockXForScale(worldScale));
-      int minWorldZ = Mth.floor(feature.minBlockZ(worldScale));
-      int maxWorldZ = Mth.ceil(feature.maxBlockZ(worldScale));
+      int minWorldX = Mth.floor(feature.minBlockX(projection));
+      int maxWorldX = Mth.ceil(feature.maxBlockX(projection));
+      int minWorldZ = Mth.floor(feature.minBlockZ(projection));
+      int maxWorldZ = Mth.ceil(feature.maxBlockZ(projection));
       long seed = mixSeed(worldSeed, feature.featureId(), groupId.hashCode());
       BuildingStyle style = TellusBuildingStyles.resolveBuildingStyle(
          profile, feature.metadata(), feature.areaSquareMeters(), maxWorldX - minWorldX + 1, maxWorldZ - minWorldZ + 1, seed
       );
-      EntrancePlacement entrance = resolveEntrance(feature, nearbyRoads, worldScale, minWorldX, maxWorldX, minWorldZ, maxWorldZ, style, seed);
+      EntrancePlacement entrance = resolveEntrance(feature, nearbyRoads, projection, minWorldX, maxWorldX, minWorldZ, maxWorldZ, style, seed);
       return new BuildingBlueprint(groupId, seed, profile, style, baseY, floorY, roofBaseY, topY, minWorldX, maxWorldX, minWorldZ, maxWorldZ, entrance.worldX(), entrance.worldZ(), entrance.facing(), entrance.width());
    }
 
    private static EntrancePlacement resolveEntrance(
       OsmBuildingFeature feature,
       List<RoadFeature> nearbyRoads,
-      double worldScale,
+      WorldProjection projection,
       int minWorldX,
       int maxWorldX,
       int minWorldZ,
@@ -50,7 +51,7 @@ public final class TellusBuildingBlueprints {
       long seed
    ) {
       int entranceWidth = entranceWidth(style);
-      double[] centroid = feature.centroidWorld(worldScale);
+      double[] centroid = feature.centroidWorld(projection);
       int fallbackX = Mth.clamp((int)Math.round(centroid[0]), minWorldX, maxWorldX);
       int fallbackZ = Mth.clamp((int)Math.round(centroid[1]), minWorldZ, maxWorldZ);
       Direction bestFacing = longestAxisFacing(minWorldX, maxWorldX, minWorldZ, maxWorldZ);
@@ -58,8 +59,8 @@ public final class TellusBuildingBlueprints {
       if (nearbyRoads != null) {
          for (RoadFeature road : nearbyRoads) {
             for (int i = 0; i < road.pointCount(); i++) {
-               double roadX = road.lonAt(i) * com.yucareux.tellus.worldgen.EarthProjection.blocksPerDegree(worldScale);
-               double roadZ = com.yucareux.tellus.worldgen.EarthProjection.latToBlockZ(road.latAt(i), worldScale);
+               double roadX = projection.lonToBlockX(road.lonAt(i));
+               double roadZ = projection.latToBlockZ(road.latAt(i));
                double dx = roadX - centroid[0];
                double dz = roadZ - centroid[1];
                double distanceSq = dx * dx + dz * dz;
@@ -75,7 +76,9 @@ public final class TellusBuildingBlueprints {
          }
       }
 
-      EntrancePlacement snapped = snapEntranceToFootprint(feature, worldScale, minWorldX, maxWorldX, minWorldZ, maxWorldZ, bestFacing, fallbackX, fallbackZ, entranceWidth);
+      EntrancePlacement snapped = snapEntranceToFootprint(
+         feature, projection, minWorldX, maxWorldX, minWorldZ, maxWorldZ, bestFacing, fallbackX, fallbackZ, entranceWidth
+      );
       if (snapped != null) {
          return snapped;
       }
@@ -91,7 +94,7 @@ public final class TellusBuildingBlueprints {
 
    private static EntrancePlacement snapEntranceToFootprint(
       OsmBuildingFeature feature,
-      double worldScale,
+      WorldProjection projection,
       int minWorldX,
       int maxWorldX,
       int minWorldZ,
@@ -102,7 +105,7 @@ public final class TellusBuildingBlueprints {
       int entranceWidth
    ) {
       EntranceCandidate preferred = findBoundaryCandidate(
-         feature, worldScale, minWorldX, maxWorldX, minWorldZ, maxWorldZ, preferredFacing, preferredWorldX, preferredWorldZ
+         feature, projection, minWorldX, maxWorldX, minWorldZ, maxWorldZ, preferredFacing, preferredWorldX, preferredWorldZ
       );
       if (preferred != null) {
          return new EntrancePlacement(preferred.worldX(), preferred.worldZ(), preferred.facing(), entranceWidth);
@@ -111,7 +114,7 @@ public final class TellusBuildingBlueprints {
       EntranceCandidate best = null;
       for (Direction direction : Direction.Plane.HORIZONTAL) {
          EntranceCandidate candidate = findBoundaryCandidate(
-            feature, worldScale, minWorldX, maxWorldX, minWorldZ, maxWorldZ, direction, preferredWorldX, preferredWorldZ
+            feature, projection, minWorldX, maxWorldX, minWorldZ, maxWorldZ, direction, preferredWorldX, preferredWorldZ
          );
          if (candidate != null && (best == null || candidate.score() < best.score())) {
             best = candidate;
@@ -130,7 +133,7 @@ public final class TellusBuildingBlueprints {
 
    private static EntranceCandidate findBoundaryCandidate(
       OsmBuildingFeature feature,
-      double worldScale,
+      WorldProjection projection,
       int minWorldX,
       int maxWorldX,
       int minWorldZ,
@@ -142,7 +145,8 @@ public final class TellusBuildingBlueprints {
       EntranceCandidate best = null;
       for (int worldZ = minWorldZ; worldZ <= maxWorldZ; worldZ++) {
          for (int worldX = minWorldX; worldX <= maxWorldX; worldX++) {
-            if (!feature.containsWorld(worldX + 0.5, worldZ + 0.5, worldScale) || !touchesExterior(feature, worldScale, worldX, worldZ, facing)) {
+            if (!feature.containsWorld(worldX + 0.5, worldZ + 0.5, projection)
+               || !touchesExterior(feature, projection, worldX, worldZ, facing)) {
                continue;
             }
 
@@ -158,8 +162,10 @@ public final class TellusBuildingBlueprints {
       return best;
    }
 
-   private static boolean touchesExterior(OsmBuildingFeature feature, double worldScale, int worldX, int worldZ, Direction facing) {
-      return !feature.containsWorld(worldX + 0.5 + facing.getStepX(), worldZ + 0.5 + facing.getStepZ(), worldScale);
+   private static boolean touchesExterior(
+      OsmBuildingFeature feature, WorldProjection projection, int worldX, int worldZ, Direction facing
+   ) {
+      return !feature.containsWorld(worldX + 0.5 + facing.getStepX(), worldZ + 0.5 + facing.getStepZ(), projection);
    }
 
    private static Direction longestAxisFacing(int minWorldX, int maxWorldX, int minWorldZ, int maxWorldZ) {

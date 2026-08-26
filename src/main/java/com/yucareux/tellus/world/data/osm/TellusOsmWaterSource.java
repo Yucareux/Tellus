@@ -12,6 +12,7 @@ import com.yucareux.tellus.cache.TellusCacheRegistry;
 import com.yucareux.tellus.world.data.pmtiles.PmTilesSafety;
 import com.yucareux.tellus.world.data.source.ParallelDownloadRunner;
 import com.yucareux.tellus.worldgen.EarthProjection;
+import com.yucareux.tellus.worldgen.WorldProjection;
 import io.github.sebasbaumh.mapbox.vectortile.VectorTile.Tile;
 import io.github.sebasbaumh.mapbox.vectortile.VectorTile.Tile.Feature;
 import io.github.sebasbaumh.mapbox.vectortile.VectorTile.Tile.Layer;
@@ -96,10 +97,10 @@ public final class TellusOsmWaterSource implements TellusCacheHandle {
    }
 
    public WaterQueryResult waterForAreaWithStatus(
-      int minBlockX, int minBlockZ, int maxBlockX, int maxBlockZ, double worldScale, int marginBlocks, OsmQueryMode mode
+      int minBlockX, int minBlockZ, int maxBlockX, int maxBlockZ, WorldProjection projection, int marginBlocks, OsmQueryMode mode
    ) {
       return this.waterForAreaWithStatus(
-         minBlockX, minBlockZ, maxBlockX, maxBlockZ, worldScale, marginBlocks, mode, MAX_QUERY_TILES
+         minBlockX, minBlockZ, maxBlockX, maxBlockZ, projection, marginBlocks, mode, MAX_QUERY_TILES
       );
    }
 
@@ -108,18 +109,18 @@ public final class TellusOsmWaterSource implements TellusCacheHandle {
       int minBlockZ,
       int maxBlockX,
       int maxBlockZ,
-      double worldScale,
+      WorldProjection projection,
       int marginBlocks,
       OsmQueryMode mode,
       int maxQueryTiles
    ) {
       this.ensureInitialized();
-      if (this.available && !(worldScale <= 0.0)) {
-         TellusOsmWaterSource.GeoBounds bounds = geoBoundsForBlockArea(minBlockX, minBlockZ, maxBlockX, maxBlockZ, marginBlocks, worldScale);
+      if (this.available && !(projection.worldScale() <= 0.0)) {
+         TellusOsmWaterSource.GeoBounds bounds = geoBoundsForBlockArea(minBlockX, minBlockZ, maxBlockX, maxBlockZ, marginBlocks, projection);
          if (bounds == null) {
             return new WaterQueryResult(List.of(), CoverageStatus.COMPLETE, 0);
          } else {
-            int zoom = this.queryZoomForBounds(bounds, worldScale, maxQueryTiles);
+            int zoom = this.queryZoomForBounds(bounds, projection.worldScale(), maxQueryTiles);
             List<TellusOsmWaterSource.TileKey> keys = tileKeysForBounds(bounds, zoom);
             if (keys.isEmpty()) {
                return new WaterQueryResult(List.of(), CoverageStatus.COMPLETE, zoom);
@@ -132,7 +133,12 @@ public final class TellusOsmWaterSource implements TellusCacheHandle {
                   coverageStatus = CoverageStatus.combine(coverageStatus, lookup.coverageStatus());
                   OsmWaterTile tile = lookup.tile();
                   if (!tile.isEmpty()) {
-                     features.addAll(tile.featuresInBounds(bounds.south(), bounds.west(), bounds.north(), bounds.east()));
+                     if (bounds.wrapsLongitude()) {
+                        features.addAll(tile.featuresInBounds(bounds.south(), bounds.west(), bounds.north(), 180.0));
+                        features.addAll(tile.featuresInBounds(bounds.south(), -180.0, bounds.north(), bounds.east()));
+                     } else {
+                        features.addAll(tile.featuresInBounds(bounds.south(), bounds.west(), bounds.north(), bounds.east()));
+                     }
                   }
                }
 
@@ -144,31 +150,31 @@ public final class TellusOsmWaterSource implements TellusCacheHandle {
       }
    }
 
-   public List<OsmWaterFeature> waterForArea(int minBlockX, int minBlockZ, int maxBlockX, int maxBlockZ, double worldScale, int marginBlocks) {
-      return this.waterForAreaWithStatus(minBlockX, minBlockZ, maxBlockX, maxBlockZ, worldScale, marginBlocks, OsmQueryMode.BLOCKING).features();
+   public List<OsmWaterFeature> waterForArea(int minBlockX, int minBlockZ, int maxBlockX, int maxBlockZ, WorldProjection projection, int marginBlocks) {
+      return this.waterForAreaWithStatus(minBlockX, minBlockZ, maxBlockX, maxBlockZ, projection, marginBlocks, OsmQueryMode.BLOCKING).features();
    }
 
-   public int downloadAreaTaskCount(int minBlockX, int minBlockZ, int maxBlockX, int maxBlockZ, double worldScale, int marginBlocks) {
-      return Math.max(1, this.downloadAreaTileKeys(minBlockX, minBlockZ, maxBlockX, maxBlockZ, worldScale, marginBlocks).size());
+   public int downloadAreaTaskCount(int minBlockX, int minBlockZ, int maxBlockX, int maxBlockZ, WorldProjection projection, int marginBlocks) {
+      return Math.max(1, this.downloadAreaTileKeys(minBlockX, minBlockZ, maxBlockX, maxBlockZ, projection, marginBlocks).size());
    }
 
    public int downloadAreaInputs(
-      int minBlockX, int minBlockZ, int maxBlockX, int maxBlockZ, double worldScale, int marginBlocks,
+      int minBlockX, int minBlockZ, int maxBlockX, int maxBlockZ, WorldProjection projection, int marginBlocks,
       int completedUnits, BiConsumer<Integer, String> progressConsumer
    ) {
       return this.downloadAreaInputs(
-         minBlockX, minBlockZ, maxBlockX, maxBlockZ, worldScale, marginBlocks, MAX_QUERY_TILES, completedUnits, progressConsumer
+         minBlockX, minBlockZ, maxBlockX, maxBlockZ, projection, marginBlocks, MAX_QUERY_TILES, completedUnits, progressConsumer
       );
    }
 
    public int downloadAreaInputs(
-      int minBlockX, int minBlockZ, int maxBlockX, int maxBlockZ, double worldScale, int marginBlocks, int maxQueryTiles,
+      int minBlockX, int minBlockZ, int maxBlockX, int maxBlockZ, WorldProjection projection, int marginBlocks, int maxQueryTiles,
       int completedUnits, BiConsumer<Integer, String> progressConsumer
    ) {
       BiConsumer<Integer, String> progress = progressConsumer == null ? (completed, detail) -> {
       } : progressConsumer;
       List<TellusOsmWaterSource.TileKey> keys = this.downloadAreaTileKeys(
-         minBlockX, minBlockZ, maxBlockX, maxBlockZ, worldScale, marginBlocks, maxQueryTiles
+         minBlockX, minBlockZ, maxBlockX, maxBlockZ, projection, marginBlocks, maxQueryTiles
       );
       if (keys.isEmpty()) {
          progress.accept(completedUnits, "Skipping Overture water tiles because the source is unavailable");
@@ -182,30 +188,30 @@ public final class TellusOsmWaterSource implements TellusCacheHandle {
    }
 
    private List<TellusOsmWaterSource.TileKey> downloadAreaTileKeys(
-      int minBlockX, int minBlockZ, int maxBlockX, int maxBlockZ, double worldScale, int marginBlocks
+      int minBlockX, int minBlockZ, int maxBlockX, int maxBlockZ, WorldProjection projection, int marginBlocks
    ) {
-      return this.downloadAreaTileKeys(minBlockX, minBlockZ, maxBlockX, maxBlockZ, worldScale, marginBlocks, MAX_QUERY_TILES);
+      return this.downloadAreaTileKeys(minBlockX, minBlockZ, maxBlockX, maxBlockZ, projection, marginBlocks, MAX_QUERY_TILES);
    }
 
    private List<TellusOsmWaterSource.TileKey> downloadAreaTileKeys(
-      int minBlockX, int minBlockZ, int maxBlockX, int maxBlockZ, double worldScale, int marginBlocks, int maxQueryTiles
+      int minBlockX, int minBlockZ, int maxBlockX, int maxBlockZ, WorldProjection projection, int marginBlocks, int maxQueryTiles
    ) {
       this.ensureInitialized();
-      if (!this.available || worldScale <= 0.0) {
+      if (!this.available || projection.worldScale() <= 0.0) {
          return List.of();
       }
 
-      TellusOsmWaterSource.GeoBounds bounds = geoBoundsForBlockArea(minBlockX, minBlockZ, maxBlockX, maxBlockZ, marginBlocks, worldScale);
+      TellusOsmWaterSource.GeoBounds bounds = geoBoundsForBlockArea(minBlockX, minBlockZ, maxBlockX, maxBlockZ, marginBlocks, projection);
       if (bounds == null) {
          return List.of();
       }
 
-      int zoom = this.queryZoomForBounds(bounds, worldScale, maxQueryTiles);
+      int zoom = this.queryZoomForBounds(bounds, projection.worldScale(), maxQueryTiles);
       return tileKeysForBounds(bounds, zoom);
    }
 
-   public FastWaterSample sampleWater(int blockX, int blockZ, double worldScale, OsmQueryMode mode) {
-      WaterQueryResult result = this.waterForAreaWithStatus(blockX - 1, blockZ - 1, blockX + 1, blockZ + 1, worldScale, 0, mode);
+   public FastWaterSample sampleWater(int blockX, int blockZ, WorldProjection projection, OsmQueryMode mode) {
+      WaterQueryResult result = this.waterForAreaWithStatus(blockX - 1, blockZ - 1, blockX + 1, blockZ + 1, projection, 0, mode);
       if (result.features().isEmpty()) {
          return new FastWaterSample(false, false, result.coverageStatus());
       } else {
@@ -213,7 +219,7 @@ public final class TellusOsmWaterSource implements TellusCacheHandle {
          boolean ocean = false;
 
          for (OsmWaterFeature feature : result.features()) {
-            if (feature.containsBlock(blockX, blockZ, worldScale)) {
+            if (feature.containsBlock(blockX, blockZ, projection)) {
                hasWater = true;
                if (feature.oceanHint()) {
                   ocean = true;
@@ -226,15 +232,15 @@ public final class TellusOsmWaterSource implements TellusCacheHandle {
       }
    }
 
-   public boolean hasWaterInArea(int minBlockX, int minBlockZ, int maxBlockX, int maxBlockZ, double worldScale, int marginBlocks, OsmQueryMode mode) {
-      return !this.waterForAreaWithStatus(minBlockX, minBlockZ, maxBlockX, maxBlockZ, worldScale, marginBlocks, mode).features().isEmpty();
+   public boolean hasWaterInArea(int minBlockX, int minBlockZ, int maxBlockX, int maxBlockZ, WorldProjection projection, int marginBlocks, OsmQueryMode mode) {
+      return !this.waterForAreaWithStatus(minBlockX, minBlockZ, maxBlockX, maxBlockZ, projection, marginBlocks, mode).features().isEmpty();
    }
 
-   public void prefetchTiles(double blockX, double blockZ, double worldScale, int radius) {
+   public void prefetchTiles(double blockX, double blockZ, WorldProjection projection, int radius) {
       this.ensureInitialized();
-      if (this.available && !(worldScale <= 0.0) && radius > 0) {
-         int zoom = this.queryZoomForScale(worldScale);
-         TellusOsmWaterSource.TileKey center = tileKeyForBlock(blockX, blockZ, worldScale, zoom);
+      if (this.available && !(projection.worldScale() <= 0.0) && radius > 0) {
+         int zoom = this.queryZoomForScale(projection.worldScale());
+         TellusOsmWaterSource.TileKey center = tileKeyForBlock(blockX, blockZ, projection, zoom);
          if (center != null) {
             int tilesPerAxis = 1 << zoom;
             int minX = Math.max(0, center.x() - radius);
@@ -278,7 +284,7 @@ public final class TellusOsmWaterSource implements TellusCacheHandle {
       if (!(Double.isFinite(worldScale) && worldScale > 0.0)) {
          return low;
       }
-      double blocksPerDegree = EarthProjection.blocksPerDegree(worldScale);
+      double blocksPerDegree = EarthProjection.equatorialBlocksPerDegree(worldScale);
       int minimumWidth = Math.max(1, minTileWidthBlocks);
       for (int zoom = high; zoom >= low; zoom--) {
          double tileWidthBlocks = 360.0 * blocksPerDegree / (1 << zoom);
@@ -1104,17 +1110,16 @@ public final class TellusOsmWaterSource implements TellusCacheHandle {
    }
 
    private static TellusOsmWaterSource.GeoBounds geoBoundsForBlockArea(
-      int minBlockX, int minBlockZ, int maxBlockX, int maxBlockZ, int marginBlocks, double worldScale
+      int minBlockX, int minBlockZ, int maxBlockX, int maxBlockZ, int marginBlocks, WorldProjection projection
    ) {
-      if (worldScale <= 0.0) {
+      if (projection.worldScale() <= 0.0) {
          return null;
       } else {
          int margin = Math.max(0, marginBlocks);
-         double blocksPerDegree = METERS_PER_DEGREE / worldScale;
-         double west = clampLon((Math.min(minBlockX, maxBlockX) - margin) / blocksPerDegree);
-         double east = clampLon((Math.max(minBlockX, maxBlockX) + margin) / blocksPerDegree);
-         double north = clampLat(EarthProjection.blockZToLat(Math.min(minBlockZ, maxBlockZ) - margin, worldScale));
-         double south = clampLat(EarthProjection.blockZToLat(Math.max(minBlockZ, maxBlockZ) + margin, worldScale));
+         double west = projection.blockXToLon(Math.min(minBlockX, maxBlockX) - margin);
+         double east = projection.blockXToLon(Math.max(minBlockX, maxBlockX) + margin);
+         double north = clampLat(projection.blockZToLat(Math.min(minBlockZ, maxBlockZ) - margin));
+         double south = clampLat(projection.blockZToLat(Math.max(minBlockZ, maxBlockZ) + margin));
          if (south > north) {
             double swap = south;
             south = north;
@@ -1131,7 +1136,9 @@ public final class TellusOsmWaterSource implements TellusCacheHandle {
       int maxX = Mth.clamp(lonToTileX(bounds.east(), zoom), 0, tilesPerAxis - 1);
       int minY = Mth.clamp(latToTileY(bounds.north(), zoom), 0, tilesPerAxis - 1);
       int maxY = Mth.clamp(latToTileY(bounds.south(), zoom), 0, tilesPerAxis - 1);
-      long width = Math.max(0L, (long)maxX - minX + 1L);
+      long width = bounds.wrapsLongitude()
+         ? (long)tilesPerAxis - minX + maxX + 1L
+         : Math.max(0L, (long)maxX - minX + 1L);
       long height = Math.max(0L, (long)maxY - minY + 1L);
       return width * height;
    }
@@ -1142,28 +1149,40 @@ public final class TellusOsmWaterSource implements TellusCacheHandle {
       int maxX = Mth.clamp(lonToTileX(bounds.east(), zoom), 0, tilesPerAxis - 1);
       int minY = Mth.clamp(latToTileY(bounds.north(), zoom), 0, tilesPerAxis - 1);
       int maxY = Mth.clamp(latToTileY(bounds.south(), zoom), 0, tilesPerAxis - 1);
-      if (maxX >= minX && maxY >= minY) {
-         List<TellusOsmWaterSource.TileKey> keys = new ArrayList<>((maxX - minX + 1) * (maxY - minY + 1));
-
-         for (int y = minY; y <= maxY; y++) {
-            for (int x = minX; x <= maxX; x++) {
-               keys.add(new TellusOsmWaterSource.TileKey(zoom, x, y));
-            }
-         }
-
-         return keys;
-      } else {
+      if (maxY < minY) {
          return List.of();
+      }
+
+      int columns = bounds.wrapsLongitude() ? tilesPerAxis - minX + maxX + 1 : maxX - minX + 1;
+      if (columns <= 0) {
+         return List.of();
+      }
+      List<TellusOsmWaterSource.TileKey> keys = new ArrayList<>(columns * (maxY - minY + 1));
+      for (int y = minY; y <= maxY; y++) {
+         if (bounds.wrapsLongitude()) {
+            addTileKeys(keys, zoom, y, minX, tilesPerAxis - 1);
+            addTileKeys(keys, zoom, y, 0, maxX);
+         } else {
+            addTileKeys(keys, zoom, y, minX, maxX);
+         }
+      }
+      return keys;
+   }
+
+   private static void addTileKeys(
+      List<TellusOsmWaterSource.TileKey> keys, int zoom, int tileY, int minTileX, int maxTileX
+   ) {
+      for (int tileX = minTileX; tileX <= maxTileX; tileX++) {
+         keys.add(new TellusOsmWaterSource.TileKey(zoom, tileX, tileY));
       }
    }
 
-   private static TellusOsmWaterSource.TileKey tileKeyForBlock(double blockX, double blockZ, double worldScale, int zoom) {
-      if (worldScale <= 0.0) {
+   private static TellusOsmWaterSource.TileKey tileKeyForBlock(double blockX, double blockZ, WorldProjection projection, int zoom) {
+      if (projection.worldScale() <= 0.0) {
          return null;
       } else {
-         double blocksPerDegree = METERS_PER_DEGREE / worldScale;
-         double lon = clampLon(blockX / blocksPerDegree);
-         double lat = clampLat(EarthProjection.blockZToLat(blockZ, worldScale));
+         double lon = clampLon(projection.blockXToLon(blockX));
+         double lat = clampLat(projection.blockZToLat(blockZ));
          double n = tilesPerAxis(zoom);
          double x = (lon + 180.0) / 360.0 * n;
          double y = (1.0 - Math.log(Math.tan(Math.toRadians(lat)) + 1.0 / Math.cos(Math.toRadians(lat))) / Math.PI) / 2.0 * n;
@@ -1251,6 +1270,9 @@ public final class TellusOsmWaterSource implements TellusCacheHandle {
    }
 
    private record GeoBounds(double south, double west, double north, double east) {
+      private boolean wrapsLongitude() {
+         return this.east < this.west;
+      }
    }
 
    public record FastWaterSample(boolean hasWater, boolean ocean, CoverageStatus coverageStatus) {

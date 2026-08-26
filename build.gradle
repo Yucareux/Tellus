@@ -94,6 +94,46 @@ tasks.register('checkVersionSourceDuplication') {
 	}
 }
 
+def projectionUsageRoots = [rootProject.file('src'), rootProject.file('shared')] + tellusTargets.collect { target ->
+	rootProject.file("${target.project}/src")
+}
+
+tasks.register('checkProjectionUsage') {
+	group = 'verification'
+	description = 'Rejects block/geographic projection math that bypasses WorldProjection.'
+	inputs.files(projectionUsageRoots.collect { sourceRoot ->
+		fileTree(sourceRoot) {
+			include 'main/java/**/*.java'
+			include 'client/java/**/*.java'
+		}
+	})
+
+	doLast {
+		def violations = []
+		inputs.files.files.each { sourceFile ->
+			if (sourceFile.name == 'EarthProjection.java' || sourceFile.name == 'WorldProjection.java') {
+				return
+			}
+
+			sourceFile.readLines('UTF-8').eachWithIndex { line, index ->
+				def bypassesRemovedApi = line =~ /\bEarthProjection\.(blocksPerDegree|latToBlockZ|blockZToLat|longitudeToBlockX|blockXToLongitude|groundMetersPerBlockX|groundMetersPerBlockZ|heightScaleCorrection)\b/
+				def multipliesLongitude = line =~ /\b(longitude|lon|centroidLon|minLon|maxLon|lonAt\([^)]*\))\s*\*\s*blocksPerDegree\b/
+				def dividesBlockX = line =~ /\b(blockX|worldX|sampleX|centerBlockX)\s*\/\s*blocksPerDegree\b/
+				if (bypassesRemovedApi.find() || multipliesLongitude.find() || dividesBlockX.find()) {
+					violations << "${rootProject.relativePath(sourceFile)}:${index + 1}: ${line.trim()}"
+				}
+			}
+		}
+
+		if (!violations.isEmpty()) {
+			throw new GradleException(
+				"Block/geographic conversions must use the world's WorldProjection:\n  " + violations.join('\n  ')
+			)
+		}
+	}
+}
+
 tasks.named('check') {
 	dependsOn(tasks.named('checkVersionSourceDuplication'))
+	dependsOn(tasks.named('checkProjectionUsage'))
 }

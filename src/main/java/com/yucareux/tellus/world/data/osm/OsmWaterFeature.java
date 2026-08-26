@@ -1,6 +1,6 @@
 package com.yucareux.tellus.world.data.osm;
 
-import com.yucareux.tellus.worldgen.EarthProjection;
+import com.yucareux.tellus.worldgen.WorldProjection;
 import java.util.Objects;
 
 public final class OsmWaterFeature {
@@ -155,17 +155,18 @@ public final class OsmWaterFeature {
       return this.maxLon >= west && this.minLon <= east && this.maxLat >= south && this.minLat <= north;
    }
 
-   public boolean containsBlock(int blockX, int blockZ, double worldScale) {
-      if (worldScale <= 0.0) {
+   public boolean containsBlock(int blockX, int blockZ, WorldProjection projection) {
+      if (projection.worldScale() <= 0.0) {
+         return false;
+      } else if (this.crossesWorldSeam(projection)) {
          return false;
       } else if (this.pointGeometry) {
          return false;
       } else if (this.lineGeometry) {
-         return this.touchesBlockLine(blockX, blockZ, worldScale);
+         return this.touchesBlockLine(blockX, blockZ, projection);
       } else {
-         double blocksPerDegree = EarthProjection.blocksPerDegree(worldScale);
-         double lon = blockX / blocksPerDegree;
-         double lat = EarthProjection.blockZToLat(blockZ, worldScale);
+         double lon = projection.blockXToLon(blockX);
+         double lat = projection.blockZToLat(blockZ);
          return this.containsLonLat(lon, lat);
       }
    }
@@ -199,8 +200,7 @@ public final class OsmWaterFeature {
       }
    }
 
-   private boolean touchesBlockLine(int blockX, int blockZ, double worldScale) {
-      double blocksPerDegree = EarthProjection.blocksPerDegree(worldScale);
+   private boolean touchesBlockLine(int blockX, int blockZ, WorldProjection projection) {
       double queryX = blockX;
       double queryZ = blockZ;
       double maxDistanceSq = LINE_HALF_WIDTH_BLOCKS * LINE_HALF_WIDTH_BLOCKS + 1.0E-6;
@@ -210,16 +210,35 @@ public final class OsmWaterFeature {
          double[] latPart = this.latitudes[part];
 
          for (int point = 1; point < lonPart.length; point++) {
-            double startX = lonPart[point - 1] * blocksPerDegree;
-            double startZ = EarthProjection.latToBlockZ(latPart[point - 1], worldScale);
-            double endX = lonPart[point] * blocksPerDegree;
-            double endZ = EarthProjection.latToBlockZ(latPart[point], worldScale);
+            double startX = projection.lonToBlockX(lonPart[point - 1]);
+            double startZ = projection.latToBlockZ(latPart[point - 1]);
+            double endX = projection.lonToBlockX(lonPart[point]);
+            double endZ = projection.latToBlockZ(latPart[point]);
             if (distanceToSegmentSq(queryX, queryZ, startX, startZ, endX, endZ) <= maxDistanceSq) {
                return true;
             }
          }
       }
 
+      return false;
+   }
+
+   public boolean crossesWorldSeam(WorldProjection projection) {
+      for (int part = 0; part < this.partCount(); part++) {
+         int points = this.pointCount(part);
+         if (points < 2) {
+            continue;
+         }
+         double previousX = projection.lonToBlockX(this.lonAt(part, this.lineGeometry ? 0 : points - 1));
+         int firstPoint = this.lineGeometry ? 1 : 0;
+         for (int point = firstPoint; point < points; point++) {
+            double currentX = projection.lonToBlockX(this.lonAt(part, point));
+            if (projection.crossesWorldSeam(previousX, currentX)) {
+               return true;
+            }
+            previousX = currentX;
+         }
+      }
       return false;
    }
 

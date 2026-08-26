@@ -11,19 +11,20 @@ import org.junit.jupiter.api.Test;
 
 class WaterfallNoCarveZoneTest {
    private static final double WORLD_SCALE = 1.0;
+   private static final WorldProjection PROJECTION = WorldProjection.global(WORLD_SCALE);
    private static final OsmWaterFeature MARKER = OsmWaterFeature.waterfallMarker(1L, 0.0, 0.0);
 
    @Test
    void protectsAThirtyTwoChunkRadiusCircle() {
       assertEquals(32, WaterfallNoCarveZone.radiusChunks());
       assertEquals(32, WaterfallNoCarveZone.radiusChunks(WORLD_SCALE));
-      assertTrue(WaterfallNoCarveZone.containsBlock(MARKER, -512, 0, WORLD_SCALE));
-      assertTrue(WaterfallNoCarveZone.containsBlock(MARKER, 527, 0, WORLD_SCALE));
-      assertFalse(WaterfallNoCarveZone.containsBlock(MARKER, -513, 0, WORLD_SCALE));
-      assertFalse(WaterfallNoCarveZone.containsBlock(MARKER, 528, 0, WORLD_SCALE));
-      assertTrue(WaterfallNoCarveZone.containsBlock(MARKER, 352, 352, WORLD_SCALE));
-      assertFalse(WaterfallNoCarveZone.containsBlock(MARKER, 368, 368, WORLD_SCALE));
-      assertFalse(WaterfallNoCarveZone.containsBlock(MARKER, -512, -512, WORLD_SCALE));
+      assertTrue(WaterfallNoCarveZone.containsBlock(MARKER, -512, 0, PROJECTION));
+      assertTrue(WaterfallNoCarveZone.containsBlock(MARKER, 527, 0, PROJECTION));
+      assertFalse(WaterfallNoCarveZone.containsBlock(MARKER, -513, 0, PROJECTION));
+      assertFalse(WaterfallNoCarveZone.containsBlock(MARKER, 528, 0, PROJECTION));
+      assertTrue(WaterfallNoCarveZone.containsBlock(MARKER, 352, 352, PROJECTION));
+      assertFalse(WaterfallNoCarveZone.containsBlock(MARKER, 368, 368, PROJECTION));
+      assertFalse(WaterfallNoCarveZone.containsBlock(MARKER, -512, -512, PROJECTION));
    }
 
    @Test
@@ -36,14 +37,14 @@ class WaterfallNoCarveZoneTest {
       assertEquals(0, WaterfallNoCarveZone.radiusChunks(33.0));
       assertEquals(31, WaterfallNoCarveZone.queryMarginBlocks(30.0));
       assertEquals(0, WaterfallNoCarveZone.queryMarginBlocks(33.0));
-      assertFalse(WaterfallNoCarveZone.containsBlock(MARKER, 0, 0, 33.0));
+      assertFalse(WaterfallNoCarveZone.containsBlock(MARKER, 0, 0, WorldProjection.global(33.0)));
    }
 
    @Test
    void marksPreviewSamplesAndCoarseDistantHorizonCells() {
       double[] samples = new double[]{-513.0, -512.0, 0.0, 352.0, 368.0, 527.0, 528.0};
       boolean[] previewMask = new boolean[samples.length * samples.length];
-      WaterfallNoCarveZone.markSampleGrid(previewMask, samples, samples, List.of(MARKER), WORLD_SCALE);
+      WaterfallNoCarveZone.markSampleGrid(previewMask, samples, samples, List.of(MARKER), PROJECTION);
 
       assertFalse(previewMask[index(samples.length, 0, 2)]);
       assertTrue(previewMask[index(samples.length, 1, 2)]);
@@ -54,7 +55,7 @@ class WaterfallNoCarveZoneTest {
       assertFalse(previewMask[index(samples.length, 1, 1)]);
 
       boolean[] lodMask = new boolean[9 * 9];
-      WaterfallNoCarveZone.markRegularCellGrid(lodMask, -512, -512, 9, 128, List.of(MARKER), WORLD_SCALE);
+      WaterfallNoCarveZone.markRegularCellGrid(lodMask, -512, -512, 9, 128, List.of(MARKER), PROJECTION);
       assertFalse(lodMask[index(9, 0, 0)]);
       assertTrue(lodMask[index(9, 1, 1)]);
       assertTrue(lodMask[index(9, 8, 4)]);
@@ -65,7 +66,7 @@ class WaterfallNoCarveZoneTest {
    void marksAChunkAlignedCircleInTheFullResolutionGrid() {
       boolean[] mask = new boolean[17 * 17];
 
-      WaterfallNoCarveZone.markBlockGrid(mask, 352, 352, 17, 17, List.of(MARKER), WORLD_SCALE);
+      WaterfallNoCarveZone.markBlockGrid(mask, 352, 352, 17, 17, List.of(MARKER), PROJECTION);
 
       assertTrue(mask[index(17, 0, 0)]);
       assertFalse(mask[index(17, 16, 16)]);
@@ -83,7 +84,7 @@ class WaterfallNoCarveZoneTest {
       );
       boolean[] mask = new boolean[9];
 
-      WaterfallNoCarveZone.markBlockGrid(mask, -1, -1, 3, 3, List.of(inaccuratePolygon), WORLD_SCALE);
+      WaterfallNoCarveZone.markBlockGrid(mask, -1, -1, 3, 3, List.of(inaccuratePolygon), PROJECTION);
 
       for (boolean protectedCell : mask) {
          assertFalse(protectedCell);

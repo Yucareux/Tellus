@@ -5,6 +5,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.yucareux.tellus.worldgen.EarthGeneratorSettings;
+import com.yucareux.tellus.worldgen.WorldProjection;
 import org.junit.jupiter.api.Test;
 
 class TerrainPreloadAreaTest {
@@ -16,6 +17,29 @@ class TerrainPreloadAreaTest {
       assertEquals(144, area.totalChunks());
       assertEquals(11, area.maxChunkX() - area.minChunkX());
       assertEquals(11, area.maxChunkZ() - area.minChunkZ());
+   }
+
+   @Test
+   void spawnCenteredProjectionKeepsAreaAndFutureSpawnNearBlockOrigin() {
+      WorldProjection projection = WorldProjection.centeredOn(30.0, 37.7459, -119.5332);
+      TerrainPreloadArea area = TerrainPreloadArea.centered(37.7459, -119.5332, 12, projection);
+
+      assertTrue(area.containsChunk(0, 0));
+      assertTrue(area.minChunkX() <= 0 && area.maxChunkX() >= 0);
+      assertTrue(area.minChunkZ() <= 0 && area.maxChunkZ() >= 0);
+      assertEquals(0.0, projection.lonToBlockX(area.centerLongitude()), 1.0E-9);
+      assertEquals(0.0, projection.latToBlockZ(area.centerLatitude()), 1.0E-9);
+   }
+
+   @Test
+   void wrappedBoundsStayOnTheMapCopyNearestTheirNegativeLongitudeCenter() {
+      double centerLongitude = -179.99;
+      WorldProjection projection = WorldProjection.centeredOn(30.0, 0.0, centerLongitude);
+      TerrainPreloadArea area = TerrainPreloadArea.centered(0.0, centerLongitude, 12, projection);
+
+      assertTrue(area.westLongitude() < area.eastLongitude());
+      assertEquals(centerLongitude, (area.westLongitude() + area.eastLongitude()) * 0.5, 0.02);
+      assertTrue(area.eastLongitude() < -179.0);
    }
 
    @Test
@@ -89,6 +113,16 @@ class TerrainPreloadAreaTest {
 
       assertEquals(35.3606, settings.spawnLatitude(), 0.0001);
       assertEquals(138.7274, settings.spawnLongitude(), 0.0001);
+   }
+
+   @Test
+   void preloadOverridesMoveTheCenteredProjectionOriginWithSelectedSpawn() {
+      EarthGeneratorSettings base = EarthGeneratorSettings.DEFAULT.withCenterWorldOnSpawn(true);
+      EarthGeneratorSettings settings = TerrainPreloadSettingsOverrides.from(base).apply(base, 35.3606, 138.7274);
+
+      assertTrue(settings.centerWorldOnSpawn());
+      assertEquals(0.0, settings.projection().lonToBlockX(138.7274), 1.0E-9);
+      assertEquals(0.0, settings.projection().latToBlockZ(35.3606), 1.0E-9);
    }
 
    @Test

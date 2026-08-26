@@ -2,7 +2,7 @@ package com.yucareux.tellus.world.data.resolve;
 
 import com.yucareux.tellus.Tellus;
 import com.yucareux.tellus.world.data.source.InputStreamSafety;
-import com.yucareux.tellus.worldgen.EarthProjection;
+import com.yucareux.tellus.worldgen.WorldProjection;
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStream;
@@ -57,18 +57,14 @@ public final class TellusResolveSource {
       this.metadataResource = requireResourcePath(metadataResource);
    }
 
-   public ResolveEcoregion sampleEcoregion(double blockX, double blockZ, double worldScale) {
+   public ResolveEcoregion sampleEcoregion(double blockX, double blockZ, WorldProjection projection) {
+      double worldScale = projection.worldScale();
       if (!Double.isFinite(blockX) || !Double.isFinite(blockZ) || !Double.isFinite(worldScale) || worldScale <= 0.0) {
          return ResolveEcoregion.UNKNOWN;
       }
 
-      double blocksPerDegree = EarthProjection.blocksPerDegree(worldScale);
-      if (!(blocksPerDegree > 0.0) || !Double.isFinite(blocksPerDegree)) {
-         return ResolveEcoregion.UNKNOWN;
-      }
-
-      double longitude = blockX / blocksPerDegree;
-      double latitude = EarthProjection.blockZToLat(blockZ, worldScale);
+      double longitude = projection.blockXToLon(blockX);
+      double latitude = projection.blockZToLat(blockZ);
       return this.sampleAtLonLat(longitude, latitude);
    }
 

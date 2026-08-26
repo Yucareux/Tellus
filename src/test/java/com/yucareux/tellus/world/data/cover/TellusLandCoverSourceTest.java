@@ -1,6 +1,7 @@
 package com.yucareux.tellus.world.data.cover;
 
 import com.yucareux.tellus.worldgen.EarthProjection;
+import com.yucareux.tellus.worldgen.WorldProjection;
 import io.github.sebasbaumh.mapbox.vectortile.VectorTile.Tile;
 import java.io.InterruptedIOException;
 import java.net.SocketTimeoutException;
@@ -184,17 +185,18 @@ class TellusLandCoverSourceTest {
    @Test
    void rejectsSamplesBeyondTheFiniteProjectedEarth() {
       double worldScale = 1.0;
-      double northEdge = EarthProjection.latToBlockZ(EarthProjection.MAX_MERCATOR_LATITUDE, worldScale);
-      double southEdge = EarthProjection.latToBlockZ(-EarthProjection.MAX_MERCATOR_LATITUDE, worldScale);
+      WorldProjection projection = WorldProjection.global(worldScale);
+      double northEdge = projection.latToBlockZ(EarthProjection.MAX_MERCATOR_LATITUDE);
+      double southEdge = projection.latToBlockZ(-EarthProjection.MAX_MERCATOR_LATITUDE);
       double minZ = Math.min(northEdge, southEdge);
       double maxZ = Math.max(northEdge, southEdge);
 
-      assertTrue(TellusLandCoverSource.isWithinTileCoverage(0.0, minZ, worldScale));
-      assertTrue(TellusLandCoverSource.isWithinTileCoverage(0.0, maxZ, worldScale));
-      assertFalse(TellusLandCoverSource.isWithinTileCoverage(0.0, minZ - 1.0, worldScale));
-      assertFalse(TellusLandCoverSource.isWithinTileCoverage(0.0, maxZ + 1.0, worldScale));
-      assertFalse(TellusLandCoverSource.isWithinTileCoverage(Double.NaN, 0.0, worldScale));
-      assertFalse(TellusLandCoverSource.isWithinTileCoverage(0.0, 0.0, Double.POSITIVE_INFINITY));
+      assertTrue(TellusLandCoverSource.isWithinTileCoverage(0.0, minZ, projection));
+      assertTrue(TellusLandCoverSource.isWithinTileCoverage(0.0, maxZ, projection));
+      assertFalse(TellusLandCoverSource.isWithinTileCoverage(0.0, minZ - 1.0, projection));
+      assertFalse(TellusLandCoverSource.isWithinTileCoverage(0.0, maxZ + 1.0, projection));
+      assertFalse(TellusLandCoverSource.isWithinTileCoverage(Double.NaN, 0.0, projection));
+      assertFalse(TellusLandCoverSource.isWithinTileCoverage(0.0, 0.0, WorldProjection.global(0.0)));
    }
 
    private static Tile.Feature polygonFeature(int minX, int maxX, int minY, int maxY, int firstTagKey, int firstTagValue) {

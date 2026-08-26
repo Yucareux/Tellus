@@ -1,6 +1,6 @@
 package com.yucareux.tellus.world.data.osm;
 
-import com.yucareux.tellus.worldgen.EarthProjection;
+import com.yucareux.tellus.worldgen.WorldProjection;
 import java.util.Locale;
 import java.util.Objects;
 
@@ -120,14 +120,13 @@ public final class RoadAreaFeature {
       return this.maxLon >= west && this.minLon <= east && this.maxLat >= south && this.minLat <= north;
    }
 
-   public boolean containsBlock(int blockX, int blockZ, double worldScale) {
-      if (worldScale <= 0.0) {
+   public boolean containsBlock(int blockX, int blockZ, WorldProjection projection) {
+      if (projection.worldScale() <= 0.0) {
          return false;
       }
 
-      double blocksPerDegree = EarthProjection.blocksPerDegree(worldScale);
-      double lon = blockX / blocksPerDegree;
-      double lat = EarthProjection.blockZToLat(blockZ, worldScale);
+      double lon = projection.blockXToLon(blockX);
+      double lat = projection.blockZToLat(blockZ);
       return this.containsLonLat(lon, lat);
    }
 

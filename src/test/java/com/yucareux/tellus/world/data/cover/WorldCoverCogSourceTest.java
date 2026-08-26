@@ -6,6 +6,7 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.yucareux.tellus.worldgen.EarthProjection;
+import com.yucareux.tellus.worldgen.WorldProjection;
 import java.io.ByteArrayOutputStream;
 import java.io.EOFException;
 import java.io.IOException;
@@ -88,25 +89,26 @@ class WorldCoverCogSourceTest {
          }
       );
       double worldScale = 1.0;
+      WorldProjection projection = WorldProjection.global(worldScale);
       double lon = -119.5332;
       double lat = 37.7459;
-      double blockX = lon * EarthProjection.blocksPerDegree(worldScale);
-      double blockZ = EarthProjection.latToBlockZ(lat, worldScale);
+      double blockX = projection.lonToBlockX(lon);
+      double blockZ = projection.latToBlockZ(lat);
 
-      var nativeBlocks = source.areaBlockKeys(blockX, blockZ, blockX, blockZ, worldScale, 1.0);
-      var coarseBlocks = source.areaBlockKeys(blockX, blockZ, blockX, blockZ, worldScale, 640.0);
+      var nativeBlocks = source.areaBlockKeys(blockX, blockZ, blockX, blockZ, projection, 1.0);
+      var coarseBlocks = source.areaBlockKeys(blockX, blockZ, blockX, blockZ, projection, 640.0);
 
       assertEquals(1, nativeBlocks.size());
       assertEquals("N36W120", nativeBlocks.get(0).tileKey().code());
       assertEquals(1, nativeBlocks.get(0).overviewFactor());
       assertEquals(1, coarseBlocks.size());
       assertEquals(64, coarseBlocks.get(0).overviewFactor());
-      assertTrue(source.fullyCoversArea(blockX, blockZ, blockX, blockZ, worldScale));
+      assertTrue(source.fullyCoversArea(blockX, blockZ, blockX, blockZ, projection));
 
-      double partiallyCoveredMinBlockZ = EarthProjection.latToBlockZ(-70.0, worldScale);
-      double partiallyCoveredMaxBlockZ = EarthProjection.latToBlockZ(-50.0, worldScale);
+      double partiallyCoveredMinBlockZ = projection.latToBlockZ(-70.0);
+      double partiallyCoveredMaxBlockZ = projection.latToBlockZ(-50.0);
       assertFalse(
-         source.fullyCoversArea(blockX, partiallyCoveredMinBlockZ, blockX, partiallyCoveredMaxBlockZ, worldScale)
+         source.fullyCoversArea(blockX, partiallyCoveredMinBlockZ, blockX, partiallyCoveredMaxBlockZ, projection)
       );
       assertFalse(
          source.areaBlockKeys(
@@ -114,7 +116,7 @@ class WorldCoverCogSourceTest {
             partiallyCoveredMinBlockZ,
             blockX,
             partiallyCoveredMaxBlockZ,
-            worldScale,
+            projection,
             640.0
          ).isEmpty()
       );

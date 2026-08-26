@@ -2,6 +2,7 @@ package com.yucareux.tellus.world.data.biome;
 
 import com.yucareux.tellus.world.data.resolve.ResolveEcoregion;
 import com.yucareux.tellus.world.data.resolve.TellusResolveSource;
+import com.yucareux.tellus.worldgen.WorldProjection;
 import java.util.Set;
 import net.minecraft.resources.ResourceKey;
 import net.minecraft.world.level.biome.Biome;
@@ -11,14 +12,24 @@ public final class ResolveBiomeClassificationProvider implements BiomeClassifica
    private final TellusResolveSource resolveSource = TellusResolveSource.shared();
 
    @Override
+   @Deprecated
+   public ResourceKey<Biome> findBiomeKey(
+      int esaCode, String koppenCode, int blockX, int blockZ, double worldScale
+   ) {
+      return this.findBiomeKey(
+         esaCode, koppenCode, blockX, blockZ, WorldProjection.global(worldScale)
+      );
+   }
+
+   @Override
    public ResourceKey<Biome> findBiomeKey(
       int esaCode,
       String koppenCode,
       int blockX,
       int blockZ,
-      double worldScale
+      WorldProjection projection
    ) {
-      ResolveEcoregion ecoregion = this.resolveSource.sampleEcoregion(blockX, blockZ, worldScale);
+      ResolveEcoregion ecoregion = this.resolveSource.sampleEcoregion(blockX, blockZ, projection);
       return ResolveBiomeClassification.findBiomeKey(esaCode, koppenCode, ecoregion);
    }
 

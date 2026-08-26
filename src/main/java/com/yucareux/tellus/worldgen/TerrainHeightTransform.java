@@ -23,12 +23,13 @@ public final class TerrainHeightTransform {
    public static double scaledElevationBlocks(
       double elevationMeters,
       double blockZ,
-      double worldScale,
+      WorldProjection projection,
       double terrestrialHeightScale,
       double oceanicHeightScale,
       boolean experimentalIncreaseHeight,
       boolean automaticHeightScaling
    ) {
+      double worldScale = projection.worldScale();
       if (!Double.isFinite(elevationMeters) || !(worldScale > 0.0)) {
          return Double.NaN;
       }
@@ -40,7 +41,7 @@ public final class TerrainHeightTransform {
          oceanicHeightScale,
          experimentalIncreaseHeight,
          automaticHeightScaling,
-         heightScaleCorrection(blockZ, worldScale, experimentalIncreaseHeight, automaticHeightScaling)
+         heightScaleCorrection(blockZ, projection, experimentalIncreaseHeight, automaticHeightScaling)
       );
    }
 
@@ -89,15 +90,15 @@ public final class TerrainHeightTransform {
    }
 
    public static double heightScaleCorrection(
-      double blockZ, double worldScale, boolean experimentalIncreaseHeight, boolean automaticHeightScaling
+      double blockZ, WorldProjection projection, boolean experimentalIncreaseHeight, boolean automaticHeightScaling
    ) {
       if (!automaticHeightScaling) {
          return 1.0;
       }
 
       return capExperimentalCorrection(
-         EarthProjection.heightScaleCorrection(blockZ, worldScale),
-         worldScale,
+         projection.heightScaleCorrection(blockZ),
+         projection.worldScale(),
          experimentalIncreaseHeight
       );
    }
@@ -105,7 +106,7 @@ public final class TerrainHeightTransform {
    public static int blockOffset(
       double elevationMeters,
       double blockZ,
-      double worldScale,
+      WorldProjection projection,
       double terrestrialHeightScale,
       double oceanicHeightScale,
       boolean experimentalIncreaseHeight,
@@ -114,7 +115,7 @@ public final class TerrainHeightTransform {
       double scaled = scaledElevationBlocks(
          elevationMeters,
          blockZ,
-         worldScale,
+         projection,
          terrestrialHeightScale,
          oceanicHeightScale,
          experimentalIncreaseHeight,

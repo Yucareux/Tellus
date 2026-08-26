@@ -1,6 +1,6 @@
 package com.yucareux.tellus.world.data.osm;
 
-import com.yucareux.tellus.worldgen.EarthProjection;
+import com.yucareux.tellus.worldgen.WorldProjection;
 import java.util.Objects;
 
 public final class OsmBuildingFeature {
@@ -153,13 +153,12 @@ public final class OsmBuildingFeature {
       return this.maxLon >= west && this.minLon <= east && this.maxLat >= south && this.minLat <= north;
    }
 
-   public boolean containsWorld(double worldX, double worldZ, double worldScale) {
-      if (worldScale <= 0.0) {
+   public boolean containsWorld(double worldX, double worldZ, WorldProjection projection) {
+      if (projection.worldScale() <= 0.0) {
          return false;
       } else {
-         double blocksPerDegree = EarthProjection.blocksPerDegree(worldScale);
-         double lon = worldX / blocksPerDegree;
-         double lat = EarthProjection.blockZToLat(worldZ, worldScale);
+         double lon = projection.blockXToLon(worldX);
+         double lat = projection.blockZToLat(worldZ);
          return this.containsLonLat(lon, lat);
       }
    }
@@ -193,37 +192,46 @@ public final class OsmBuildingFeature {
       }
    }
 
-   public double minBlockX(double blocksPerDegree) {
-      return this.minLon * blocksPerDegree;
+   public double minBlockX(WorldProjection projection) {
+      return Math.min(projection.lonToBlockX(this.minLon), projection.lonToBlockX(this.maxLon));
    }
 
-   public double minBlockXForScale(double worldScale) {
-      return this.minBlockX(EarthProjection.blocksPerDegree(worldScale));
+   public double maxBlockX(WorldProjection projection) {
+      return Math.max(projection.lonToBlockX(this.minLon), projection.lonToBlockX(this.maxLon));
    }
 
-   public double maxBlockX(double blocksPerDegree) {
-      return this.maxLon * blocksPerDegree;
-   }
-
-   public double maxBlockXForScale(double worldScale) {
-      return this.maxBlockX(EarthProjection.blocksPerDegree(worldScale));
-   }
-
-   public double minBlockZ(double worldScale) {
-      double z1 = EarthProjection.latToBlockZ(this.minLat, worldScale);
-      double z2 = EarthProjection.latToBlockZ(this.maxLat, worldScale);
+   public double minBlockZ(WorldProjection projection) {
+      double z1 = projection.latToBlockZ(this.minLat);
+      double z2 = projection.latToBlockZ(this.maxLat);
       return Math.min(z1, z2);
    }
 
-   public double maxBlockZ(double worldScale) {
-      double z1 = EarthProjection.latToBlockZ(this.minLat, worldScale);
-      double z2 = EarthProjection.latToBlockZ(this.maxLat, worldScale);
+   public double maxBlockZ(WorldProjection projection) {
+      double z1 = projection.latToBlockZ(this.minLat);
+      double z2 = projection.latToBlockZ(this.maxLat);
       return Math.max(z1, z2);
    }
 
-   public double[] centroidWorld(double worldScale) {
-      double blocksPerDegree = EarthProjection.blocksPerDegree(worldScale);
-      return new double[]{this.centroidLon * blocksPerDegree, EarthProjection.latToBlockZ(this.centroidLat, worldScale)};
+   public double[] centroidWorld(WorldProjection projection) {
+      return new double[]{projection.lonToBlockX(this.centroidLon), projection.latToBlockZ(this.centroidLat)};
+   }
+
+   public boolean crossesWorldSeam(WorldProjection projection) {
+      for (int part = 0; part < this.partCount(); part++) {
+         int points = this.pointCount(part);
+         if (points < 2) {
+            continue;
+         }
+         double previousX = projection.lonToBlockX(this.lonAt(part, points - 1));
+         for (int point = 0; point < points; point++) {
+            double currentX = projection.lonToBlockX(this.lonAt(part, point));
+            if (projection.crossesWorldSeam(previousX, currentX)) {
+               return true;
+            }
+            previousX = currentX;
+         }
+      }
+      return false;
    }
 
    public boolean widthLongerThanDepth() {

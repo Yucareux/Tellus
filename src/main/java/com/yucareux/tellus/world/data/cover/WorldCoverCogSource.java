@@ -12,7 +12,7 @@ import com.yucareux.tellus.integration.distant_horizons.managed.ManagedTerrainNe
 import com.yucareux.tellus.platform.TellusPlatform;
 import com.yucareux.tellus.world.data.source.DownloadProgressReporter;
 import com.yucareux.tellus.world.data.source.InputStreamSafety;
-import com.yucareux.tellus.worldgen.EarthProjection;
+import com.yucareux.tellus.worldgen.WorldProjection;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.DataInputStream;
@@ -380,9 +380,10 @@ final class WorldCoverCogSource {
       double minBlockZ,
       double maxBlockX,
       double maxBlockZ,
-      double worldScale,
+      WorldProjection projection,
       double effectiveResolutionMeters
    ) {
+      double worldScale = projection.worldScale();
       if (!(Double.isFinite(worldScale) && worldScale > 0.0)
          || !Double.isFinite(minBlockX)
          || !Double.isFinite(minBlockZ)
@@ -391,44 +392,55 @@ final class WorldCoverCogSource {
          return List.of();
       }
 
-      double blocksPerDegree = EarthProjection.blocksPerDegree(worldScale);
-      double lonA = minBlockX / blocksPerDegree;
-      double lonB = maxBlockX / blocksPerDegree;
-      double latA = EarthProjection.blockZToLat(minBlockZ, worldScale);
-      double latB = EarthProjection.blockZToLat(maxBlockZ, worldScale);
-      double minLon = Math.max(MIN_TILE_LON, Math.min(lonA, lonB));
-      double maxLon = Math.min(MAX_TILE_LON_EXCLUSIVE, Math.max(lonA, lonB));
+      double lonA = projection.blockXToLon(minBlockX);
+      double lonB = projection.blockXToLon(maxBlockX);
+      double latA = projection.blockZToLat(minBlockZ);
+      double latB = projection.blockZToLat(maxBlockZ);
       double minLat = Math.max(MIN_TILE_LAT, Math.min(latA, latB));
       double maxLat = Math.min(MAX_TILE_LAT_EXCLUSIVE, Math.max(latA, latB));
-      if (!(minLon <= maxLon) || !(minLat <= maxLat)) {
+      if (!(minLat <= maxLat)) {
          return List.of();
       }
+      double[][] longitudeRanges = projection.isCentered() && lonB < lonA
+         ? new double[][]{{lonA, MAX_TILE_LON_EXCLUSIVE}, {MIN_TILE_LON, lonB}}
+         : new double[][]{{
+            Math.max(MIN_TILE_LON, Math.min(lonA, lonB)),
+            Math.min(MAX_TILE_LON_EXCLUSIVE, Math.max(lonA, lonB))
+         }};
 
       int factor = selectOverviewFactor(effectiveResolutionMeters);
       int rasterSize = rasterSizeForFactor(factor);
-      int firstLon = tileOrigin(minLon, MIN_TILE_LON, MAX_TILE_LON_EXCLUSIVE);
-      int lastLon = tileOrigin(maxLon == MAX_TILE_LON_EXCLUSIVE ? Math.nextDown(maxLon) : maxLon, MIN_TILE_LON, MAX_TILE_LON_EXCLUSIVE);
       int firstLat = tileOrigin(minLat, MIN_TILE_LAT, MAX_TILE_LAT_EXCLUSIVE);
       int lastLat = tileOrigin(maxLat == MAX_TILE_LAT_EXCLUSIVE ? Math.nextDown(maxLat) : maxLat, MIN_TILE_LAT, MAX_TILE_LAT_EXCLUSIVE);
       Set<BlockKey> keys = new LinkedHashSet<>();
-      for (int tileLat = firstLat; tileLat <= lastLat; tileLat += TILE_DEGREES) {
-         for (int tileLon = firstLon; tileLon <= lastLon; tileLon += TILE_DEGREES) {
-            SourceTileKey tileKey = new SourceTileKey(tileLat, tileLon);
-            double intersectionMinLon = Math.max(minLon, tileLon);
-            double intersectionMaxLon = Math.min(maxLon, tileLon + TILE_DEGREES);
-            double intersectionMinLat = Math.max(minLat, tileLat);
-            double intersectionMaxLat = Math.min(maxLat, tileLat + TILE_DEGREES);
-            int minPixelX = pixelForCoordinate(intersectionMinLon, tileLon, rasterSize);
-            int maxPixelX = pixelForCoordinate(intersectionMaxLon, tileLon, rasterSize);
-            int minPixelY = pixelForCoordinate(tileLat + TILE_DEGREES - intersectionMaxLat, 0.0, rasterSize);
-            int maxPixelY = pixelForCoordinate(tileLat + TILE_DEGREES - intersectionMinLat, 0.0, rasterSize);
-            int minCogBlockX = minPixelX / TIFF_TILE_SIZE;
-            int maxCogBlockX = maxPixelX / TIFF_TILE_SIZE;
-            int minCogBlockY = minPixelY / TIFF_TILE_SIZE;
-            int maxCogBlockY = maxPixelY / TIFF_TILE_SIZE;
-            for (int blockY = minCogBlockY; blockY <= maxCogBlockY; blockY++) {
-               for (int blockX = minCogBlockX; blockX <= maxCogBlockX; blockX++) {
-                  keys.add(new BlockKey(tileKey, factor, blockX, blockY));
+      for (double[] longitudeRange : longitudeRanges) {
+         double minLon = longitudeRange[0];
+         double maxLon = longitudeRange[1];
+         int firstLon = tileOrigin(minLon, MIN_TILE_LON, MAX_TILE_LON_EXCLUSIVE);
+         int lastLon = tileOrigin(
+            maxLon == MAX_TILE_LON_EXCLUSIVE ? Math.nextDown(maxLon) : maxLon,
+            MIN_TILE_LON,
+            MAX_TILE_LON_EXCLUSIVE
+         );
+         for (int tileLat = firstLat; tileLat <= lastLat; tileLat += TILE_DEGREES) {
+            for (int tileLon = firstLon; tileLon <= lastLon; tileLon += TILE_DEGREES) {
+               SourceTileKey tileKey = new SourceTileKey(tileLat, tileLon);
+               double intersectionMinLon = Math.max(minLon, tileLon);
+               double intersectionMaxLon = Math.min(maxLon, tileLon + TILE_DEGREES);
+               double intersectionMinLat = Math.max(minLat, tileLat);
+               double intersectionMaxLat = Math.min(maxLat, tileLat + TILE_DEGREES);
+               int minPixelX = pixelForCoordinate(intersectionMinLon, tileLon, rasterSize);
+               int maxPixelX = pixelForCoordinate(intersectionMaxLon, tileLon, rasterSize);
+               int minPixelY = pixelForCoordinate(tileLat + TILE_DEGREES - intersectionMaxLat, 0.0, rasterSize);
+               int maxPixelY = pixelForCoordinate(tileLat + TILE_DEGREES - intersectionMinLat, 0.0, rasterSize);
+               int minCogBlockX = minPixelX / TIFF_TILE_SIZE;
+               int maxCogBlockX = maxPixelX / TIFF_TILE_SIZE;
+               int minCogBlockY = minPixelY / TIFF_TILE_SIZE;
+               int maxCogBlockY = maxPixelY / TIFF_TILE_SIZE;
+               for (int blockY = minCogBlockY; blockY <= maxCogBlockY; blockY++) {
+                  for (int blockX = minCogBlockX; blockX <= maxCogBlockX; blockX++) {
+                     keys.add(new BlockKey(tileKey, factor, blockX, blockY));
+                  }
                }
             }
          }
@@ -437,8 +449,9 @@ final class WorldCoverCogSource {
    }
 
    boolean fullyCoversArea(
-      double minBlockX, double minBlockZ, double maxBlockX, double maxBlockZ, double worldScale
+      double minBlockX, double minBlockZ, double maxBlockX, double maxBlockZ, WorldProjection projection
    ) {
+      double worldScale = projection.worldScale();
       if (!(Double.isFinite(worldScale) && worldScale > 0.0)
          || !Double.isFinite(minBlockX)
          || !Double.isFinite(minBlockZ)
@@ -446,11 +459,10 @@ final class WorldCoverCogSource {
          || !Double.isFinite(maxBlockZ)) {
          return false;
       }
-      double blocksPerDegree = EarthProjection.blocksPerDegree(worldScale);
-      double lonA = minBlockX / blocksPerDegree;
-      double lonB = maxBlockX / blocksPerDegree;
-      double latA = EarthProjection.blockZToLat(minBlockZ, worldScale);
-      double latB = EarthProjection.blockZToLat(maxBlockZ, worldScale);
+      double lonA = projection.blockXToLon(minBlockX);
+      double lonB = projection.blockXToLon(maxBlockX);
+      double latA = projection.blockZToLat(minBlockZ);
+      double latB = projection.blockZToLat(maxBlockZ);
       return Math.min(lonA, lonB) >= MIN_TILE_LON
          && Math.max(lonA, lonB) <= MAX_TILE_LON_EXCLUSIVE
          && Math.min(latA, latB) >= MIN_TILE_LAT

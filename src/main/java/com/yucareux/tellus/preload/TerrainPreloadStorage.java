@@ -4,6 +4,7 @@ import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonNull;
+import com.google.gson.JsonObject;
 import com.mojang.serialization.JsonOps;
 import com.yucareux.tellus.Tellus;
 import com.yucareux.tellus.cache.TellusCacheDomain;
@@ -162,10 +163,26 @@ public final class TerrainPreloadStorage {
    public String settingsFingerprint(JsonElement settingsJson) {
       try {
          MessageDigest digest = MessageDigest.getInstance("SHA-256");
-         byte[] hash = digest.digest(GSON.toJson(settingsJson).getBytes(StandardCharsets.UTF_8));
+         byte[] hash = digest.digest(GSON.toJson(canonicalFingerprintSettings(settingsJson)).getBytes(StandardCharsets.UTF_8));
          return HexFormat.of().formatHex(hash);
       } catch (NoSuchAlgorithmException error) {
          throw new IllegalStateException("SHA-256 unavailable", error);
+      }
+   }
+
+   private static JsonElement canonicalFingerprintSettings(JsonElement settingsJson) {
+      JsonElement canonical = Objects.requireNonNull(settingsJson, "settingsJson").deepCopy();
+      if (canonical instanceof JsonObject object) {
+         removeDefaultFalse(object, "world_scale_at_spawn");
+         removeDefaultFalse(object, "center_world_on_spawn");
+      }
+      return canonical;
+   }
+
+   private static void removeDefaultFalse(JsonObject object, String field) {
+      JsonElement value = object.get(field);
+      if (value != null && value.isJsonPrimitive() && value.getAsJsonPrimitive().isBoolean() && !value.getAsBoolean()) {
+         object.remove(field);
       }
    }
 

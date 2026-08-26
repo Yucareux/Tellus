@@ -12,6 +12,7 @@ import com.yucareux.tellus.integration.distant_horizons.managed.ManagedTerrainNe
 import com.yucareux.tellus.platform.TellusPlatform;
 import com.yucareux.tellus.world.data.source.ParallelDownloadRunner;
 import com.yucareux.tellus.worldgen.EarthProjection;
+import com.yucareux.tellus.worldgen.WorldProjection;
 import java.io.IOException;
 import java.net.URI;
 import java.net.http.HttpClient;
@@ -89,41 +90,41 @@ public final class TellusCanopyHeightSource implements TellusCacheHandle {
       TellusCacheRegistry.register(this);
    }
 
-   public CanopySample sampleCanopy(double blockX, double blockZ, double worldScale) {
-      return this.sampleCanopy(blockX, blockZ, worldScale, worldScale, managedLookupMode());
+   public CanopySample sampleCanopy(double blockX, double blockZ, WorldProjection projection) {
+      return this.sampleCanopy(blockX, blockZ, projection, projection.worldScale(), managedLookupMode());
    }
 
    public CanopySample sampleCanopy(
-      double blockX, double blockZ, double worldScale, double previewResolutionMeters
+      double blockX, double blockZ, WorldProjection projection, double previewResolutionMeters
    ) {
-      return this.sampleCanopy(blockX, blockZ, worldScale, previewResolutionMeters, managedLookupMode());
+      return this.sampleCanopy(blockX, blockZ, projection, previewResolutionMeters, managedLookupMode());
    }
 
    public CanopySample sampleCanopyLocalOnly(
-      double blockX, double blockZ, double worldScale, double previewResolutionMeters
+      double blockX, double blockZ, WorldProjection projection, double previewResolutionMeters
    ) {
-      return this.sampleCanopy(blockX, blockZ, worldScale, previewResolutionMeters, LookupMode.LOCAL_ONLY);
+      return this.sampleCanopy(blockX, blockZ, projection, previewResolutionMeters, LookupMode.LOCAL_ONLY);
    }
 
    public CanopySample sampleCanopyMemoryOnly(
-      double blockX, double blockZ, double worldScale, double previewResolutionMeters
+      double blockX, double blockZ, WorldProjection projection, double previewResolutionMeters
    ) {
-      return this.sampleCanopy(blockX, blockZ, worldScale, previewResolutionMeters, LookupMode.MEMORY_ONLY);
+      return this.sampleCanopy(blockX, blockZ, projection, previewResolutionMeters, LookupMode.MEMORY_ONLY);
    }
 
    private CanopySample sampleCanopy(
       double blockX,
       double blockZ,
-      double worldScale,
+      WorldProjection projection,
       double previewResolutionMeters,
       LookupMode lookupMode
    ) {
-      GeoPoint point = geoPoint(blockX, blockZ, worldScale);
+      GeoPoint point = geoPoint(blockX, blockZ, projection);
       if (point == null || !withinCoverage(point.longitude(), point.latitude())) {
          return CanopySample.unavailable();
       }
 
-      int level = levelForResolution(worldScale, previewResolutionMeters);
+      int level = levelForResolution(projection.worldScale(), previewResolutionMeters);
       PixelPosition center = pixelPosition(point.longitude(), point.latitude(), level);
       if (center == null) {
          return CanopySample.unavailable();
@@ -161,7 +162,7 @@ public final class TellusCanopyHeightSource implements TellusCacheHandle {
    }
 
    public void prefetchTiles(
-      int centerBlockX, int centerBlockZ, double worldScale, int radiusChunks, double previewResolutionMeters
+      int centerBlockX, int centerBlockZ, WorldProjection projection, int radiusChunks, double previewResolutionMeters
    ) {
       int radiusBlocks = Math.max(8, Math.max(0, radiusChunks) * 16 + 8);
       this.preloadAreaInputs(
@@ -169,7 +170,7 @@ public final class TellusCanopyHeightSource implements TellusCacheHandle {
          centerBlockZ - radiusBlocks,
          centerBlockX + radiusBlocks,
          centerBlockZ + radiusBlocks,
-         worldScale,
+         projection,
          previewResolutionMeters,
          0,
          null
@@ -181,10 +182,10 @@ public final class TellusCanopyHeightSource implements TellusCacheHandle {
       int minBlockZ,
       int maxBlockX,
       int maxBlockZ,
-      double worldScale,
+      WorldProjection projection,
       double previewResolutionMeters
    ) {
-      return tileKeysForArea(minBlockX, minBlockZ, maxBlockX, maxBlockZ, worldScale, previewResolutionMeters).size();
+      return tileKeysForArea(minBlockX, minBlockZ, maxBlockX, maxBlockZ, projection, previewResolutionMeters).size();
    }
 
    /**
@@ -196,11 +197,11 @@ public final class TellusCanopyHeightSource implements TellusCacheHandle {
       int minBlockZ,
       int maxBlockX,
       int maxBlockZ,
-      double worldScale,
+      WorldProjection projection,
       double requestedResolutionMeters,
       int maxTileCount
    ) {
-      double resolutionMeters = finitePositive(requestedResolutionMeters, worldScale);
+      double resolutionMeters = finitePositive(requestedResolutionMeters, projection.worldScale());
       int tileBudget = Math.max(1, maxTileCount);
       for (int overviewStep = 0; overviewStep <= NATIVE_LEVEL + 4; overviewStep++) {
          if (areaTileCount(
@@ -208,7 +209,7 @@ public final class TellusCanopyHeightSource implements TellusCacheHandle {
                minBlockZ,
                maxBlockX,
                maxBlockZ,
-               worldScale,
+               projection,
                resolutionMeters
             ) <= tileBudget) {
             break;
@@ -226,10 +227,10 @@ public final class TellusCanopyHeightSource implements TellusCacheHandle {
       int minBlockZ,
       int maxBlockX,
       int maxBlockZ,
-      double worldScale,
+      WorldProjection projection,
       double previewResolutionMeters
    ) {
-      return tileKeysForArea(minBlockX, minBlockZ, maxBlockX, maxBlockZ, worldScale, previewResolutionMeters).size();
+      return tileKeysForArea(minBlockX, minBlockZ, maxBlockX, maxBlockZ, projection, previewResolutionMeters).size();
    }
 
    public int preloadAreaInputs(
@@ -237,7 +238,7 @@ public final class TellusCanopyHeightSource implements TellusCacheHandle {
       int minBlockZ,
       int maxBlockX,
       int maxBlockZ,
-      double worldScale,
+      WorldProjection projection,
       double previewResolutionMeters,
       int completedOffset,
       BiConsumer<Integer, String> progress
@@ -246,7 +247,7 @@ public final class TellusCanopyHeightSource implements TellusCacheHandle {
          return completedOffset;
       }
 
-      List<TileKey> keys = tileKeysForArea(minBlockX, minBlockZ, maxBlockX, maxBlockZ, worldScale, previewResolutionMeters);
+      List<TileKey> keys = tileKeysForArea(minBlockX, minBlockZ, maxBlockX, maxBlockZ, projection, previewResolutionMeters);
       if (keys.isEmpty()) {
          return completedOffset;
       }
@@ -482,35 +483,43 @@ public final class TellusCanopyHeightSource implements TellusCacheHandle {
       int minBlockZ,
       int maxBlockX,
       int maxBlockZ,
-      double worldScale,
+      WorldProjection projection,
       double previewResolutionMeters
    ) {
-      GeoPoint first = geoPoint(Math.min(minBlockX, maxBlockX), Math.min(minBlockZ, maxBlockZ), worldScale);
-      GeoPoint second = geoPoint(Math.max(minBlockX, maxBlockX), Math.max(minBlockZ, maxBlockZ), worldScale);
+      GeoPoint first = geoPoint(Math.min(minBlockX, maxBlockX), Math.min(minBlockZ, maxBlockZ), projection);
+      GeoPoint second = geoPoint(Math.max(minBlockX, maxBlockX), Math.max(minBlockZ, maxBlockZ), projection);
       if (first == null || second == null) {
          return List.of();
       }
 
-      double minLon = Math.max(-180.0, Math.min(first.longitude(), second.longitude()));
-      double maxLon = Math.min(Math.nextDown(180.0), Math.max(first.longitude(), second.longitude()));
       double minLat = Math.max(MIN_LATITUDE, Math.min(first.latitude(), second.latitude()));
       double maxLat = Math.min(Math.nextDown(MAX_LATITUDE), Math.max(first.latitude(), second.latitude()));
-      if (minLon > maxLon || minLat > maxLat) {
+      if (minLat > maxLat) {
          return List.of();
       }
+      double[][] longitudeRanges = projection.isCentered() && second.longitude() < first.longitude()
+         ? new double[][]{{first.longitude(), Math.nextDown(180.0)}, {-180.0, second.longitude()}}
+         : new double[][]{{
+            Math.max(-180.0, Math.min(first.longitude(), second.longitude())),
+            Math.min(Math.nextDown(180.0), Math.max(first.longitude(), second.longitude()))
+         }};
 
-      int level = levelForResolution(worldScale, previewResolutionMeters);
-      TileKey northWest;
-      TileKey southEast;
+      int level = levelForResolution(projection.worldScale(), previewResolutionMeters);
+      List<TileRange> ranges;
       long tileCount;
       do {
-         northWest = tileKey(minLon, maxLat, level);
-         southEast = tileKey(maxLon, minLat, level);
-         if (northWest == null || southEast == null) {
-            return List.of();
+         ranges = new ArrayList<>(longitudeRanges.length);
+         tileCount = 0L;
+         for (double[] longitudeRange : longitudeRanges) {
+            TileKey northWest = tileKey(longitudeRange[0], maxLat, level);
+            TileKey southEast = tileKey(longitudeRange[1], minLat, level);
+            if (northWest == null || southEast == null) {
+               return List.of();
+            }
+            ranges.add(new TileRange(northWest, southEast));
+            tileCount += (long)(southEast.row() - northWest.row() + 1)
+               * (long)(southEast.column() - northWest.column() + 1);
          }
-         tileCount = (long)(southEast.row() - northWest.row() + 1)
-            * (long)(southEast.column() - northWest.column() + 1);
          if (tileCount <= MAX_AREA_TILE_COUNT || level == MIN_LEVEL) {
             break;
          }
@@ -518,20 +527,21 @@ public final class TellusCanopyHeightSource implements TellusCacheHandle {
       } while (true);
 
       List<TileKey> keys = new ArrayList<>((int)Math.min(Integer.MAX_VALUE, tileCount));
-      for (int row = northWest.row(); row <= southEast.row(); row++) {
-         for (int column = northWest.column(); column <= southEast.column(); column++) {
-            keys.add(new TileKey(level, row, column));
+      for (TileRange range : ranges) {
+         for (int row = range.northWest().row(); row <= range.southEast().row(); row++) {
+            for (int column = range.northWest().column(); column <= range.southEast().column(); column++) {
+               keys.add(new TileKey(level, row, column));
+            }
          }
       }
       return List.copyOf(keys);
    }
 
-   private static GeoPoint geoPoint(double blockX, double blockZ, double worldScale) {
-      double blocksPerDegree = EarthProjection.blocksPerDegree(worldScale);
-      if (!(blocksPerDegree > 0.0) || !Double.isFinite(blockX) || !Double.isFinite(blockZ)) {
+   private static GeoPoint geoPoint(double blockX, double blockZ, WorldProjection projection) {
+      if (!(projection.worldScale() > 0.0) || !Double.isFinite(blockX) || !Double.isFinite(blockZ)) {
          return null;
       }
-      return new GeoPoint(blockX / blocksPerDegree, EarthProjection.blockZToLat(blockZ, worldScale));
+      return new GeoPoint(projection.blockXToLon(blockX), projection.blockZToLat(blockZ));
    }
 
    private static double resolutionDegrees(int level) {
@@ -634,6 +644,9 @@ public final class TellusCanopyHeightSource implements TellusCacheHandle {
    }
 
    private record GeoPoint(double longitude, double latitude) {
+   }
+
+   private record TileRange(TileKey northWest, TileKey southEast) {
    }
 
    private record CacheFile(Path path, long size, long modifiedMillis) {

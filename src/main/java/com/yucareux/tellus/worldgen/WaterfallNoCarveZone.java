@@ -53,16 +53,16 @@ public final class WaterfallNoCarveZone {
       return feature != null && feature.waterfallMarker();
    }
 
-   public static boolean containsBlock(OsmWaterFeature marker, int blockX, int blockZ, double worldScale) {
-      if (!isMarker(marker) || !(worldScale > 0.0)) {
+   public static boolean containsBlock(OsmWaterFeature marker, int blockX, int blockZ, WorldProjection projection) {
+      if (!isMarker(marker) || !(projection.worldScale() > 0.0)) {
          return false;
       }
-      int radiusChunks = radiusChunks(worldScale);
+      int radiusChunks = radiusChunks(projection.worldScale());
       if (radiusChunks <= 0) {
          return false;
       }
-      int markerBlockX = markerBlockX(marker, worldScale);
-      int markerBlockZ = markerBlockZ(marker, worldScale);
+      int markerBlockX = markerBlockX(marker, projection);
+      int markerBlockZ = markerBlockZ(marker, projection);
       return withinChunkRadius(blockX, blockZ, markerBlockX, markerBlockZ, radiusChunks);
    }
 
@@ -73,11 +73,11 @@ public final class WaterfallNoCarveZone {
       int gridWidth,
       int gridHeight,
       List<OsmWaterFeature> features,
-      double worldScale
+      WorldProjection projection
    ) {
       requireGrid(protectedMask, gridWidth, gridHeight);
-      int radiusChunks = radiusChunks(worldScale);
-      if (!(worldScale > 0.0) || radiusChunks <= 0 || features == null || features.isEmpty()) {
+      int radiusChunks = radiusChunks(projection.worldScale());
+      if (!(projection.worldScale() > 0.0) || radiusChunks <= 0 || features == null || features.isEmpty()) {
          return;
       }
 
@@ -87,8 +87,8 @@ public final class WaterfallNoCarveZone {
          if (!isMarker(feature)) {
             continue;
          }
-         long markerChunkX = Math.floorDiv(markerBlockX(feature, worldScale), CHUNK_SIZE);
-         long markerChunkZ = Math.floorDiv(markerBlockZ(feature, worldScale), CHUNK_SIZE);
+         long markerChunkX = Math.floorDiv(markerBlockX(feature, projection), CHUNK_SIZE);
+         long markerChunkZ = Math.floorDiv(markerBlockZ(feature, projection), CHUNK_SIZE);
          for (int chunkOffsetZ = -radiusChunks; chunkOffsetZ <= radiusChunks; chunkOffsetZ++) {
             int chunkExtentX = maxChunkOffsetAt(chunkOffsetZ, radiusChunks);
             long zoneMinX = (markerChunkX - chunkExtentX) * CHUNK_SIZE;
@@ -118,13 +118,13 @@ public final class WaterfallNoCarveZone {
       double[] sampleWorldX,
       double[] sampleWorldZ,
       List<OsmWaterFeature> features,
-      double worldScale
+      WorldProjection projection
    ) {
       int gridWidth = sampleWorldX == null ? 0 : sampleWorldX.length;
       int gridHeight = sampleWorldZ == null ? 0 : sampleWorldZ.length;
       requireGrid(protectedMask, gridWidth, gridHeight);
-      int radiusChunks = radiusChunks(worldScale);
-      if (!(worldScale > 0.0) || radiusChunks <= 0 || features == null || features.isEmpty()) {
+      int radiusChunks = radiusChunks(projection.worldScale());
+      if (!(projection.worldScale() > 0.0) || radiusChunks <= 0 || features == null || features.isEmpty()) {
          return;
       }
       long radiusSquared = radiusSquared(radiusChunks);
@@ -133,8 +133,8 @@ public final class WaterfallNoCarveZone {
          if (!isMarker(feature)) {
             continue;
          }
-         int markerBlockX = markerBlockX(feature, worldScale);
-         int markerBlockZ = markerBlockZ(feature, worldScale);
+         int markerBlockX = markerBlockX(feature, projection);
+         int markerBlockZ = markerBlockZ(feature, projection);
          long markerChunkX = Math.floorDiv(markerBlockX, CHUNK_SIZE);
          long markerChunkZ = Math.floorDiv(markerBlockZ, CHUNK_SIZE);
          for (int z = 0; z < gridHeight; z++) {
@@ -162,11 +162,11 @@ public final class WaterfallNoCarveZone {
       int gridSize,
       int cellSize,
       List<OsmWaterFeature> features,
-      double worldScale
+      WorldProjection projection
    ) {
       requireGrid(protectedMask, gridSize, gridSize);
-      int radiusChunks = radiusChunks(worldScale);
-      if (!(worldScale > 0.0) || radiusChunks <= 0 || cellSize <= 0 || features == null || features.isEmpty()) {
+      int radiusChunks = radiusChunks(projection.worldScale());
+      if (!(projection.worldScale() > 0.0) || radiusChunks <= 0 || cellSize <= 0 || features == null || features.isEmpty()) {
          return;
       }
 
@@ -174,8 +174,8 @@ public final class WaterfallNoCarveZone {
          if (!isMarker(feature)) {
             continue;
          }
-         long markerChunkX = Math.floorDiv(markerBlockX(feature, worldScale), CHUNK_SIZE);
-         long markerChunkZ = Math.floorDiv(markerBlockZ(feature, worldScale), CHUNK_SIZE);
+         long markerChunkX = Math.floorDiv(markerBlockX(feature, projection), CHUNK_SIZE);
+         long markerChunkZ = Math.floorDiv(markerBlockZ(feature, projection), CHUNK_SIZE);
          for (int z = 0; z < gridSize; z++) {
             long cellMinZ = (long)baseZ + (long)z * cellSize;
             long cellMaxZ = cellMinZ + cellSize - 1L;
@@ -203,12 +203,12 @@ public final class WaterfallNoCarveZone {
       }
    }
 
-   private static int markerBlockX(OsmWaterFeature marker, double worldScale) {
-      return Mth.floor(marker.lonAt(0, 0) * EarthProjection.blocksPerDegree(worldScale));
+   private static int markerBlockX(OsmWaterFeature marker, WorldProjection projection) {
+      return Mth.floor(projection.lonToBlockX(marker.lonAt(0, 0)));
    }
 
-   private static int markerBlockZ(OsmWaterFeature marker, double worldScale) {
-      return Mth.floor(EarthProjection.latToBlockZ(marker.latAt(0, 0), worldScale));
+   private static int markerBlockZ(OsmWaterFeature marker, WorldProjection projection) {
+      return Mth.floor(projection.latToBlockZ(marker.latAt(0, 0)));
    }
 
    private static boolean withinChunkRadius(

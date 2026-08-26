@@ -11,7 +11,7 @@ import com.yucareux.tellus.cache.TellusCacheHandle;
 import com.yucareux.tellus.cache.TellusCacheRegistry;
 import com.yucareux.tellus.world.data.pmtiles.PmTilesSafety;
 import com.yucareux.tellus.world.data.source.ParallelDownloadRunner;
-import com.yucareux.tellus.worldgen.EarthProjection;
+import com.yucareux.tellus.worldgen.WorldProjection;
 import io.github.sebasbaumh.mapbox.vectortile.VectorTile.Tile;
 import io.github.sebasbaumh.mapbox.vectortile.VectorTile.Tile.Feature;
 import io.github.sebasbaumh.mapbox.vectortile.VectorTile.Tile.GeomType;
@@ -93,21 +93,21 @@ public final class TellusOsmInfrastructureSource implements TellusCacheHandle {
    }
 
    public StreetLightQueryResult streetLightsForAreaWithStatus(
-      int minBlockX, int minBlockZ, int maxBlockX, int maxBlockZ, double worldScale, int marginBlocks, OsmQueryMode mode
+      int minBlockX, int minBlockZ, int maxBlockX, int maxBlockZ, WorldProjection projection, int marginBlocks, OsmQueryMode mode
    ) {
-      StreetLightQueryResult result = this.roadPointsForAreaWithStatus(minBlockX, minBlockZ, maxBlockX, maxBlockZ, worldScale, marginBlocks, mode);
+      StreetLightQueryResult result = this.roadPointsForAreaWithStatus(minBlockX, minBlockZ, maxBlockX, maxBlockZ, projection, marginBlocks, mode);
       return new StreetLightQueryResult(filterByKind(result.features(), RoadPointKind.STREET_LIGHT), result.hadCacheMiss());
    }
 
    public StreetLightQueryResult roadPointsForAreaWithStatus(
-      int minBlockX, int minBlockZ, int maxBlockX, int maxBlockZ, double worldScale, int marginBlocks, OsmQueryMode mode
+      int minBlockX, int minBlockZ, int maxBlockX, int maxBlockZ, WorldProjection projection, int marginBlocks, OsmQueryMode mode
    ) {
       this.ensureInitialized();
-      if (!this.available || worldScale <= 0.0) {
+      if (!this.available || projection.worldScale() <= 0.0) {
          return new StreetLightQueryResult(List.of(), false);
       }
 
-      TellusOsmInfrastructureSource.GeoBounds bounds = geoBoundsForBlockArea(minBlockX, minBlockZ, maxBlockX, maxBlockZ, marginBlocks, worldScale);
+      TellusOsmInfrastructureSource.GeoBounds bounds = geoBoundsForBlockArea(minBlockX, minBlockZ, maxBlockX, maxBlockZ, marginBlocks, projection);
       if (bounds == null) {
          return new StreetLightQueryResult(List.of(), false);
       }
@@ -124,24 +124,29 @@ public final class TellusOsmInfrastructureSource implements TellusCacheHandle {
          hadCacheMiss |= lookup.cacheMiss();
          OsmStreetLightTile tile = lookup.tile();
          if (!tile.isEmpty()) {
-            features.addAll(tile.featuresInBounds(bounds.south(), bounds.west(), bounds.north(), bounds.east()));
+            if (bounds.wrapsLongitude()) {
+               features.addAll(tile.featuresInBounds(bounds.south(), bounds.west(), bounds.north(), 180.0));
+               features.addAll(tile.featuresInBounds(bounds.south(), -180.0, bounds.north(), bounds.east()));
+            } else {
+               features.addAll(tile.featuresInBounds(bounds.south(), bounds.west(), bounds.north(), bounds.east()));
+            }
          }
       }
 
       return new StreetLightQueryResult(features, hadCacheMiss);
    }
 
-   public int downloadAreaTaskCount(int minBlockX, int minBlockZ, int maxBlockX, int maxBlockZ, double worldScale, int marginBlocks) {
-      return Math.max(1, this.downloadAreaTileKeys(minBlockX, minBlockZ, maxBlockX, maxBlockZ, worldScale, marginBlocks).size());
+   public int downloadAreaTaskCount(int minBlockX, int minBlockZ, int maxBlockX, int maxBlockZ, WorldProjection projection, int marginBlocks) {
+      return Math.max(1, this.downloadAreaTileKeys(minBlockX, minBlockZ, maxBlockX, maxBlockZ, projection, marginBlocks).size());
    }
 
    public int downloadAreaInputs(
-      int minBlockX, int minBlockZ, int maxBlockX, int maxBlockZ, double worldScale, int marginBlocks,
+      int minBlockX, int minBlockZ, int maxBlockX, int maxBlockZ, WorldProjection projection, int marginBlocks,
       int completedUnits, BiConsumer<Integer, String> progressConsumer
    ) {
       BiConsumer<Integer, String> progress = progressConsumer == null ? (completed, detail) -> {
       } : progressConsumer;
-      List<TellusOsmInfrastructureSource.TileKey> keys = this.downloadAreaTileKeys(minBlockX, minBlockZ, maxBlockX, maxBlockZ, worldScale, marginBlocks);
+      List<TellusOsmInfrastructureSource.TileKey> keys = this.downloadAreaTileKeys(minBlockX, minBlockZ, maxBlockX, maxBlockZ, projection, marginBlocks);
       if (keys.isEmpty()) {
          progress.accept(completedUnits, "Skipping OSM infrastructure tiles because the source is unavailable");
          return completedUnits + 1;
@@ -160,13 +165,13 @@ public final class TellusOsmInfrastructureSource implements TellusCacheHandle {
    }
 
    public int preloadAreaInputs(
-      int minBlockX, int minBlockZ, int maxBlockX, int maxBlockZ, double worldScale, int marginBlocks,
+      int minBlockX, int minBlockZ, int maxBlockX, int maxBlockZ, WorldProjection projection, int marginBlocks,
       int completedUnits, BiConsumer<Integer, String> progressConsumer
    ) {
       BiConsumer<Integer, String> progress = progressConsumer == null ? (completed, detail) -> {
       } : progressConsumer;
       List<TellusOsmInfrastructureSource.TileKey> keys = this.downloadAreaTileKeys(
-         minBlockX, minBlockZ, maxBlockX, maxBlockZ, worldScale, marginBlocks
+         minBlockX, minBlockZ, maxBlockX, maxBlockZ, projection, marginBlocks
       );
       if (keys.isEmpty()) {
          progress.accept(completedUnits, "Skipping OSM infrastructure tiles because the source is unavailable");
@@ -206,21 +211,21 @@ public final class TellusOsmInfrastructureSource implements TellusCacheHandle {
    }
 
    private List<TellusOsmInfrastructureSource.TileKey> downloadAreaTileKeys(
-      int minBlockX, int minBlockZ, int maxBlockX, int maxBlockZ, double worldScale, int marginBlocks
+      int minBlockX, int minBlockZ, int maxBlockX, int maxBlockZ, WorldProjection projection, int marginBlocks
    ) {
       this.ensureInitialized();
-      if (!this.available || worldScale <= 0.0) {
+      if (!this.available || projection.worldScale() <= 0.0) {
          return List.of();
       }
 
-      TellusOsmInfrastructureSource.GeoBounds bounds = geoBoundsForBlockArea(minBlockX, minBlockZ, maxBlockX, maxBlockZ, marginBlocks, worldScale);
+      TellusOsmInfrastructureSource.GeoBounds bounds = geoBoundsForBlockArea(minBlockX, minBlockZ, maxBlockX, maxBlockZ, marginBlocks, projection);
       return bounds == null ? List.of() : tileKeysForBounds(bounds, this.queryZoom);
    }
 
-   public void prefetchTiles(double blockX, double blockZ, double worldScale, int radius) {
+   public void prefetchTiles(double blockX, double blockZ, WorldProjection projection, int radius) {
       this.ensureInitialized();
-      if (this.available && worldScale > 0.0 && radius > 0) {
-         TellusOsmInfrastructureSource.TileKey center = tileKeyForBlock(blockX, blockZ, worldScale, this.queryZoom);
+      if (this.available && projection.worldScale() > 0.0 && radius > 0) {
+         TellusOsmInfrastructureSource.TileKey center = tileKeyForBlock(blockX, blockZ, projection, this.queryZoom);
          if (center != null) {
             int tilesPerAxis = 1 << this.queryZoom;
             int minX = Math.max(0, center.x() - radius);
@@ -692,18 +697,17 @@ public final class TellusOsmInfrastructureSource implements TellusCacheHandle {
    }
 
    private static TellusOsmInfrastructureSource.GeoBounds geoBoundsForBlockArea(
-      int minBlockX, int minBlockZ, int maxBlockX, int maxBlockZ, int marginBlocks, double worldScale
+      int minBlockX, int minBlockZ, int maxBlockX, int maxBlockZ, int marginBlocks, WorldProjection projection
    ) {
-      if (worldScale <= 0.0) {
+      if (projection.worldScale() <= 0.0) {
          return null;
       }
 
       int margin = Math.max(0, marginBlocks);
-      double blocksPerDegree = METERS_PER_DEGREE / worldScale;
-      double west = clampLon((Math.min(minBlockX, maxBlockX) - margin) / blocksPerDegree);
-      double east = clampLon((Math.max(minBlockX, maxBlockX) + margin) / blocksPerDegree);
-      double north = clampLat(EarthProjection.blockZToLat(Math.min(minBlockZ, maxBlockZ) - margin, worldScale));
-      double south = clampLat(EarthProjection.blockZToLat(Math.max(minBlockZ, maxBlockZ) + margin, worldScale));
+      double west = projection.blockXToLon(Math.min(minBlockX, maxBlockX) - margin);
+      double east = projection.blockXToLon(Math.max(minBlockX, maxBlockX) + margin);
+      double north = clampLat(projection.blockZToLat(Math.min(minBlockZ, maxBlockZ) - margin));
+      double south = clampLat(projection.blockZToLat(Math.max(minBlockZ, maxBlockZ) + margin));
       if (south > north) {
          double swap = south;
          south = north;
@@ -719,28 +723,42 @@ public final class TellusOsmInfrastructureSource implements TellusCacheHandle {
       int maxX = Mth.clamp(lonToTileX(bounds.east(), zoom), 0, tilesPerAxis - 1);
       int minY = Mth.clamp(latToTileY(bounds.north(), zoom), 0, tilesPerAxis - 1);
       int maxY = Mth.clamp(latToTileY(bounds.south(), zoom), 0, tilesPerAxis - 1);
-      if (maxX < minX || maxY < minY) {
+      if (maxY < minY) {
          return List.of();
       }
 
-      List<TellusOsmInfrastructureSource.TileKey> keys = new ArrayList<>((maxX - minX + 1) * (maxY - minY + 1));
+      int columns = bounds.wrapsLongitude() ? tilesPerAxis - minX + maxX + 1 : maxX - minX + 1;
+      if (columns <= 0) {
+         return List.of();
+      }
+      List<TellusOsmInfrastructureSource.TileKey> keys = new ArrayList<>(columns * (maxY - minY + 1));
       for (int y = minY; y <= maxY; y++) {
-         for (int x = minX; x <= maxX; x++) {
-            keys.add(new TellusOsmInfrastructureSource.TileKey(zoom, x, y));
+         if (bounds.wrapsLongitude()) {
+            addTileKeys(keys, zoom, y, minX, tilesPerAxis - 1);
+            addTileKeys(keys, zoom, y, 0, maxX);
+         } else {
+            addTileKeys(keys, zoom, y, minX, maxX);
          }
       }
 
       return keys;
    }
 
-   private static TellusOsmInfrastructureSource.TileKey tileKeyForBlock(double blockX, double blockZ, double worldScale, int zoom) {
-      if (worldScale <= 0.0) {
+   private static void addTileKeys(
+      List<TellusOsmInfrastructureSource.TileKey> keys, int zoom, int tileY, int minTileX, int maxTileX
+   ) {
+      for (int tileX = minTileX; tileX <= maxTileX; tileX++) {
+         keys.add(new TellusOsmInfrastructureSource.TileKey(zoom, tileX, tileY));
+      }
+   }
+
+   private static TellusOsmInfrastructureSource.TileKey tileKeyForBlock(double blockX, double blockZ, WorldProjection projection, int zoom) {
+      if (projection.worldScale() <= 0.0) {
          return null;
       }
 
-      double blocksPerDegree = METERS_PER_DEGREE / worldScale;
-      double lon = clampLon(blockX / blocksPerDegree);
-      double lat = clampLat(EarthProjection.blockZToLat(blockZ, worldScale));
+      double lon = clampLon(projection.blockXToLon(blockX));
+      double lat = clampLat(projection.blockZToLat(blockZ));
       double n = tilesPerAxis(zoom);
       double x = (lon + 180.0) / 360.0 * n;
       double y = (1.0 - Math.log(Math.tan(Math.toRadians(lat)) + 1.0 / Math.cos(Math.toRadians(lat))) / Math.PI) / 2.0 * n;
@@ -835,6 +853,9 @@ public final class TellusOsmInfrastructureSource implements TellusCacheHandle {
    }
 
    private record GeoBounds(double south, double west, double north, double east) {
+      private boolean wrapsLongitude() {
+         return this.east < this.west;
+      }
    }
 
    private record TileGeoBounds(double south, double west, double north, double east) {

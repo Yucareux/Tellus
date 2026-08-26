@@ -15,7 +15,7 @@ import com.yucareux.tellus.world.data.osm.OvertureTileUrls;
 import com.yucareux.tellus.world.data.osm.PmTilesRangeReader;
 import com.yucareux.tellus.world.data.pmtiles.PmTilesSafety;
 import com.yucareux.tellus.world.data.source.ParallelDownloadRunner;
-import com.yucareux.tellus.worldgen.EarthProjection;
+import com.yucareux.tellus.worldgen.WorldProjection;
 import io.github.sebasbaumh.mapbox.vectortile.VectorTile.Tile;
 import io.github.sebasbaumh.mapbox.vectortile.VectorTile.Tile.Feature;
 import io.github.sebasbaumh.mapbox.vectortile.VectorTile.Tile.GeomType;
@@ -134,37 +134,36 @@ public final class TellusLandCoverSource implements TellusCacheHandle {
       TellusCacheRegistry.register(this);
    }
 
-   public boolean isSnowIce(double blockX, double blockZ, double worldScale) {
-      return this.sampleCoverClass(blockX, blockZ, worldScale) == SNOW_ICE_CLASS;
+   public boolean isSnowIce(double blockX, double blockZ, WorldProjection projection) {
+      return this.sampleCoverClass(blockX, blockZ, projection) == SNOW_ICE_CLASS;
    }
 
-   public int sampleCoverClass(double blockX, double blockZ, double worldScale) {
-      return this.sampleCoverClass(blockX, blockZ, worldScale, worldScale, managedLookupMode());
+   public int sampleCoverClass(double blockX, double blockZ, WorldProjection projection) {
+      return this.sampleCoverClass(blockX, blockZ, projection, projection.worldScale(), managedLookupMode());
    }
 
-   public int sampleCoverClass(double blockX, double blockZ, double worldScale, double previewResolutionMeters) {
-      return this.sampleCoverClass(blockX, blockZ, worldScale, previewResolutionMeters, managedLookupMode());
+   public int sampleCoverClass(double blockX, double blockZ, WorldProjection projection, double previewResolutionMeters) {
+      return this.sampleCoverClass(blockX, blockZ, projection, previewResolutionMeters, managedLookupMode());
    }
 
-   public int sampleCoverClassLocalOnly(double blockX, double blockZ, double worldScale, double previewResolutionMeters) {
-      return this.sampleCoverClass(blockX, blockZ, worldScale, previewResolutionMeters, LookupMode.LOCAL_ONLY);
+   public int sampleCoverClassLocalOnly(double blockX, double blockZ, WorldProjection projection, double previewResolutionMeters) {
+      return this.sampleCoverClass(blockX, blockZ, projection, previewResolutionMeters, LookupMode.LOCAL_ONLY);
    }
 
-   public int sampleCoverClassMemoryOnly(double blockX, double blockZ, double worldScale, double previewResolutionMeters) {
-      return this.sampleCoverClass(blockX, blockZ, worldScale, previewResolutionMeters, LookupMode.MEMORY_ONLY);
+   public int sampleCoverClassMemoryOnly(double blockX, double blockZ, WorldProjection projection, double previewResolutionMeters) {
+      return this.sampleCoverClass(blockX, blockZ, projection, previewResolutionMeters, LookupMode.MEMORY_ONLY);
    }
 
    private int sampleCoverClass(
-      double blockX, double blockZ, double worldScale, double previewResolutionMeters, LookupMode lookupMode
+      double blockX, double blockZ, WorldProjection projection, double previewResolutionMeters, LookupMode lookupMode
    ) {
-      if (!isWithinTileCoverage(blockX, blockZ, worldScale)) {
+      if (!isWithinTileCoverage(blockX, blockZ, projection)) {
          return NO_DATA_CLASS;
       }
 
-      double blocksPerDegree = EarthProjection.blocksPerDegree(worldScale);
-      double lon = blockX / blocksPerDegree;
-      double lat = EarthProjection.blockZToLat(blockZ, worldScale);
-      double resolutionMeters = effectiveSampleResolutionMeters(worldScale, previewResolutionMeters);
+      double lon = projection.blockXToLon(blockX);
+      double lat = projection.blockZToLat(blockZ);
+      double resolutionMeters = effectiveSampleResolutionMeters(projection.worldScale(), previewResolutionMeters);
       WorldCoverCogSource.Sample worldCover = this.worldCoverSource.sample(
          lon, lat, resolutionMeters, worldCoverLookupMode(lookupMode)
       );
@@ -175,20 +174,19 @@ public final class TellusLandCoverSource implements TellusCacheHandle {
       return this.sampleAtLonLat(lon, lat, zoom, lookupMode);
    }
 
-   public int sampleSmoothedCoverClass(double blockX, double blockZ, double worldScale) {
-      return this.sampleSmoothedCoverClass(blockX, blockZ, worldScale, worldScale);
+   public int sampleSmoothedCoverClass(double blockX, double blockZ, WorldProjection projection) {
+      return this.sampleSmoothedCoverClass(blockX, blockZ, projection, projection.worldScale());
    }
 
-   public int sampleSmoothedCoverClass(double blockX, double blockZ, double worldScale, double previewResolutionMeters) {
-      if (!isWithinTileCoverage(blockX, blockZ, worldScale)) {
+   public int sampleSmoothedCoverClass(double blockX, double blockZ, WorldProjection projection, double previewResolutionMeters) {
+      if (!isWithinTileCoverage(blockX, blockZ, projection)) {
          return NO_DATA_CLASS;
       }
 
-      double blocksPerDegree = EarthProjection.blocksPerDegree(worldScale);
-      double lon = blockX / blocksPerDegree;
-      double lat = EarthProjection.blockZToLat(blockZ, worldScale);
+      double lon = projection.blockXToLon(blockX);
+      double lat = projection.blockZToLat(blockZ);
       LookupMode lookupMode = managedLookupMode();
-      double resolutionMeters = effectiveSampleResolutionMeters(worldScale, previewResolutionMeters);
+      double resolutionMeters = effectiveSampleResolutionMeters(projection.worldScale(), previewResolutionMeters);
       WorldCoverCogSource.Sample worldCover = this.worldCoverSource.sampleSmoothed(
          lon, lat, resolutionMeters, worldCoverLookupMode(lookupMode)
       );
@@ -220,44 +218,43 @@ public final class TellusLandCoverSource implements TellusCacheHandle {
       return bestClass == Integer.MIN_VALUE ? NO_DATA_CLASS : bestClass;
    }
 
-   public int sampleVisualCoverClass(double blockX, double blockZ, double worldScale) {
-      return this.sampleVisualCoverClass(blockX, blockZ, worldScale, worldScale, managedLookupMode());
+   public int sampleVisualCoverClass(double blockX, double blockZ, WorldProjection projection) {
+      return this.sampleVisualCoverClass(blockX, blockZ, projection, projection.worldScale(), managedLookupMode());
    }
 
-   public int sampleVisualCoverClass(double blockX, double blockZ, double worldScale, double previewResolutionMeters) {
-      return this.sampleVisualCoverClass(blockX, blockZ, worldScale, previewResolutionMeters, managedLookupMode());
+   public int sampleVisualCoverClass(double blockX, double blockZ, WorldProjection projection, double previewResolutionMeters) {
+      return this.sampleVisualCoverClass(blockX, blockZ, projection, previewResolutionMeters, managedLookupMode());
    }
 
-   public int sampleVisualCoverClassLocalOnly(double blockX, double blockZ, double worldScale, double previewResolutionMeters) {
-      return this.sampleVisualCoverClass(blockX, blockZ, worldScale, previewResolutionMeters, LookupMode.LOCAL_ONLY);
+   public int sampleVisualCoverClassLocalOnly(double blockX, double blockZ, WorldProjection projection, double previewResolutionMeters) {
+      return this.sampleVisualCoverClass(blockX, blockZ, projection, previewResolutionMeters, LookupMode.LOCAL_ONLY);
    }
 
-   public int sampleVisualCoverClassMemoryOnly(double blockX, double blockZ, double worldScale, double previewResolutionMeters) {
-      return this.sampleVisualCoverClass(blockX, blockZ, worldScale, previewResolutionMeters, LookupMode.MEMORY_ONLY);
+   public int sampleVisualCoverClassMemoryOnly(double blockX, double blockZ, WorldProjection projection, double previewResolutionMeters) {
+      return this.sampleVisualCoverClass(blockX, blockZ, projection, previewResolutionMeters, LookupMode.MEMORY_ONLY);
    }
 
    private int sampleVisualCoverClass(
       double blockX,
       double blockZ,
-      double worldScale,
+      WorldProjection projection,
       double previewResolutionMeters,
       LookupMode lookupMode
    ) {
-      if (!isWithinTileCoverage(blockX, blockZ, worldScale)) {
+      if (!isWithinTileCoverage(blockX, blockZ, projection)) {
          return NO_DATA_CLASS;
       }
 
-      double blocksPerDegree = EarthProjection.blocksPerDegree(worldScale);
-      double lon = blockX / blocksPerDegree;
-      double lat = EarthProjection.blockZToLat(blockZ, worldScale);
-      double resolutionMeters = effectiveSampleResolutionMeters(worldScale, previewResolutionMeters);
+      double lon = projection.blockXToLon(blockX);
+      double lat = projection.blockZToLat(blockZ);
+      double resolutionMeters = effectiveSampleResolutionMeters(projection.worldScale(), previewResolutionMeters);
       WorldCoverCogSource.Sample worldCover = this.worldCoverSource.sampleVisual(
          lon,
          lat,
          resolutionMeters,
          blockX,
          blockZ,
-         worldScale,
+         projection.worldScale(),
          worldCoverLookupMode(lookupMode)
       );
       if (worldCover.available()) {
@@ -265,11 +262,11 @@ public final class TellusLandCoverSource implements TellusCacheHandle {
       }
 
       int zoom = this.queryZoom(resolutionMeters, lookupMode);
-      return this.sampleVisualAtLonLat(lon, lat, zoom, resolutionMeters, blockX, blockZ, worldScale, lookupMode);
+      return this.sampleVisualAtLonLat(lon, lat, zoom, resolutionMeters, blockX, blockZ, projection.worldScale(), lookupMode);
    }
 
-   public int sampleNearestLandCoverClass(double blockX, double blockZ, double worldScale, int fallbackCoverClass) {
-      return this.sampleNearestLandCoverClass(blockX, blockZ, worldScale, fallbackCoverClass, managedLookupMode());
+   public int sampleNearestLandCoverClass(double blockX, double blockZ, WorldProjection projection, int fallbackCoverClass) {
+      return this.sampleNearestLandCoverClass(blockX, blockZ, projection, fallbackCoverClass, managedLookupMode());
    }
 
    private static LookupMode managedLookupMode() {
@@ -284,28 +281,27 @@ public final class TellusLandCoverSource implements TellusCacheHandle {
       };
    }
 
-   public int sampleNearestLandCoverClassLocalOnly(double blockX, double blockZ, double worldScale, int fallbackCoverClass) {
-      return this.sampleNearestLandCoverClass(blockX, blockZ, worldScale, fallbackCoverClass, LookupMode.LOCAL_ONLY);
+   public int sampleNearestLandCoverClassLocalOnly(double blockX, double blockZ, WorldProjection projection, int fallbackCoverClass) {
+      return this.sampleNearestLandCoverClass(blockX, blockZ, projection, fallbackCoverClass, LookupMode.LOCAL_ONLY);
    }
 
-   public int sampleNearestLandCoverClassMemoryOnly(double blockX, double blockZ, double worldScale, int fallbackCoverClass) {
-      return this.sampleNearestLandCoverClass(blockX, blockZ, worldScale, fallbackCoverClass, LookupMode.MEMORY_ONLY);
+   public int sampleNearestLandCoverClassMemoryOnly(double blockX, double blockZ, WorldProjection projection, int fallbackCoverClass) {
+      return this.sampleNearestLandCoverClass(blockX, blockZ, projection, fallbackCoverClass, LookupMode.MEMORY_ONLY);
    }
 
    private int sampleNearestLandCoverClass(
-      double blockX, double blockZ, double worldScale, int fallbackCoverClass, LookupMode lookupMode
+      double blockX, double blockZ, WorldProjection projection, int fallbackCoverClass, LookupMode lookupMode
    ) {
-      if (!isWithinTileCoverage(blockX, blockZ, worldScale)) {
+      if (!isWithinTileCoverage(blockX, blockZ, projection)) {
          return fallbackCoverClass;
       }
 
-      double blocksPerDegree = EarthProjection.blocksPerDegree(worldScale);
-      double lon = blockX / blocksPerDegree;
-      double lat = EarthProjection.blockZToLat(blockZ, worldScale);
+      double lon = projection.blockXToLon(blockX);
+      double lat = projection.blockZToLat(blockZ);
       WorldCoverCogSource.Sample worldCover = this.worldCoverSource.sampleNearestLand(
          lon,
          lat,
-         Math.max(SOURCE_RESOLUTION_METERS, worldScale),
+         Math.max(SOURCE_RESOLUTION_METERS, projection.worldScale()),
          NEAREST_LAND_RADIUS_PIXELS,
          fallbackCoverClass,
          TellusLandCoverSource::isLandCoverClass,
@@ -314,7 +310,7 @@ public final class TellusLandCoverSource implements TellusCacheHandle {
       if (worldCover.available()) {
          return worldCover.coverClass();
       }
-      int zoom = this.queryZoom(Math.max(SOURCE_RESOLUTION_METERS, worldScale), lookupMode);
+      int zoom = this.queryZoom(Math.max(SOURCE_RESOLUTION_METERS, projection.worldScale()), lookupMode);
       TilePosition center = tilePosition(lon, lat, zoom);
       if (center == null) {
          return fallbackCoverClass;
@@ -439,19 +435,18 @@ public final class TellusLandCoverSource implements TellusCacheHandle {
       return dx * dx + dy * dy;
    }
 
-   public void prefetchTiles(double blockX, double blockZ, double worldScale, int radius) {
-      this.prefetchTiles(blockX, blockZ, worldScale, radius, worldScale);
+   public void prefetchTiles(double blockX, double blockZ, WorldProjection projection, int radius) {
+      this.prefetchTiles(blockX, blockZ, projection, radius, projection.worldScale());
    }
 
-   public void prefetchTiles(double blockX, double blockZ, double worldScale, int radius, double previewResolutionMeters) {
-      if (!isWithinTileCoverage(blockX, blockZ, worldScale)) {
+   public void prefetchTiles(double blockX, double blockZ, WorldProjection projection, int radius, double previewResolutionMeters) {
+      if (!isWithinTileCoverage(blockX, blockZ, projection)) {
          return;
       }
 
-      double blocksPerDegree = EarthProjection.blocksPerDegree(worldScale);
-      double lon = blockX / blocksPerDegree;
-      double lat = EarthProjection.blockZToLat(blockZ, worldScale);
-      double resolutionMeters = effectiveSampleResolutionMeters(worldScale, previewResolutionMeters);
+      double lon = projection.blockXToLon(blockX);
+      double lat = projection.blockZToLat(blockZ);
+      double resolutionMeters = effectiveSampleResolutionMeters(projection.worldScale(), previewResolutionMeters);
       if (this.worldCoverSource.prefetch(lon, lat, resolutionMeters, radius)) {
          return;
       }
@@ -476,24 +471,24 @@ public final class TellusLandCoverSource implements TellusCacheHandle {
    }
 
    public int preloadAreaTaskCount(
-      double minBlockX, double minBlockZ, double maxBlockX, double maxBlockZ, double worldScale, double previewResolutionMeters
+      double minBlockX, double minBlockZ, double maxBlockX, double maxBlockZ, WorldProjection projection, double previewResolutionMeters
    ) {
       List<WorldCoverCogSource.BlockKey> worldCoverBlocks = this.worldCoverSource.areaBlockKeys(
          minBlockX,
          minBlockZ,
          maxBlockX,
          maxBlockZ,
-         worldScale,
-         effectiveSampleResolutionMeters(worldScale, previewResolutionMeters)
+         projection,
+         effectiveSampleResolutionMeters(projection.worldScale(), previewResolutionMeters)
       );
       if (!worldCoverBlocks.isEmpty()) {
          int taskCount = worldCoverBlocks.size();
-         if (!this.worldCoverSource.fullyCoversArea(minBlockX, minBlockZ, maxBlockX, maxBlockZ, worldScale)) {
-            taskCount += this.areaTileKeys(minBlockX, minBlockZ, maxBlockX, maxBlockZ, worldScale, previewResolutionMeters).size();
+         if (!this.worldCoverSource.fullyCoversArea(minBlockX, minBlockZ, maxBlockX, maxBlockZ, projection)) {
+            taskCount += this.areaTileKeys(minBlockX, minBlockZ, maxBlockX, maxBlockZ, projection, previewResolutionMeters).size();
          }
          return taskCount;
       }
-      return Math.max(1, this.areaTileKeys(minBlockX, minBlockZ, maxBlockX, maxBlockZ, worldScale, previewResolutionMeters).size());
+      return Math.max(1, this.areaTileKeys(minBlockX, minBlockZ, maxBlockX, maxBlockZ, projection, previewResolutionMeters).size());
    }
 
    public int preloadAreaInputs(
@@ -501,7 +496,7 @@ public final class TellusLandCoverSource implements TellusCacheHandle {
       double minBlockZ,
       double maxBlockX,
       double maxBlockZ,
-      double worldScale,
+      WorldProjection projection,
       double previewResolutionMeters,
       int completedUnits,
       BiConsumer<Integer, String> progressConsumer
@@ -511,7 +506,7 @@ public final class TellusLandCoverSource implements TellusCacheHandle {
          minBlockZ,
          maxBlockX,
          maxBlockZ,
-         worldScale,
+         projection,
          previewResolutionMeters,
          completedUnits,
          progressConsumer,
@@ -524,7 +519,7 @@ public final class TellusLandCoverSource implements TellusCacheHandle {
       double minBlockZ,
       double maxBlockX,
       double maxBlockZ,
-      double worldScale,
+      WorldProjection projection,
       double previewResolutionMeters,
       int completedUnits,
       BiConsumer<Integer, String> progressConsumer
@@ -534,7 +529,7 @@ public final class TellusLandCoverSource implements TellusCacheHandle {
          minBlockZ,
          maxBlockX,
          maxBlockZ,
-         worldScale,
+         projection,
          previewResolutionMeters,
          completedUnits,
          progressConsumer,
@@ -547,7 +542,7 @@ public final class TellusLandCoverSource implements TellusCacheHandle {
       double minBlockZ,
       double maxBlockX,
       double maxBlockZ,
-      double worldScale,
+      WorldProjection projection,
       double previewResolutionMeters,
       int completedUnits,
       BiConsumer<Integer, String> progressConsumer,
@@ -560,11 +555,11 @@ public final class TellusLandCoverSource implements TellusCacheHandle {
          minBlockZ,
          maxBlockX,
          maxBlockZ,
-         worldScale,
-         effectiveSampleResolutionMeters(worldScale, previewResolutionMeters)
+         projection,
+         effectiveSampleResolutionMeters(projection.worldScale(), previewResolutionMeters)
       );
       boolean worldCoverFullyCoversArea = this.worldCoverSource.fullyCoversArea(
-         minBlockX, minBlockZ, maxBlockX, maxBlockZ, worldScale
+         minBlockX, minBlockZ, maxBlockX, maxBlockZ, projection
       );
       if (!worldCoverBlocks.isEmpty()) {
          int worldCoverStartingUnits = completedUnits;
@@ -584,7 +579,7 @@ public final class TellusLandCoverSource implements TellusCacheHandle {
          }
       }
 
-      List<TileKey> keys = this.areaTileKeys(minBlockX, minBlockZ, maxBlockX, maxBlockZ, worldScale, previewResolutionMeters);
+      List<TileKey> keys = this.areaTileKeys(minBlockX, minBlockZ, maxBlockX, maxBlockZ, projection, previewResolutionMeters);
       if (keys.isEmpty()) {
          progress.accept(completedUnits, "Skipping land cover; selected area is outside source coverage");
          return completedUnits + 1;
@@ -618,8 +613,9 @@ public final class TellusLandCoverSource implements TellusCacheHandle {
    }
 
    private List<TileKey> areaTileKeys(
-      double minBlockX, double minBlockZ, double maxBlockX, double maxBlockZ, double worldScale, double previewResolutionMeters
+      double minBlockX, double minBlockZ, double maxBlockX, double maxBlockZ, WorldProjection projection, double previewResolutionMeters
    ) {
+      double worldScale = projection.worldScale();
       if (!(Double.isFinite(worldScale) && worldScale > 0.0)
          || !Double.isFinite(minBlockX)
          || !Double.isFinite(minBlockZ)
@@ -628,11 +624,12 @@ public final class TellusLandCoverSource implements TellusCacheHandle {
          return List.of();
       }
 
-      double blocksPerDegree = EarthProjection.blocksPerDegree(worldScale);
+      // Source coverage spans every longitude, so in block space it is the full world width around the origin.
+      double blocksPerDegree = projection.equatorialBlocksPerDegree();
       double coverageMinX = MIN_LON * blocksPerDegree;
       double coverageMaxX = MAX_LON * blocksPerDegree;
-      double coverageZA = EarthProjection.latToBlockZ(MIN_LAT, worldScale);
-      double coverageZB = EarthProjection.latToBlockZ(MAX_LAT, worldScale);
+      double coverageZA = projection.latToBlockZ(MIN_LAT);
+      double coverageZB = projection.latToBlockZ(MAX_LAT);
       double coverageMinZ = Math.min(coverageZA, coverageZB);
       double coverageMaxZ = Math.max(coverageZA, coverageZB);
       double requestedMinX = Math.min(minBlockX, maxBlockX);
@@ -646,32 +643,47 @@ public final class TellusLandCoverSource implements TellusCacheHandle {
          return List.of();
       }
 
-      int zoom = this.queryZoom(effectiveSampleResolutionMeters(worldScale, previewResolutionMeters), LookupMode.BLOCKING);
-      double lonA = Math.max(coverageMinX, requestedMinX) / blocksPerDegree;
-      double lonB = Math.min(coverageMaxX, requestedMaxX) / blocksPerDegree;
-      double latA = EarthProjection.blockZToLat(Math.max(coverageMinZ, requestedMinZ), worldScale);
-      double latB = EarthProjection.blockZToLat(Math.min(coverageMaxZ, requestedMaxZ), worldScale);
-      double minLon = Math.max(MIN_LON, Math.min(lonA, lonB));
-      double maxLon = Math.min(MAX_LON, Math.max(lonA, lonB));
+      int zoom = this.queryZoom(effectiveSampleResolutionMeters(projection.worldScale(), previewResolutionMeters), LookupMode.BLOCKING);
+      double lonA = projection.blockXToLon(Math.max(coverageMinX, requestedMinX));
+      double lonB = projection.blockXToLon(Math.min(coverageMaxX, requestedMaxX));
+      double latA = projection.blockZToLat(Math.max(coverageMinZ, requestedMinZ));
+      double latB = projection.blockZToLat(Math.min(coverageMaxZ, requestedMaxZ));
       double minLat = Math.max(MIN_LAT, Math.min(latA, latB));
       double maxLat = Math.min(MAX_LAT, Math.max(latA, latB));
-      if (minLon > maxLon || minLat > maxLat) {
-         return List.of();
-      }
-
-      TilePosition northWest = tilePosition(minLon, maxLat, zoom);
-      TilePosition southEast = tilePosition(maxLon, minLat, zoom);
-      if (northWest == null || southEast == null) {
+      if (minLat > maxLat) {
          return List.of();
       }
 
       Set<TileKey> keys = new LinkedHashSet<>();
+      if (projection.isCentered() && lonB < lonA) {
+         // The area crosses the real antimeridian inside a centred world: cover both longitude ranges.
+         this.addAreaTileKeys(keys, Math.max(MIN_LON, lonA), MAX_LON, minLat, maxLat, zoom);
+         this.addAreaTileKeys(keys, MIN_LON, Math.min(MAX_LON, lonB), minLat, maxLat, zoom);
+      } else {
+         double minLon = Math.max(MIN_LON, Math.min(lonA, lonB));
+         double maxLon = Math.min(MAX_LON, Math.max(lonA, lonB));
+         if (minLon > maxLon) {
+            return List.of();
+         }
+
+         this.addAreaTileKeys(keys, minLon, maxLon, minLat, maxLat, zoom);
+      }
+
+      return new ArrayList<>(keys);
+   }
+
+   private void addAreaTileKeys(Set<TileKey> keys, double minLon, double maxLon, double minLat, double maxLat, int zoom) {
+      TilePosition northWest = tilePosition(minLon, maxLat, zoom);
+      TilePosition southEast = tilePosition(maxLon, minLat, zoom);
+      if (northWest == null || southEast == null) {
+         return;
+      }
+
       for (int tileY = northWest.key().y(); tileY <= southEast.key().y(); tileY++) {
          for (int tileX = northWest.key().x(); tileX <= southEast.key().x(); tileX++) {
             keys.add(new TileKey(zoom, tileX, tileY));
          }
       }
-      return new ArrayList<>(keys);
    }
 
    private void downloadRawTile(TileKey key) {
@@ -1396,18 +1408,19 @@ public final class TellusLandCoverSource implements TellusCacheHandle {
       return false;
    }
 
-   static boolean isWithinTileCoverage(double blockX, double blockZ, double worldScale) {
+   static boolean isWithinTileCoverage(double blockX, double blockZ, WorldProjection projection) {
+      double worldScale = projection.worldScale();
       if (!(Double.isFinite(worldScale) && worldScale > 0.0)
          || !Double.isFinite(blockX)
          || !Double.isFinite(blockZ)) {
          return false;
       }
 
-      double blocksPerDegree = EarthProjection.blocksPerDegree(worldScale);
-      double lon = blockX / blocksPerDegree;
-      double zA = EarthProjection.latToBlockZ(MIN_LAT, worldScale);
-      double zB = EarthProjection.latToBlockZ(MAX_LAT, worldScale);
-      return lon >= MIN_LON && lon <= MAX_LON && blockZ >= Math.min(zA, zB) && blockZ <= Math.max(zA, zB);
+      // Longitude coverage is global, so only the block X must lie inside the world width around the origin.
+      double relativeLon = projection.blockXToRelativeLongitude(blockX);
+      double zA = projection.latToBlockZ(MIN_LAT);
+      double zB = projection.latToBlockZ(MAX_LAT);
+      return relativeLon >= MIN_LON && relativeLon <= MAX_LON && blockZ >= Math.min(zA, zB) && blockZ <= Math.max(zA, zB);
    }
 
    private static boolean isGlobalPixelInBounds(int zoom, int globalPixelX, int globalPixelY) {

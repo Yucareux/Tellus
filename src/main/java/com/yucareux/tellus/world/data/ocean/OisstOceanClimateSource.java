@@ -10,7 +10,7 @@ import com.yucareux.tellus.cache.TellusCacheHandle;
 import com.yucareux.tellus.cache.TellusCacheRegistry;
 import com.yucareux.tellus.integration.distant_horizons.managed.ManagedTerrainNetworkPolicy;
 import com.yucareux.tellus.world.data.source.InputStreamSafety;
-import com.yucareux.tellus.worldgen.EarthProjection;
+import com.yucareux.tellus.worldgen.WorldProjection;
 import java.io.BufferedReader;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
@@ -59,18 +59,13 @@ public final class OisstOceanClimateSource implements TellusCacheHandle {
       TellusCacheRegistry.register(this);
    }
 
-   public OisstOceanClimateSource.Sample sample(double blockX, double blockZ, double worldScale) {
-      if (worldScale <= 0.0) {
+   public OisstOceanClimateSource.Sample sample(double blockX, double blockZ, WorldProjection projection) {
+      if (projection.worldScale() <= 0.0) {
          return fallbackForLatitude(0.0);
       }
 
-      double blocksPerDegree = EarthProjection.blocksPerDegree(worldScale);
-      if (blocksPerDegree <= 0.0) {
-         return fallbackForLatitude(0.0);
-      }
-
-      double lat = EarthProjection.blockZToLat(blockZ, worldScale);
-      OisstOceanClimateSource.CellKey key = cellKeyForLatLon(lat, blockX / blocksPerDegree);
+      double lat = projection.blockZToLat(blockZ);
+      OisstOceanClimateSource.CellKey key = cellKeyForLatLon(lat, projection.blockXToLon(blockX));
       if (key == null) {
          return fallbackForLatitude(lat);
       }
@@ -99,22 +94,21 @@ public final class OisstOceanClimateSource implements TellusCacheHandle {
       int minBlockZ,
       int maxBlockX,
       int maxBlockZ,
-      double worldScale,
+      WorldProjection projection,
       int completedUnits,
       BiConsumer<Integer, String> progress
    ) {
-      if (worldScale <= 0.0) {
+      if (projection.worldScale() <= 0.0) {
          return true;
       }
-      double blocksPerDegree = EarthProjection.blocksPerDegree(worldScale);
-      int step = Math.max(16, (int)Math.floor(blocksPerDegree * GRID_DEGREES * 0.8));
+      int step = Math.max(16, (int)Math.floor(projection.equatorialBlocksPerDegree() * GRID_DEGREES * 0.8));
       Set<OisstOceanClimateSource.CellKey> cells = new LinkedHashSet<>();
       for (long z = minBlockZ; z <= (long)maxBlockZ + step; z += step) {
          double sampleZ = Math.min(maxBlockZ, z);
-         double latitude = EarthProjection.blockZToLat(sampleZ, worldScale);
+         double latitude = projection.blockZToLat(sampleZ);
          for (long x = minBlockX; x <= (long)maxBlockX + step; x += step) {
             double sampleX = Math.min(maxBlockX, x);
-            OisstOceanClimateSource.CellKey key = cellKeyForLatLon(latitude, sampleX / blocksPerDegree);
+            OisstOceanClimateSource.CellKey key = cellKeyForLatLon(latitude, projection.blockXToLon(sampleX));
             if (key != null) {
                cells.add(key);
             }

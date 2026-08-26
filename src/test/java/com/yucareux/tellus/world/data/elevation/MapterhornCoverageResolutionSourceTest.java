@@ -1,6 +1,7 @@
 package com.yucareux.tellus.world.data.elevation;
 
 import com.yucareux.tellus.worldgen.EarthProjection;
+import com.yucareux.tellus.worldgen.WorldProjection;
 import io.github.sebasbaumh.mapbox.vectortile.VectorTile.Tile;
 import java.io.IOException;
 import java.io.InputStream;
@@ -75,10 +76,11 @@ class MapterhornCoverageResolutionSourceTest {
       Files.write(tilePath, Base64.getDecoder().decode(ZURICH_TILE_BASE64));
       MapterhornCoverageResolutionSource source = new MapterhornCoverageResolutionSource(catalog, gameDir);
       double worldScale = 1.0;
-      double blockX = 8.5417 * EarthProjection.blocksPerDegree(worldScale);
-      double blockZ = EarthProjection.latToBlockZ(47.3769, worldScale);
+      WorldProjection projection = WorldProjection.global(worldScale);
+      double blockX = projection.lonToBlockX(8.5417);
+      double blockZ = projection.latToBlockZ(47.3769);
 
-      assertEquals(0.25, source.lookupResolutionMetersLocalOnly(blockX, blockZ, worldScale, 2.0));
+      assertEquals(0.25, source.lookupResolutionMetersLocalOnly(blockX, blockZ, projection, 2.0));
    }
 
    @Test
