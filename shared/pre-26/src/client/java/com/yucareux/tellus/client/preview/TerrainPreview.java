@@ -1,11 +1,7 @@
 package com.yucareux.tellus.client.preview;
 
-import com.mojang.blaze3d.platform.GlStateManager;
-import com.mojang.blaze3d.systems.RenderSystem;
-import com.mojang.blaze3d.vertex.BufferBuilder;
-import com.mojang.blaze3d.vertex.VertexBuffer;
 import com.yucareux.tellus.Tellus;
-import com.yucareux.tellus.compat.ClientMinecraftCompat;
+import com.yucareux.tellus.compat.MinecraftVersionCompat;
 import com.yucareux.tellus.world.data.biome.BiomeClassification;
 import com.yucareux.tellus.world.data.cover.TellusLandCoverSource;
 import com.yucareux.tellus.world.data.elevation.ElevationGridRepair;
@@ -32,6 +28,7 @@ import com.yucareux.tellus.worldgen.building.TellusBuildingBlueprints;
 import com.yucareux.tellus.worldgen.building.TellusBuildingProfiles;
 import com.yucareux.tellus.worldgen.building.TellusBuildingStyles;
 import com.yucareux.tellus.worldgen.BadlandsTerrainPolicy;
+import com.yucareux.tellus.worldgen.AntarcticSnowPolicy;
 import com.yucareux.tellus.worldgen.EarthGeneratorSettings;
 import com.yucareux.tellus.worldgen.MountainSurfaceRules;
 import com.yucareux.tellus.worldgen.EarthProjection;
@@ -62,22 +59,15 @@ import java.util.concurrent.Future;
 import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
-import net.minecraft.Util;
-import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
-import net.minecraft.client.renderer.GameRenderer;
-import net.minecraft.resources.ResourceLocation;
 import net.minecraft.util.Mth;
 import net.minecraft.world.level.biome.Biomes;
-import org.joml.Matrix4f;
 import org.joml.Vector3f;
-import org.lwjgl.opengl.GL11;
 public final class TerrainPreview implements AutoCloseable {
    private static final int PREVIEW_GRID_SIZE = 513;
    private static final double PREVIEW_REFERENCE_RADIUS_BLOCKS = 256.0;
    private static final double PREVIEW_RADIUS_BLOCKS = 512.0;
    private static final float PREVIEW_TREE_HEIGHT_SCALE = (float)(PREVIEW_REFERENCE_RADIUS_BLOCKS / PREVIEW_RADIUS_BLOCKS);
-   private static final float PREVIEW_CAMERA_FOV_DEGREES = 36.0F;
    private static final int PREVIEW_INFO_PROVIDER_GRID_SIZE = 25;
    private static final int PREVIEW_OSM_MARGIN_BLOCKS = 32;
    private static final int PREVIEW_ELEVATION_PREFETCH_RADIUS = 1;
@@ -124,9 +114,6 @@ public final class TerrainPreview implements AutoCloseable {
    private static final int PREVIEW_ROAD_WOOD_COLOR = 0x8B6A43;
    private static final int PREVIEW_ROAD_CONCRETE_COLOR = 0xA4A7A2;
    private static final int BUILDING_PREVIEW_COLOR = 10000536;
-   private static final int PREVIEW_SKY_TOP_COLOR = 0xFF83B4CC;
-   private static final int PREVIEW_SKY_HORIZON_COLOR = 0xFFC5D3C2;
-   private static final int PREVIEW_SKY_GROUND_COLOR = 0xFF66745F;
    private static final int PREVIEW_FOG_COLOR = 0xC5D3C2;
    private static final int PREVIEW_TREE_TRUNK_COLOR = 0x6B4A2D;
    private static final int PREVIEW_TREE_LEAF_COLOR = 0x4C9141;
@@ -138,9 +125,6 @@ public final class TerrainPreview implements AutoCloseable {
    private static final int PREVIEW_CLOUD_TOP_COLOR = 0xB8F4F5F2;
    private static final int PREVIEW_CLOUD_SIDE_COLOR = 0xA4D8DEDE;
    private static final int PREVIEW_CLOUD_BOTTOM_COLOR = 0x8CC1C9CA;
-   private static final ResourceLocation PREVIEW_SUN_TEXTURE = ClientMinecraftCompat.resourceLocation(
-      "minecraft", "textures/environment/sun.png"
-   );
    private static final int PREVIEW_SUN_REFLECTION_COLOR = 0xFFF0BC;
    private static final float PREVIEW_SUN_X = 0.0F;
    private static final float PREVIEW_SUN_Y = -0.1F;
@@ -170,10 +154,7 @@ public final class TerrainPreview implements AutoCloseable {
    private volatile TerrainPreview.PreviewMesh mesh;
    private volatile TerrainPreview.PreviewBaseSnapshot baseSnapshot;
    private volatile EarthGeneratorSettings lastSettings;
-   private TerrainPreview.PreviewMesh uploadedPreviewMesh;
-   private VertexBuffer terrainVertexBuffer;
-   private VertexBuffer detailVertexBuffer;
-   private VertexBuffer cloudVertexBuffer;
+   private final TerrainPreviewRenderer renderer = new TerrainPreviewRenderer();
 
    public TerrainPreview() {
       this.executor = Executors.newSingleThreadExecutor(new TerrainPreview.PreviewThreadFactory());
@@ -246,215 +227,9 @@ public final class TerrainPreview implements AutoCloseable {
       TerrainPreviewWidget.RenderMode renderMode,
       boolean cloudsVisible
    ) {
-      if (width <= 0 || height <= 0) {
-         return;
-      }
-
-      renderPreviewSky(graphics, x, y, width, height);
-      renderPreviewSun(graphics, x, y, width, height, rotationX, rotationY);
-      TerrainPreview.PreviewMesh preview = this.mesh;
-      if (preview == null) {
-         return;
-      }
-
-      VertexBuffer vertexBuffer = this.previewVertexBuffer(preview, renderMode);
-      if (vertexBuffer == null || vertexBuffer.isInvalid()) {
-         return;
-      }
-      VertexBuffer clouds = cloudsVisible ? this.previewCloudVertexBuffer(preview) : null;
-
-      Matrix4f modelView = buildModelView(rotationX, rotationY, cameraDistance);
-      Matrix4f projection = buildProjection(width, height);
-      Minecraft minecraft = Minecraft.getInstance();
-      double guiScale = minecraft.getWindow().getGuiScale();
-      int viewportX = (int)Math.floor(x * guiScale);
-      int viewportY = (int)Math.floor((graphics.guiHeight() - y - height) * guiScale);
-      int viewportWidth = Math.max(1, (int)Math.ceil(width * guiScale));
-      int viewportHeight = Math.max(1, (int)Math.ceil(height * guiScale));
-      graphics.flush();
-      graphics.enableScissor(x, y, x + width, y + height);
-
-      try {
-         RenderSystem.viewport(viewportX, viewportY, viewportWidth, viewportHeight);
-         RenderSystem.enableDepthTest();
-         RenderSystem.depthMask(true);
-         RenderSystem.depthFunc(GL11.GL_LEQUAL);
-         RenderSystem.clearDepth(1.0);
-         RenderSystem.clear(GL11.GL_DEPTH_BUFFER_BIT, Minecraft.ON_OSX);
-         RenderSystem.disableCull();
-         RenderSystem.enableBlend();
-         RenderSystem.defaultBlendFunc();
-         vertexBuffer.bind();
-         vertexBuffer.drawWithShader(modelView, projection, Objects.requireNonNull(GameRenderer.getPositionColorShader(), "positionColorShader"));
-         if (clouds != null && !clouds.isInvalid()) {
-            clouds.bind();
-            clouds.drawWithShader(modelView, projection, Objects.requireNonNull(GameRenderer.getPositionColorShader(), "positionColorShader"));
-         }
-      } finally {
-         VertexBuffer.unbind();
-         RenderSystem.disableBlend();
-         RenderSystem.enableCull();
-         RenderSystem.depthMask(false);
-         RenderSystem.disableDepthTest();
-         RenderSystem.viewport(0, 0, minecraft.getWindow().getWidth(), minecraft.getWindow().getHeight());
-         graphics.disableScissor();
-      }
-   }
-
-   private static void renderPreviewSky(GuiGraphics graphics, int x, int y, int width, int height) {
-      int horizonY = y + Math.max(1, Math.round(height * 0.72F));
-      graphics.fillGradient(x, y, x + width, horizonY, PREVIEW_SKY_TOP_COLOR, PREVIEW_SKY_HORIZON_COLOR);
-      graphics.fillGradient(x, horizonY, x + width, y + height, PREVIEW_SKY_HORIZON_COLOR, PREVIEW_SKY_GROUND_COLOR);
-   }
-
-   private static void renderPreviewSun(
-      GuiGraphics graphics, int x, int y, int width, int height, float rotationX, float rotationY
-   ) {
-      Vector3f viewDirection = new Vector3f(PREVIEW_SUN_X, PREVIEW_SUN_Y, PREVIEW_SUN_Z).normalize();
-      new Matrix4f().identity().rotateX(rotationX).rotateY(rotationY).transformDirection(viewDirection);
-      float depth = -viewDirection.z;
-      if (depth <= 0.01F) {
-         return;
-      }
-
-      float tanHalfFov = (float)Math.tan(Math.toRadians(PREVIEW_CAMERA_FOV_DEGREES * 0.5F));
-      float aspect = (float)width / height;
-      float normalizedX = viewDirection.x / (depth * tanHalfFov * aspect);
-      float normalizedY = viewDirection.y / (depth * tanHalfFov);
-      int sunSize = Math.max(1, Math.min(Math.min(width, height), Mth.clamp(Math.round(Math.min(width, height) * 0.11F), 24, 72)));
-      int sunX = x + Math.round((normalizedX * 0.5F + 0.5F) * width) - sunSize / 2;
-      int sunY = y + Math.round((0.5F - normalizedY * 0.5F) * height) - sunSize / 2;
-      if (sunX + sunSize <= x || sunX >= x + width || sunY + sunSize <= y || sunY >= y + height) {
-         return;
-      }
-
-      graphics.enableScissor(x, y, x + width, y + height);
-      graphics.flush();
-      boolean blendWasEnabled = GL11.glIsEnabled(GL11.GL_BLEND);
-      RenderSystem.enableBlend();
-      RenderSystem.blendFuncSeparate(
-         GlStateManager.SourceFactor.SRC_ALPHA,
-         GlStateManager.DestFactor.ONE,
-         GlStateManager.SourceFactor.ONE,
-         GlStateManager.DestFactor.ZERO
+      this.renderer.render(
+         graphics, this.mesh, x, y, width, height, rotationX, rotationY, cameraDistance, renderMode, cloudsVisible
       );
-
-      try {
-         graphics.blit(PREVIEW_SUN_TEXTURE, sunX, sunY, 0.0F, 0.0F, sunSize, sunSize, 32, 32);
-      } finally {
-         RenderSystem.defaultBlendFunc();
-         if (!blendWasEnabled) {
-            RenderSystem.disableBlend();
-         }
-         graphics.disableScissor();
-      }
-   }
-
-   private VertexBuffer previewVertexBuffer(TerrainPreview.PreviewMesh mesh, TerrainPreviewWidget.RenderMode renderMode) {
-      if (this.uploadedPreviewMesh != mesh) {
-         this.releasePreviewVertexBuffers();
-         this.uploadedPreviewMesh = mesh;
-      }
-
-      if (renderMode == TerrainPreviewWidget.RenderMode.FULL_DETAIL) {
-         if (this.detailVertexBuffer == null) {
-            this.detailVertexBuffer = buildPreviewVertexBuffer(mesh, renderMode);
-         }
-
-         return this.detailVertexBuffer;
-      } else {
-         if (this.terrainVertexBuffer == null) {
-            this.terrainVertexBuffer = buildPreviewVertexBuffer(mesh, renderMode);
-         }
-
-         return this.terrainVertexBuffer;
-      }
-   }
-
-   private static VertexBuffer buildPreviewVertexBuffer(TerrainPreview.PreviewMesh mesh, TerrainPreviewWidget.RenderMode renderMode) {
-      return buildPreviewVertexBuffer(mesh.geometryFor(renderMode));
-   }
-
-   private VertexBuffer previewCloudVertexBuffer(TerrainPreview.PreviewMesh mesh) {
-      if (this.uploadedPreviewMesh != mesh) {
-         this.releasePreviewVertexBuffers();
-         this.uploadedPreviewMesh = mesh;
-      }
-
-      if (this.cloudVertexBuffer == null) {
-         this.cloudVertexBuffer = buildPreviewVertexBuffer(mesh.cloudGeometry());
-      }
-
-      return this.cloudVertexBuffer;
-   }
-
-   private static VertexBuffer buildPreviewVertexBuffer(TerrainPreview.PreviewGeometry geometry) {
-      if (geometry.vertexCount() == 0) {
-         return null;
-      }
-
-      BufferBuilder buffer = ClientMinecraftCompat.beginPositionColorQuads();
-      for (int vertex = 0; vertex < geometry.vertexCount(); vertex++) {
-         int positionIndex = vertex * 3;
-         emitPreviewVertex(
-            buffer,
-            geometry.positions()[positionIndex],
-            geometry.positions()[positionIndex + 1],
-            geometry.positions()[positionIndex + 2],
-            geometry.colors()[vertex]
-         );
-      }
-
-      VertexBuffer vertexBuffer = new VertexBuffer(VertexBuffer.Usage.STATIC);
-      vertexBuffer.bind();
-      ClientMinecraftCompat.upload(vertexBuffer, buffer);
-      VertexBuffer.unbind();
-      return vertexBuffer;
-   }
-
-   private static void emitPreviewVertex(BufferBuilder buffer, float x, float y, float z, int color) {
-      ClientMinecraftCompat.emitVertex(buffer, x, y, z, color);
-   }
-
-   private void releasePreviewVertexBuffers() {
-      VertexBuffer terrain = this.terrainVertexBuffer;
-      VertexBuffer detail = this.detailVertexBuffer;
-      VertexBuffer clouds = this.cloudVertexBuffer;
-      this.terrainVertexBuffer = null;
-      this.detailVertexBuffer = null;
-      this.cloudVertexBuffer = null;
-      this.uploadedPreviewMesh = null;
-      if (terrain == null && detail == null && clouds == null) {
-         return;
-      }
-
-      Runnable release = () -> {
-         if (terrain != null) {
-            terrain.close();
-         }
-
-         if (detail != null && detail != terrain) {
-            detail.close();
-         }
-
-         if (clouds != null && clouds != terrain && clouds != detail) {
-            clouds.close();
-         }
-      };
-      if (RenderSystem.isOnRenderThread()) {
-         release.run();
-      } else {
-         RenderSystem.recordRenderCall(release::run);
-      }
-   }
-
-   private static Matrix4f buildProjection(int width, int height) {
-      float aspect = (float)width / height;
-      return new Matrix4f().setPerspective((float)Math.toRadians(PREVIEW_CAMERA_FOV_DEGREES), aspect, 0.05F, 100.0F);
-   }
-
-   private static Matrix4f buildModelView(float rotationX, float rotationY, float cameraDistance) {
-      return new Matrix4f().identity().translate(0.0F, 0.0F, -cameraDistance).rotateX(rotationX).rotateY(rotationY);
    }
 
    private TerrainPreview.PreviewMesh buildMesh(EarthGeneratorSettings settings, int id) {
@@ -482,6 +257,7 @@ public final class TerrainPreview implements AutoCloseable {
       boolean roadsPreviewEnabled = settings.enableRoads() && settings.worldScale() > 0.0 && settings.worldScale() <= 15.0;
       boolean buildingsPreviewEnabled = settings.enableBuildings() && settings.worldScale() > 0.0 && settings.worldScale() <= 15.0 && this.osmBuildingSource.available();
       double worldScale = settings.worldScale();
+      AntarcticSnowPolicy antarcticSnowPolicy = AntarcticSnowPolicy.forWorldScale(worldScale);
       boolean useVisualCover = worldScale > 0.0 && worldScale < 10.0;
       long coverDownloadUnits = (long)coverSize * coverSize * (useVisualCover ? 2L : 1L);
       long downloadTotal = (long)size * size + coverDownloadUnits + (long)climateSize * climateSize;
@@ -825,7 +601,7 @@ public final class TerrainPreview implements AutoCloseable {
                oceanFallbackMask[idx],
                !waterPreviewEnabled,
                settings.enableWater(),
-               false,
+               antarcticSnowPolicy.shouldUseSnowFallback(rawCoverClass, blockZ),
                desert,
                badlands,
                (int)Math.round(blockX),
@@ -1016,6 +792,7 @@ public final class TerrainPreview implements AutoCloseable {
 
       int size = snapshot.size();
       double worldScale = snapshot.worldScale();
+      AntarcticSnowPolicy antarcticSnowPolicy = AntarcticSnowPolicy.forWorldScale(worldScale);
       boolean roadsPreviewEnabled = settings.enableRoads() && worldScale > 0.0 && worldScale <= 15.0;
       boolean buildingsPreviewEnabled = settings.enableBuildings() && worldScale > 0.0 && worldScale <= 15.0 && this.osmBuildingSource.available();
       boolean waterPreviewEnabled = settings.enableWater() && worldScale > 0.0 && this.osmWaterSource.available();
@@ -1099,7 +876,7 @@ public final class TerrainPreview implements AutoCloseable {
                snapshot.oceanFallbackMask()[idx],
                !waterPreviewEnabled,
                settings.enableWater(),
-               false,
+               antarcticSnowPolicy.shouldUseSnowFallback(rawCoverClass, blockZ),
                snapshot.desertMask()[idx],
                snapshot.badlandsMask()[idx],
                (int)Math.round(blockX),
@@ -1293,7 +1070,7 @@ public final class TerrainPreview implements AutoCloseable {
       double previewResolutionMeters
    ) {
       if (worldScale > 0.0) {
-         Util.backgroundExecutor().execute(() -> {
+         MinecraftVersionCompat.backgroundExecutor().execute(() -> {
             try {
                this.elevationSource.prefetchTiles(
                   centerX, centerZ, worldScale, PREVIEW_ELEVATION_PREFETCH_RADIUS, demSelection, previewResolutionMeters
@@ -1301,13 +1078,13 @@ public final class TerrainPreview implements AutoCloseable {
             } catch (RuntimeException ignored) {
             }
          });
-         Util.backgroundExecutor().execute(() -> {
+         MinecraftVersionCompat.backgroundExecutor().execute(() -> {
             try {
                this.landCoverSource.prefetchTiles(centerX, centerZ, worldScale, PREVIEW_LAND_COVER_PREFETCH_RADIUS, previewResolutionMeters);
             } catch (RuntimeException ignored) {
             }
          });
-         Util.backgroundExecutor().execute(() -> {
+         MinecraftVersionCompat.backgroundExecutor().execute(() -> {
             try {
                this.landMaskSource.prefetchTiles(centerX, centerZ, worldScale, PREVIEW_LAND_MASK_PREFETCH_RADIUS);
             } catch (RuntimeException ignored) {
@@ -3206,7 +2983,7 @@ public final class TerrainPreview implements AutoCloseable {
       boolean oceanWater,
       boolean fallbackInlandWaterEnabled,
       boolean flattenWaterColor,
-      boolean remaSnowTerrain,
+      boolean antarcticSnowTerrain,
       boolean desert,
       boolean badlands,
       int worldX,
@@ -3217,7 +2994,7 @@ public final class TerrainPreview implements AutoCloseable {
       if (waterDepth >= 0.0) {
          return flattenWaterColor ? PREVIEW_FLAT_WATER_COLOR : waterColorForDepth(waterDepth);
       } else {
-         boolean snowSource = MountainSurfaceRules.hasSnowSource(surfaceCoverClass, remaSnowTerrain);
+         boolean snowSource = MountainSurfaceRules.hasSnowSource(surfaceCoverClass, antarcticSnowTerrain);
          if (snowSource && SnowSlopePolicy.shouldCover(worldX, worldZ, demSlopeDegrees)) {
             return 16119285;
          }
@@ -3243,7 +3020,7 @@ public final class TerrainPreview implements AutoCloseable {
             heightAboveSea,
             slopeDiff,
             convexity,
-            remaSnowTerrain,
+            antarcticSnowTerrain,
             vegetationTransitionWeight,
             worldX,
             worldZ
@@ -3523,7 +3300,7 @@ public final class TerrainPreview implements AutoCloseable {
       this.mesh = null;
       this.baseSnapshot = null;
       this.info.set(null);
-      this.releasePreviewVertexBuffers();
+      this.renderer.close();
       this.executor.shutdownNow();
    }
 
@@ -3742,7 +3519,7 @@ public final class TerrainPreview implements AutoCloseable {
          return this.worldYAtPreviewZero + previewY * this.blocksPerHeightUnit;
       }
    }
-   private static final class PreviewMesh {
+   static final class PreviewMesh {
       private final int size;
       private final int granularity;
       private final float[] terrainHeights;
@@ -3795,7 +3572,7 @@ public final class TerrainPreview implements AutoCloseable {
          return renderMode == TerrainPreviewWidget.RenderMode.FULL_DETAIL ? this.detailColors : this.terrainColors;
       }
 
-      private TerrainPreview.PreviewGeometry geometryFor(TerrainPreviewWidget.RenderMode renderMode) {
+      TerrainPreview.PreviewGeometry geometryFor(TerrainPreviewWidget.RenderMode renderMode) {
          TerrainPreview.PreviewGeometry cached = renderMode == TerrainPreviewWidget.RenderMode.FULL_DETAIL
             ? this.detailGeometry
             : this.terrainGeometry;
@@ -3818,7 +3595,7 @@ public final class TerrainPreview implements AutoCloseable {
          return cached;
       }
 
-      private TerrainPreview.PreviewGeometry cloudGeometry() {
+      TerrainPreview.PreviewGeometry cloudGeometry() {
          TerrainPreview.PreviewGeometry cached = this.clouds;
          if (cached != null) {
             return cached;
@@ -5062,7 +4839,7 @@ public final class TerrainPreview implements AutoCloseable {
       return alpha << 24 | blendColor(lit, PREVIEW_FOG_COLOR, fog) & 0xFFFFFF;
    }
 
-   private record PreviewGeometry(float[] positions, int[] colors, int vertexCount) {
+   record PreviewGeometry(float[] positions, int[] colors, int vertexCount) {
    }
    private static final class PreviewGeometryBuilder {
       private float[] positions;

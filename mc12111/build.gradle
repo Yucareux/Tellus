@@ -1,0 +1,45 @@
+plugins {
+	id 'net.fabricmc.fabric-loom-remap' version '1.14.10'
+	id 'maven-publish'
+}
+
+ext.tellus = [
+	minecraftVersion: '1.21.11',
+	loaderVersion: '0.17.3',
+	fabricVersion: '0.140.0+1.21.11',
+	fabricDependencyConfiguration: 'modImplementation',
+	javaVersion: 21,
+	distantHorizonsRuntimeProperty: 'mc12111_distant_horizons_runtime_path',
+	sharedSourceLayers: ['post-1201', 'mc262', 'mc12111', 'fabric'],
+	sharedClientSourceLayers: ['pre-26', 'mc1211', 'mc12111'],
+	inheritedMainJavaProjects: ['mc262'],
+	inheritedClientJavaProjects: ['mc1211'],
+	inheritedMainResourceProjects: ['mc262'],
+	inheritedClientResourceProjects: [],
+	overriddenSharedMainSources: [
+		'com/yucareux/tellus/compat/MinecraftVersionCompat.java',
+		'com/yucareux/tellus/compat/TellusMinecraftCompat.java',
+		'com/yucareux/tellus/world/realtime/RealtimeVersionCompat.java',
+	],
+	overriddenInheritedMainSources: [
+		'com/yucareux/tellus/platform/FabricNetworkingVersionCompat.java',
+	],
+	overriddenSharedClientSources: [
+		'com/yucareux/tellus/client/compat/AbstractTellusButton.java',
+		'com/yucareux/tellus/client/compat/AbstractTellusEditBox.java',
+		'com/yucareux/tellus/client/compat/AbstractTellusScreen.java',
+		'com/yucareux/tellus/client/compat/AbstractTellusWidget.java',
+		'com/yucareux/tellus/client/preview/TerrainPreviewRenderer.java',
+		'com/yucareux/tellus/client/widget/AbstractCustomizationListEntry.java',
+		'com/yucareux/tellus/mixin/client/LevelLoadingScreenMixin.java',
+		'com/yucareux/tellus/compat/ClientMinecraftCompat.java',
+	],
+	overriddenSharedClientResources: ['tellus.client.mixins.json'],
+	overriddenInheritedMainResources: ['fabric.mod.json'],
+	mapboxVersion: '24.1.1',
+	protobufVersion: '4.28.2',
+	officialMappings: true,
+	testDistantHorizonsRuntime: false,
+]
+
+apply from: rootProject.file('gradle/tellus-fabric.gradle')

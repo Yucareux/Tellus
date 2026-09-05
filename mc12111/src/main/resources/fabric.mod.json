@@ -1,0 +1,41 @@
+{
+	"schemaVersion": 1,
+	"id": "tellus",
+	"version": "${version}",
+	"name": "Tellus",
+	"description": "Tellus is a Fabric mod that recreates real-world terrain in Minecraft by generating Earth-scale landscapes from geographic data.",
+	"authors": [
+		"Me!"
+	],
+	"contact": {
+		"homepage": "https://github.com/Yucareux/Tellus",
+		"sources": "https://github.com/Yucareux/Tellus"
+	},
+	"license": "LGPL-3.0-only",
+	"icon": "assets/tellus/icon.png",
+	"environment": "*",
+	"entrypoints": {
+		"main": [
+			"com.yucareux.tellus.Tellus"
+		],
+		"client": [
+			"com.yucareux.tellus.TellusClient"
+		]
+	},
+	"mixins": [
+		"tellus.mixins.json",
+		{
+			"config": "tellus.client.mixins.json",
+			"environment": "client"
+		}
+	],
+	"depends": {
+		"fabricloader": ">=0.17.3",
+		"minecraft": "~1.21.11",
+		"java": ">=21",
+		"fabric-api": "*"
+	},
+	"suggests": {
+		"distanthorizons": "*"
+	}
+}

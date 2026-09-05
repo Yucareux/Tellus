@@ -14,15 +14,20 @@ import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.tags.BlockTags;
 import net.minecraft.util.Util;
+import net.minecraft.world.entity.EntitySpawnReason;
+import net.minecraft.world.entity.EntityTypes;
+import net.minecraft.world.entity.animal.axolotl.Axolotl;
 import net.minecraft.world.level.ChunkPos;
 import net.minecraft.world.level.WorldGenLevel;
 import net.minecraft.world.level.biome.Biome;
 import net.minecraft.world.level.biome.Biomes;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.Blocks;
+import net.minecraft.world.level.chunk.ChunkAccess;
 import net.minecraft.world.level.dimension.DimensionType;
 import net.minecraft.world.level.levelgen.Beardifier;
 import net.minecraft.world.level.levelgen.DensityFunctions;
+import net.minecraft.world.level.levelgen.feature.ConfiguredFeature;
 
 /** Narrow compatibility seam for Minecraft 26.2 API changes. */
 public final class MinecraftVersionCompat {
@@ -91,6 +96,25 @@ public final class MinecraftVersionCompat {
 
    public static long packChunkPos(int chunkX, int chunkZ) {
       return ChunkPos.pack(chunkX, chunkZ);
+   }
+
+   public static ChunkPos chunkPosContaining(BlockPos position) {
+      return ChunkPos.containing(position);
+   }
+
+   public static void markPosForPostProcessing(ChunkAccess chunk, BlockPos position) {
+      chunk.markPosForPostProcessing(position);
+   }
+
+   @SuppressWarnings("unchecked")
+   public static ConfiguredFeature<?, ?> unwrapConfiguredFeature(Object configuredFeature) {
+      return ((Holder<ConfiguredFeature<?, ?>>)configuredFeature).value();
+   }
+
+   public static Axolotl createAxolotl(ServerLevel level, BlockPos position) {
+      return (Axolotl)EntityTypes.AXOLOTL.create(
+         level, entity -> {}, position, EntitySpawnReason.CHUNK_GENERATION, false, false
+      );
    }
 
    public static ServerLevel serverLevel(ServerPlayer player) {

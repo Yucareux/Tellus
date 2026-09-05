@@ -1,16 +1,13 @@
 package com.yucareux.tellus;
 
 import com.yucareux.tellus.compat.MinecraftRelease;
-import com.yucareux.tellus.network.GeoTpOpenMapPayload;
 import com.yucareux.tellus.network.GeoTpTeleportPayload;
-import com.yucareux.tellus.network.ManagedTerrainStatusPayload;
 import com.yucareux.tellus.network.ManagedTerrainViewPayload;
-import com.yucareux.tellus.network.TellusWeatherPayload;
+import com.yucareux.tellus.platform.FabricNetworkingVersionCompat;
 import com.yucareux.tellus.platform.FabricTellusRuntimePlatform;
 import com.yucareux.tellus.worldgen.EarthBiomeSource;
 import com.yucareux.tellus.worldgen.EarthChunkGenerator;
 import net.fabricmc.api.ModInitializer;
-import net.fabricmc.fabric.api.networking.v1.PayloadTypeRegistry;
 import net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking;
 import net.minecraft.core.Registry;
 import net.minecraft.core.registries.BuiltInRegistries;
@@ -27,11 +24,7 @@ public final class Tellus extends TellusCommon implements ModInitializer {
       TellusCommon.validateRuntime();
       Registry.register(BuiltInRegistries.BIOME_SOURCE, id("earth"), EarthBiomeSource.CODEC);
       Registry.register(BuiltInRegistries.CHUNK_GENERATOR, id("earth"), EarthChunkGenerator.CODEC);
-      PayloadTypeRegistry.serverboundPlay().register(GeoTpTeleportPayload.TYPE, GeoTpTeleportPayload.CODEC);
-      PayloadTypeRegistry.serverboundPlay().register(ManagedTerrainViewPayload.TYPE, ManagedTerrainViewPayload.CODEC);
-      PayloadTypeRegistry.clientboundPlay().register(GeoTpOpenMapPayload.TYPE, GeoTpOpenMapPayload.CODEC);
-      PayloadTypeRegistry.clientboundPlay().register(TellusWeatherPayload.TYPE, TellusWeatherPayload.CODEC);
-      PayloadTypeRegistry.clientboundPlay().register(ManagedTerrainStatusPayload.TYPE, ManagedTerrainStatusPayload.CODEC);
+      FabricNetworkingVersionCompat.registerPayloadTypes();
       ServerPlayNetworking.registerGlobalReceiver(
          GeoTpTeleportPayload.TYPE, (payload, context) -> TellusCommon.handleGeoTeleport(payload, context.player())
       );

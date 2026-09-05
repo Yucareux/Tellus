@@ -4,6 +4,7 @@ import com.mojang.serialization.MapCodec;
 import com.mojang.serialization.codecs.RecordCodecBuilder;
 import com.mojang.datafixers.util.Pair;
 import com.yucareux.tellus.Tellus;
+import com.yucareux.tellus.compat.MinecraftVersionCompat;
 import com.yucareux.tellus.preload.TerrainPreloadPackage;
 import com.yucareux.tellus.preload.TerrainPreloadPackageRegistry;
 import com.yucareux.tellus.world.data.canopy.TellusCanopyHeightSource;
@@ -57,7 +58,6 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
-import java.util.Random;
 import java.util.Set;
 import java.util.UUID;
 import java.util.Map.Entry;
@@ -95,8 +95,6 @@ import net.minecraft.tags.TagKey;
 import net.minecraft.util.Mth;
 import net.minecraft.util.RandomSource;
 import net.minecraft.util.Util;
-import net.minecraft.world.entity.EntitySpawnReason;
-import net.minecraft.world.entity.EntityTypes;
 import net.minecraft.world.entity.animal.axolotl.Axolotl;
 import net.minecraft.world.level.ChunkPos;
 import net.minecraft.world.level.EmptyBlockGetter;
@@ -389,6 +387,7 @@ public final class EarthChunkGenerator extends ChunkGenerator {
    private final int minY;
    private final int height;
    private final WaterSurfaceResolver waterResolver;
+   private final AntarcticSnowPolicy antarcticSnowPolicy;
    private final TerrainPreloadPackageRegistry.SettingsView preloadedTerrain;
    private volatile TellusVanillaCarverRunner tellusCarverRunner;
    private final ThreadLocal<EarthChunkGenerator.WaterChunkCache> waterChunkCache = ThreadLocal.withInitial(EarthChunkGenerator.WaterChunkCache::new);
@@ -412,7 +411,6 @@ public final class EarthChunkGenerator extends ChunkGenerator {
    private static final long JAVA_RANDOM_MULTIPLIER = 25214903917L;
    private static final long JAVA_RANDOM_ADDEND = 11L;
    private static final long JAVA_RANDOM_MASK = 281474976710655L;
-   private static final ThreadLocal<Random> SNOW_RANDOM = ThreadLocal.withInitial(Random::new);
    private final AtomicBoolean fastSpawnMode = new AtomicBoolean(true);
    private final AtomicLong chunkDetailGenerationSequence = new AtomicLong();
    private final ConcurrentHashMap<Long, Long> terrainGenerationStamps = new ConcurrentHashMap<>();
@@ -426,6 +424,7 @@ public final class EarthChunkGenerator extends ChunkGenerator {
       this.minY = limits.minY();
       this.height = limits.height();
       this.waterResolver = TellusWorldgenSources.waterResolver(settings);
+      this.antarcticSnowPolicy = AntarcticSnowPolicy.forWorldScale(settings.worldScale());
       this.preloadedTerrain = TerrainPreloadPackageRegistry.instance().viewFor(settings);
       double blocksPerDegree = blocksPerDegree(settings.worldScale());
       int spawnBlockX = Mth.floor(settings.spawnLongitude() * blocksPerDegree);
@@ -472,7 +471,7 @@ public final class EarthChunkGenerator extends ChunkGenerator {
 
    public int getUndergroundPlacementSurfaceY(int blockX, int blockZ) {
       EarthChunkGenerator.ChunkDecorationContext context = this.chunkDecorationContexts.get(
-         ChunkPos.pack(blockX >> 4, blockZ >> 4)
+         MinecraftVersionCompat.packChunkPos(blockX >> 4, blockZ >> 4)
       );
       return UndergroundPlacementSurfacePolicy.resolve(
          context != null ? context.terrainSurfaces() : null,
@@ -484,7 +483,7 @@ public final class EarthChunkGenerator extends ChunkGenerator {
 
    public boolean isUndergroundStructureFeaturePlacementBlocked(int blockX, int blockY, int blockZ) {
       EarthChunkGenerator.ChunkDecorationContext context = this.chunkDecorationContexts.get(
-         ChunkPos.pack(blockX >> 4, blockZ >> 4)
+         MinecraftVersionCompat.packChunkPos(blockX >> 4, blockZ >> 4)
       );
       return context != null
          && UndergroundStructureExclusion.blocksFeaturePlacement(
@@ -611,8 +610,8 @@ public final class EarthChunkGenerator extends ChunkGenerator {
    }
 
    private boolean shouldForceExactSpawnTerrain(ChunkPos pos) {
-      return Math.abs(pos.x() - this.configuredSpawnChunkX) <= SPAWN_EXACT_CHUNK_RADIUS
-         && Math.abs(pos.z() - this.configuredSpawnChunkZ) <= SPAWN_EXACT_CHUNK_RADIUS;
+      return Math.abs(MinecraftVersionCompat.chunkX(pos) - this.configuredSpawnChunkX) <= SPAWN_EXACT_CHUNK_RADIUS
+         && Math.abs(MinecraftVersionCompat.chunkZ(pos) - this.configuredSpawnChunkZ) <= SPAWN_EXACT_CHUNK_RADIUS;
    }
 
    private boolean hasDeferredApplyWork() {
@@ -624,7 +623,7 @@ public final class EarthChunkGenerator extends ChunkGenerator {
    }
 
    public void discardPreparedChunkState(ChunkPos pos) {
-      this.discardPreparedChunkState(ChunkPos.pack(pos.x(), pos.z()));
+      this.discardPreparedChunkState(MinecraftVersionCompat.packChunkPos(MinecraftVersionCompat.chunkX(pos), MinecraftVersionCompat.chunkZ(pos)));
    }
 
    private void discardPreparedChunkState(long chunkKey) {
@@ -737,7 +736,9 @@ public final class EarthChunkGenerator extends ChunkGenerator {
    ) {
       List<UndergroundStructureExclusion.Box> structureExclusions =
          this.collectUndergroundStructureExclusions(structures, chunk.getPos());
-      long chunkKey = ChunkPos.pack(chunk.getPos().x(), chunk.getPos().z());
+      long chunkKey = MinecraftVersionCompat.packChunkPos(
+         MinecraftVersionCompat.chunkX(chunk.getPos()), MinecraftVersionCompat.chunkZ(chunk.getPos())
+      );
       this.chunkDecorationContexts.computeIfPresent(
          chunkKey,
          (ignored, context) -> context.withUndergroundStructureExclusions(structureExclusions)
@@ -843,7 +844,9 @@ public final class EarthChunkGenerator extends ChunkGenerator {
 
    public void applyBiomeDecoration( WorldGenLevel level,  ChunkAccess chunk,  StructureManager structures) {
       EarthChunkGenerator.FullChunkTrace timingTrace = EarthChunkGenerator.FullChunkPerf.beginTrace("decoration", chunk.getPos());
-      long chunkKey = ChunkPos.pack(chunk.getPos().x(), chunk.getPos().z());
+      long chunkKey = MinecraftVersionCompat.packChunkPos(
+         MinecraftVersionCompat.chunkX(chunk.getPos()), MinecraftVersionCompat.chunkZ(chunk.getPos())
+      );
       long totalStartNs = beginFullChunkProfiling();
       long phaseStartNs;
       Throwable failure = null;
@@ -1013,7 +1016,7 @@ public final class EarthChunkGenerator extends ChunkGenerator {
    private void fillTellusSurface( RandomState random,  StructureManager structures,  ChunkAccess chunk) {
       ChunkPos pos = chunk.getPos();
       validateExperimentalChunkBounds(this.settings, pos);
-      long chunkKey = ChunkPos.pack(pos.x(), pos.z());
+      long chunkKey = MinecraftVersionCompat.packChunkPos(MinecraftVersionCompat.chunkX(pos), MinecraftVersionCompat.chunkZ(pos));
       long generationStamp = this.chunkDetailGenerationSequence.incrementAndGet();
       boolean terrainShellMode = this.usesDeferredTerrainRefinement() && !this.shouldForceExactSpawnTerrain(pos);
       boolean thinShellTerrain = this.settings.usesTerrainShell();
@@ -1315,8 +1318,11 @@ public final class EarthChunkGenerator extends ChunkGenerator {
                BlockState mountainMassFill = underwater
                   ? null
                   : this.resolveMountainMassFillBlock(biome, surfaceCoverClass, surface, slopeDiff, convexity, worldX, worldZ);
-               boolean retainSurfaceSnow = surface >= this.seaLevel
+               boolean retainSurfaceSnow = !underwater && surface >= this.seaLevel
                   && this.shouldRetainSurfaceSnow(useFastSurfacePalette, surfaceCoverClass, surface, slopeDiff, convexity, worldX, worldZ);
+               boolean surfaceSnow = retainSurfaceSnow || !underwater && isSnowySurfaceBiome(biome);
+               boolean fullDepthSurfaceSnow = surfaceSnow
+                  && SnowSlopePolicy.hasFullCoverage(this.sampleDemSlopeDegrees(worldX, worldZ));
                if (thinShellTerrain) {
                   int supportAnchorY = underwater ? waterSurface : surface;
                   boolean oceanSupport = underwater && oceanFlags[index];
@@ -1468,7 +1474,7 @@ public final class EarthChunkGenerator extends ChunkGenerator {
                   }
                   if (this.isWaterfallSourceColumn(worldX, worldZ, waterSurface)) {
                      cursor.set(worldX, waterSurface, worldZ);
-                     chunk.markPosForPostProcessing(cursor);
+                     MinecraftVersionCompat.markPosForPostProcessing(chunk, cursor);
                   }
                }
                waterColumnFillNs += elapsedFullChunkProfilingSince(subPhaseStartNs);
@@ -1485,7 +1491,7 @@ public final class EarthChunkGenerator extends ChunkGenerator {
                         surface,
                         chunkMinY,
                         underwater,
-                        retainSurfaceSnow,
+                        surfaceSnow,
                         biome,
                         slopeDiff,
                         convexity,
@@ -1503,7 +1509,7 @@ public final class EarthChunkGenerator extends ChunkGenerator {
                         surface,
                         chunkMinY,
                         underwater,
-                        retainSurfaceSnow,
+                        surfaceSnow,
                         biome,
                         slopeDiff,
                         convexity,
@@ -1551,18 +1557,14 @@ public final class EarthChunkGenerator extends ChunkGenerator {
                }
                surfaceApplyNs += elapsedFullChunkProfilingSince(subPhaseStartNs);
 
-               if (retainSurfaceSnow) {
+               if (surfaceSnow) {
                   subPhaseStartNs = beginFullChunkProfiling();
                   if (sectionWriter != null) {
-                     if (thinShellTerrain) {
-                        applyThinShellSnowCover(sectionWriter, localX, localZ, surface);
-                     } else {
-                        applySnowCover(sectionWriter, localX, localZ, worldX, worldZ, surface, chunkMinY);
-                     }
-                  } else if (thinShellTerrain) {
-                     applyThinShellSnowCover(chunk, cursor, worldX, worldZ, surface);
+                     this.applySnowCover(
+                        sectionWriter, localX, localZ, worldX, worldZ, surface, chunkMinY, fullDepthSurfaceSnow
+                     );
                   } else {
-                     applySnowCover(chunk, cursor, worldX, worldZ, surface, chunkMinY);
+                     this.applySnowCover(chunk, cursor, worldX, worldZ, surface, chunkMinY, fullDepthSurfaceSnow);
                   }
                   snowApplyNs += elapsedFullChunkProfilingSince(subPhaseStartNs);
                }
@@ -1683,7 +1685,7 @@ public final class EarthChunkGenerator extends ChunkGenerator {
       EarthChunkGenerator.PreparedChunkBuildings preparedBuildings,
       EarthChunkGenerator.OsmRoadQueryResult deferredRoadQuery
       ) {
-      long chunkKey = ChunkPos.pack(pos.x(), pos.z());
+      long chunkKey = MinecraftVersionCompat.packChunkPos(MinecraftVersionCompat.chunkX(pos), MinecraftVersionCompat.chunkZ(pos));
       this.preparedChunkRoadLights.remove(chunkKey);
       this.clearPreparedChunkStateTracking(chunkKey);
       if (this.settings.enableRoads()) {
@@ -4886,9 +4888,11 @@ public final class EarthChunkGenerator extends ChunkGenerator {
 
    private void placeTrees(WorldGenLevel level, ChunkAccess chunk) {
       ChunkPos pos = chunk.getPos();
-      long chunkKey = ChunkPos.pack(pos.x(), pos.z());
+      long chunkKey = MinecraftVersionCompat.packChunkPos(MinecraftVersionCompat.chunkX(pos), MinecraftVersionCompat.chunkZ(pos));
       EarthChunkGenerator.ChunkDecorationContext decorationContext = this.chunkDecorationContexts.get(chunkKey);
-      EarthChunkGenerator.PreparedChunkBuildings preparedBuildings = this.preparedChunkBuildings.get(ChunkPos.pack(pos.x(), pos.z()));
+      EarthChunkGenerator.PreparedChunkBuildings preparedBuildings = this.preparedChunkBuildings.get(
+         MinecraftVersionCompat.packChunkPos(MinecraftVersionCompat.chunkX(pos), MinecraftVersionCompat.chunkZ(pos))
+      );
       int chunkMinX = pos.getMinBlockX();
       int chunkMinZ = pos.getMinBlockZ();
       int chunkMaxX = chunkMinX + CHUNK_MASK;
@@ -5721,12 +5725,6 @@ public final class EarthChunkGenerator extends ChunkGenerator {
 	      return (state * JAVA_RANDOM_MULTIPLIER + JAVA_RANDOM_ADDEND) & JAVA_RANDOM_MASK;
 	   }
 
-	   private static Random snowRandom(long seed) {
-	      Random random = SNOW_RANDOM.get();
-	      random.setSeed(seed);
-	      return random;
-	   }
-
    private void applyThinShellSurface(
       ChunkAccess chunk,
       MutableBlockPos cursor,
@@ -5757,12 +5755,10 @@ public final class EarthChunkGenerator extends ChunkGenerator {
             long badlandsStartNs = beginFullChunkProfiling();
             this.applyBadlandsBands(chunk, cursor, worldX, worldZ, surface, minY, palette, slopeDiff, true);
             profiler.badlandsNs += elapsedFullChunkProfilingSince(badlandsStartNs);
-         } else if (palette != null && palette.filler().is(Blocks.DEEPSLATE)) {
-            int bottom = this.thinShellSurfaceBottomY(minY, surface, palette.depth());
-            for (int y = surface; y >= bottom; y--) {
-               cursor.set(worldX, y, worldZ);
-               setChunkBlockStateDiscardingBlockEntity(chunk, cursor, y == surface ? top : palette.filler());
-            }
+         } else if (palette != null) {
+            int depth = this.resolveSurfaceMaterialDepth(palette, top, worldX, worldZ);
+            int bottom = this.thinShellSurfaceBottomY(minY, surface, depth);
+            fillSurfaceMaterialColumn(chunk, cursor, worldX, worldZ, surface, bottom, top, palette.filler());
          } else {
             cursor.set(worldX, surface, worldZ);
             setChunkBlockStateDiscardingBlockEntity(chunk, cursor, top);
@@ -5802,9 +5798,10 @@ public final class EarthChunkGenerator extends ChunkGenerator {
             long badlandsStartNs = beginFullChunkProfiling();
             this.applyBadlandsBands(writer, localX, localZ, worldX, worldZ, surface, minY, palette, slopeDiff, true);
             profiler.badlandsNs += elapsedFullChunkProfilingSince(badlandsStartNs);
-         } else if (palette != null && palette.filler().is(Blocks.DEEPSLATE)) {
-            int bottom = this.thinShellSurfaceBottomY(minY, surface, palette.depth());
-            writer.fillSurfaceColumn(localX, localZ, surface, bottom, top, palette.filler());
+         } else if (palette != null) {
+            int depth = this.resolveSurfaceMaterialDepth(palette, top, worldX, worldZ);
+            int bottom = this.thinShellSurfaceBottomY(minY, surface, depth);
+            fillSurfaceMaterialColumn(writer, localX, localZ, surface, bottom, top, palette.filler());
          } else {
             writer.setBlock(localX, localZ, surface, top);
          }
@@ -5856,14 +5853,11 @@ public final class EarthChunkGenerator extends ChunkGenerator {
             } else {
                BlockState top = underwater ? palette.underwaterTop() : palette.top();
                BlockState filler = palette.filler();
-               int depth = palette.depth();
+               int depth = this.resolveSurfaceMaterialDepth(palette, top, worldX, worldZ);
                int bottom = surfaceMaterialBottomY(minY, surface, depth);
 
                long blockWriteStartNs = beginFullChunkProfiling();
-               for (int y = surface; y >= bottom; y--) {
-                  cursor.set(worldX, y, worldZ);
-                  setChunkBlockStateDiscardingBlockEntity(chunk, cursor, y == surface ? top : filler);
-               }
+               fillSurfaceMaterialColumn(chunk, cursor, worldX, worldZ, surface, bottom, top, filler);
                profiler.blockWriteNs += elapsedFullChunkProfilingSince(blockWriteStartNs);
             }
          }
@@ -5901,11 +5895,11 @@ public final class EarthChunkGenerator extends ChunkGenerator {
             } else {
                BlockState top = underwater ? palette.underwaterTop() : palette.top();
                BlockState filler = palette.filler();
-               int depth = palette.depth();
+               int depth = this.resolveSurfaceMaterialDepth(palette, top, worldX, worldZ);
                int bottom = surfaceMaterialBottomY(minY, surface, depth);
 
                long blockWriteStartNs = beginFullChunkProfiling();
-               writer.fillSurfaceColumn(localX, localZ, surface, bottom, top, filler);
+               fillSurfaceMaterialColumn(writer, localX, localZ, surface, bottom, top, filler);
                profiler.blockWriteNs += elapsedFullChunkProfilingSince(blockWriteStartNs);
             }
          }
@@ -5925,7 +5919,7 @@ public final class EarthChunkGenerator extends ChunkGenerator {
       EarthChunkGenerator.SurfaceApplyProfiler profiler,
       boolean useFastSurfacePalette
    ) {
-      boolean snowLikeTerrain = !underwater && this.isRemaSnowTerrain(worldZ);
+      boolean snowLikeTerrain = !underwater && this.isAntarcticSnowTerrain(coverClass, worldZ);
       EarthChunkGenerator.SurfacePalette palette = this.selectBaseSurfacePalette(biome, worldX, worldZ, surface, coverClass);
       if (palette == null) {
          return null;
@@ -6068,6 +6062,65 @@ public final class EarthChunkGenerator extends ChunkGenerator {
    private static int surfaceMaterialBottomY(int minY, int surface, int depth) {
       // Bedrock is placed at minY during terrain fill; keep falling fillers one block above it.
       return Math.max(minY + 1, surface - depth + 1);
+   }
+
+   private int resolveSurfaceMaterialDepth(
+      EarthChunkGenerator.SurfacePalette palette, BlockState top, int worldX, int worldZ
+   ) {
+      return usesNaturalDepthVariation(top, palette.filler())
+         ? SurfaceMaterialDepthPolicy.naturalDepth(palette.depth(), worldX, worldZ, this.worldSeed)
+         : palette.depth();
+   }
+
+   private static boolean usesNaturalDepthVariation(BlockState top, BlockState filler) {
+      return isSoilBlock(top)
+         || isSoilBlock(filler)
+         || top.is(Blocks.SAND)
+         || top.is(Blocks.RED_SAND)
+         || filler.is(Blocks.SAND)
+         || filler.is(Blocks.RED_SAND);
+   }
+
+   private static void fillSurfaceMaterialColumn(
+      ChunkAccess chunk,
+      MutableBlockPos cursor,
+      int worldX,
+      int worldZ,
+      int surface,
+      int bottom,
+      BlockState top,
+      BlockState filler
+   ) {
+      BlockState shallowFiller = shallowSurfaceFiller(top, filler);
+      for (int y = surface; y >= bottom; y--) {
+         BlockState state = y == surface ? top : y == bottom ? filler : shallowFiller;
+         cursor.set(worldX, y, worldZ);
+         setChunkBlockStateDiscardingBlockEntity(chunk, cursor, state);
+      }
+   }
+
+   private static void fillSurfaceMaterialColumn(
+      EarthChunkGenerator.ChunkSectionWriter writer,
+      int localX,
+      int localZ,
+      int surface,
+      int bottom,
+      BlockState top,
+      BlockState filler
+   ) {
+      BlockState shallowFiller = shallowSurfaceFiller(top, filler);
+      writer.fillSurfaceColumn(localX, localZ, surface, bottom, top, shallowFiller);
+      if (bottom < surface && !shallowFiller.equals(filler)) {
+         writer.setBlock(localX, localZ, bottom, filler);
+      }
+   }
+
+   private static BlockState shallowSurfaceFiller(BlockState top, BlockState filler) {
+      if (top.is(Blocks.SAND) && filler.is(Blocks.SANDSTONE)
+         || top.is(Blocks.RED_SAND) && filler.is(Blocks.RED_SANDSTONE)) {
+         return top;
+      }
+      return filler;
    }
 
    private static BlockState badlandsBand(int worldX, int worldZ, int y) {
@@ -6315,7 +6368,7 @@ public final class EarthChunkGenerator extends ChunkGenerator {
 
    private boolean hasPersistentSnowSourceAtUncached(int sampleX, int sampleZ, double previewResolutionMeters) {
       int surfaceCoverClass = this.mountainSamplingCache(previewResolutionMeters).surfaceCoverClass(sampleX, sampleZ);
-      return MountainSurfaceRules.hasSnowSource(surfaceCoverClass, this.isRemaSnowTerrain(sampleZ));
+      return MountainSurfaceRules.hasSnowSource(surfaceCoverClass, this.isAntarcticSnowTerrain(surfaceCoverClass, sampleZ));
    }
 
    private EarthChunkGenerator.MountainSamplingCache mountainSamplingCache(double previewResolutionMeters) {
@@ -6573,7 +6626,7 @@ public final class EarthChunkGenerator extends ChunkGenerator {
             convexity,
             worldX,
             worldZ,
-            this.isRemaSnowTerrain(worldZ),
+            this.isAntarcticSnowTerrain(surfaceCoverClass, worldZ),
             mountainOsmQueryMode
          );
          EarthChunkGenerator.LodSurface lodSurface = new EarthChunkGenerator.LodSurface(top, filler);
@@ -6710,7 +6763,7 @@ public final class EarthChunkGenerator extends ChunkGenerator {
       int effectiveCoverClass = this.resolveEffectiveCoverClassForTerrain(rawCoverClass);
       int surfaceCoverClass = this.resolveSurfaceCoverClassForTerrain(effectiveCoverClass, visualCoverClass);
       return this.resolveLodSnowFillerBlock(
-         biome, surfaceCoverClass, surface, slopeDiff, convexity, worldX, worldZ, this.isRemaSnowTerrain(worldZ), fallback, mountainOsmQueryMode
+         biome, surfaceCoverClass, surface, slopeDiff, convexity, worldX, worldZ, this.isAntarcticSnowTerrain(surfaceCoverClass, worldZ), fallback, mountainOsmQueryMode
       );
    }
 
@@ -6910,7 +6963,11 @@ public final class EarthChunkGenerator extends ChunkGenerator {
          context, this.shouldDeferBuildingDetails(), this.shouldDeferBuildingDetails(), this.shouldDeferRoadDetails(), this.shouldDeferTrees(), OsmQueryMode.NON_BLOCKING
       );
       if (this.shouldDeferDetailedWater()) {
-         this.waterResolver.prefetchRegionsForChunk(context.pos().x(), context.pos().z(), Math.max(1, CHUNK_DETAIL_PREFETCH_RADIUS));
+         this.waterResolver.prefetchRegionsForChunk(
+            MinecraftVersionCompat.chunkX(context.pos()),
+            MinecraftVersionCompat.chunkZ(context.pos()),
+            Math.max(1, CHUNK_DETAIL_PREFETCH_RADIUS)
+         );
       }
 
       return detail;
@@ -7297,7 +7354,9 @@ public final class EarthChunkGenerator extends ChunkGenerator {
    }
 
    private void applyPreparedTerrainRefinement(ServerLevel level, ChunkAccess chunk, EarthChunkGenerator.PreparedTerrainRefinement refinement) {
-      long chunkKey = ChunkPos.pack(chunk.getPos().x(), chunk.getPos().z());
+      long chunkKey = MinecraftVersionCompat.packChunkPos(
+         MinecraftVersionCompat.chunkX(chunk.getPos()), MinecraftVersionCompat.chunkZ(chunk.getPos())
+      );
       if (!Objects.equals(this.terrainGenerationStamps.get(chunkKey), refinement.generationStamp())) {
          EarthChunkGenerator.TerrainStreamingPerf.recordRefinementStaleDrop();
          return;
@@ -7373,7 +7432,12 @@ public final class EarthChunkGenerator extends ChunkGenerator {
                   refinedWaterFlags[index] && refinement.oceanFlags()[index] && refinedWaterSurfaces[index] > newSurface
                )
                : newSurface;
-            int rewriteBottom = Mth.clamp(Math.min(Math.min(oldSurface, newSurface), Math.min(oldSupportBottom, newSupportBottom)) - 4, chunkMinY, chunkMaxY);
+            int rewriteBottom = Mth.clamp(
+               Math.min(Math.min(oldSurface, newSurface), Math.min(oldSupportBottom, newSupportBottom))
+                  - SurfaceMaterialDepthPolicy.MAX_FULL_SNOW_DEPTH,
+               chunkMinY,
+               chunkMaxY
+            );
             int rewriteTop = Mth.clamp(Math.max(oldTop, newTop) + 2, chunkMinY, chunkMaxY);
             boolean refinedUnderwater = refinedWaterFlags[index] && refinedWaterSurfaces[index] > newSurface;
             boolean refinedOceanSupport = refinedUnderwater && refinement.oceanFlags()[index];
@@ -7388,7 +7452,7 @@ public final class EarthChunkGenerator extends ChunkGenerator {
                   worldX,
                   worldZ
                );
-            boolean retainSurfaceSnow = newSurface >= this.seaLevel
+            boolean retainSurfaceSnow = !refinedUnderwater && newSurface >= this.seaLevel
                && this.shouldRetainSurfaceSnow(
                   useFastSurfacePalette,
                   refinedSurfaceCoverClasses[index],
@@ -7398,6 +7462,9 @@ public final class EarthChunkGenerator extends ChunkGenerator {
                   worldX,
                   worldZ
                );
+            boolean surfaceSnow = retainSurfaceSnow || !refinedUnderwater && isSnowySurfaceBiome(refinedBiomes[index]);
+            boolean fullDepthSurfaceSnow = surfaceSnow
+               && SnowSlopePolicy.hasFullCoverage(this.sampleDemSlopeDegrees(worldX, worldZ));
 
             for (int y = rewriteBottom; y <= rewriteTop; y++) {
                cursor.set(worldX, y, worldZ);
@@ -7440,7 +7507,7 @@ public final class EarthChunkGenerator extends ChunkGenerator {
                }
                if (this.isWaterfallSourceColumn(worldX, worldZ, refinedWaterSurfaces[index])) {
                   cursor.set(worldX, refinedWaterSurfaces[index], worldZ);
-                  chunk.markPosForPostProcessing(cursor);
+                  MinecraftVersionCompat.markPosForPostProcessing(chunk, cursor);
                }
             }
 
@@ -7453,7 +7520,7 @@ public final class EarthChunkGenerator extends ChunkGenerator {
                   newSurface,
                   chunkMinY,
                   refinedUnderwater,
-                  retainSurfaceSnow,
+                  surfaceSnow,
                   refinedBiomes[index],
                   refinedSlopeDiffs[index],
                   refinedConvexities[index],
@@ -7481,12 +7548,8 @@ public final class EarthChunkGenerator extends ChunkGenerator {
                );
             }
 
-            if (retainSurfaceSnow) {
-               if (thinShellTerrain) {
-                  applyThinShellSnowCover(chunk, cursor, worldX, worldZ, newSurface);
-               } else {
-                  applySnowCover(chunk, cursor, worldX, worldZ, newSurface, chunkMinY);
-               }
+            if (surfaceSnow) {
+               this.applySnowCover(chunk, cursor, worldX, worldZ, newSurface, chunkMinY, fullDepthSurfaceSnow);
             }
          }
       }
@@ -7737,7 +7800,7 @@ public final class EarthChunkGenerator extends ChunkGenerator {
    }
 
    private EarthChunkGenerator.PreparedChunkBuildings prepareChunkBuildings(ChunkPos pos, int[] terrainSurfaces, int chunkMinY, int chunkMaxY, RandomState random) {
-      long chunkKey = ChunkPos.pack(pos.x(), pos.z());
+      long chunkKey = MinecraftVersionCompat.packChunkPos(MinecraftVersionCompat.chunkX(pos), MinecraftVersionCompat.chunkZ(pos));
       this.preparedChunkBuildings.remove(chunkKey);
       this.clearPreparedChunkStateTracking(chunkKey);
       EarthChunkGenerator.PreparedChunkBuildings prepared = this.buildChunkBuildings(
@@ -8099,7 +8162,9 @@ public final class EarthChunkGenerator extends ChunkGenerator {
    }
 
    private void placePreparedBuildings(WorldGenLevel level, ChunkAccess chunk) {
-      long chunkKey = ChunkPos.pack(chunk.getPos().x(), chunk.getPos().z());
+      long chunkKey = MinecraftVersionCompat.packChunkPos(
+         MinecraftVersionCompat.chunkX(chunk.getPos()), MinecraftVersionCompat.chunkZ(chunk.getPos())
+      );
       EarthChunkGenerator.PreparedChunkBuildings prepared = this.preparedChunkBuildings.remove(chunkKey);
       this.clearPreparedChunkStateTracking(chunkKey);
       this.placePreparedBuildings(level, chunk, prepared);
@@ -10366,7 +10431,9 @@ public final class EarthChunkGenerator extends ChunkGenerator {
    }
 
    private void placePreparedRoadLights(WorldGenLevel level, ChunkAccess chunk) {
-      long chunkKey = ChunkPos.pack(chunk.getPos().x(), chunk.getPos().z());
+      long chunkKey = MinecraftVersionCompat.packChunkPos(
+         MinecraftVersionCompat.chunkX(chunk.getPos()), MinecraftVersionCompat.chunkZ(chunk.getPos())
+      );
       EarthChunkGenerator.PreparedChunkRoadLights prepared = this.preparedChunkRoadLights.remove(chunkKey);
       this.clearPreparedChunkStateTracking(chunkKey);
       this.placePreparedRoadLights(level, chunk, prepared);
@@ -10498,20 +10565,24 @@ public final class EarthChunkGenerator extends ChunkGenerator {
       if (cache.matches(pos) && (dryTerrainSurfaces == null || !cache.data().approximate())) {
          return cache.data();
       } else {
-         WaterSurfaceResolver.WaterChunkData data = this.waterResolver.resolveChunkWaterData(pos.x(), pos.z(), dryTerrainSurfaces);
+         WaterSurfaceResolver.WaterChunkData data = this.waterResolver.resolveChunkWaterData(
+            MinecraftVersionCompat.chunkX(pos), MinecraftVersionCompat.chunkZ(pos), dryTerrainSurfaces
+         );
          cache.update(pos, data);
          return data;
       }
    }
 
    private WaterSurfaceResolver.WaterChunkData resolveExactChunkWaterData(ChunkPos pos) {
-      WaterSurfaceResolver.WaterChunkData data = this.waterResolver.resolveChunkWaterDataExact(pos.x(), pos.z());
+      WaterSurfaceResolver.WaterChunkData data = this.waterResolver.resolveChunkWaterDataExact(
+         MinecraftVersionCompat.chunkX(pos), MinecraftVersionCompat.chunkZ(pos)
+      );
       this.waterChunkCache.get().update(pos, data);
       return data;
    }
 
    private boolean shouldResolveApproximateWaterExactly(ChunkPos pos, int[] terrainSurfaces) {
-      if (this.waterResolver.hasWaterNearChunk(pos.x(), pos.z())) {
+      if (this.waterResolver.hasWaterNearChunk(MinecraftVersionCompat.chunkX(pos), MinecraftVersionCompat.chunkZ(pos))) {
          return true;
       }
 
@@ -10945,7 +11016,7 @@ public final class EarthChunkGenerator extends ChunkGenerator {
       EarthChunkGenerator.LodShorelineCache shorelineCache,
       OsmQueryMode mountainOsmQueryMode
    ) {
-      boolean snowLikeTerrain = !underwater && this.isRemaSnowTerrain(worldZ);
+      boolean snowLikeTerrain = !underwater && this.isAntarcticSnowTerrain(coverClass, worldZ);
       long phaseStart = beginLodSurfaceProfiling(profiler);
       EarthChunkGenerator.SurfacePalette palette = this.selectBaseSurfacePalette(biome, worldX, worldZ, surface, coverClass);
       endLodSurfaceProfiling(profiler, "generator.basePalette", phaseStart);
@@ -11075,7 +11146,7 @@ public final class EarthChunkGenerator extends ChunkGenerator {
       OsmQueryMode mountainOsmQueryMode
    ) {
       MountainSurfaceRules.ApproximateSurface approximate = this.classifyMountainSurface(
-         surfaceCoverClass, surface - this.seaLevel, slopeDiff, convexity, this.isRemaSnowTerrain(worldZ), 0.0F, worldX, worldZ, mountainOsmQueryMode
+         surfaceCoverClass, surface - this.seaLevel, slopeDiff, convexity, this.isAntarcticSnowTerrain(surfaceCoverClass, worldZ), 0.0F, worldX, worldZ, mountainOsmQueryMode
       );
       if (approximate.palette() == MountainSurfaceRules.ApproximatePalette.SNOW
          || approximate.palette() == MountainSurfaceRules.ApproximatePalette.SNOW_STREAK) {
@@ -11606,12 +11677,22 @@ public final class EarthChunkGenerator extends ChunkGenerator {
       );
    }
 
+   private static boolean isSnowySurfaceBiome(Holder<Biome> biome) {
+      return biome.is(Biomes.SNOWY_PLAINS)
+         || biome.is(Biomes.SNOWY_TAIGA)
+         || biome.is(Biomes.SNOWY_SLOPES)
+         || biome.is(Biomes.GROVE)
+         || biome.is(Biomes.ICE_SPIKES)
+         || biome.is(Biomes.FROZEN_PEAKS)
+         || biome.is(Biomes.SNOWY_BEACH);
+   }
+
    private static boolean isSoilBlock(BlockState state) {
       return state.is(BlockTags.DIRT) || state.is(Blocks.MUD);
    }
 
-   private boolean isRemaSnowTerrain(int worldZ) {
-      return false;
+   private boolean isAntarcticSnowTerrain(int coverClass, int worldZ) {
+      return this.antarcticSnowPolicy.shouldUseSnowFallback(coverClass, worldZ);
    }
 
    private EarthChunkGenerator.SurfacePalette selectBaseSurfacePalette(Holder<Biome> biome, int worldX, int worldZ, int surface, int coverClass) {
@@ -12337,18 +12418,19 @@ public final class EarthChunkGenerator extends ChunkGenerator {
 
    private static boolean isTreeFeature(PlacedFeature feature) {
       return feature.getFeatures().anyMatch(configured -> {
-         Feature<?> type = configured.value().feature();
+         Feature<?> type = MinecraftVersionCompat.unwrapConfiguredFeature(configured).feature();
          return type == Feature.TREE || type == Feature.FALLEN_TREE || type == Feature.HUGE_BROWN_MUSHROOM || type == Feature.HUGE_RED_MUSHROOM;
       });
    }
 
    private static boolean isHugeRedMushroomFeature(PlacedFeature feature) {
-      return feature.getFeatures().anyMatch(configured -> configured.value().feature() == Feature.HUGE_RED_MUSHROOM);
+      return feature.getFeatures()
+         .anyMatch(configured -> MinecraftVersionCompat.unwrapConfiguredFeature(configured).feature() == Feature.HUGE_RED_MUSHROOM);
    }
 
    private static void addNonRedTreeFeatures(List<ConfiguredFeature<?, ?>> result, PlacedFeature placed) {
       placed.getFeatures().forEach(configured -> {
-         ConfiguredFeature<?, ?> value = configured.value();
+         ConfiguredFeature<?, ?> value = MinecraftVersionCompat.unwrapConfiguredFeature(configured);
          Feature<?> type = value.feature();
          if (type == Feature.TREE || type == Feature.FALLEN_TREE || type == Feature.HUGE_BROWN_MUSHROOM) {
             result.add(value);
@@ -12359,63 +12441,52 @@ public final class EarthChunkGenerator extends ChunkGenerator {
    private boolean shouldRetainSurfaceSnow(
       boolean useFastSurfacePalette, int surfaceCoverClass, int surface, int slopeDiff, int convexity, int worldX, int worldZ
    ) {
-      boolean snowLikeTerrain = this.isRemaSnowTerrain(worldZ);
+      boolean snowLikeTerrain = this.isAntarcticSnowTerrain(surfaceCoverClass, worldZ);
       return this.shouldRetainPersistentSnowAt(
          worldX, worldZ, surfaceCoverClass, surface - this.seaLevel, slopeDiff, convexity, snowLikeTerrain
       );
    }
 
-	   private static void applySnowCover(ChunkAccess chunk, MutableBlockPos cursor, int worldX, int worldZ, int surface, int minY) {
-	      long seed = seedFromCoords(worldX, 0, worldZ) ^ 25214903917L;
-	      Random random = snowRandom(seed);
-	      int roll = random.nextInt(200);
-      if (roll >= 33) {
-         cursor.set(worldX, surface, worldZ);
-         setChunkBlockStateDiscardingBlockEntity(chunk, cursor, SNOW_BLOCK_STATE);
-      } else {
-         int depth = 1 + random.nextInt(5);
-
-         for (int i = 0; i < depth; i++) {
-            int y = surface - i;
-            if (y < minY) {
-               break;
-            }
-
-            cursor.set(worldX, y, worldZ);
-            setChunkBlockStateDiscardingBlockEntity(chunk, cursor, POWDER_SNOW_STATE);
+   private void applySnowCover(
+      ChunkAccess chunk,
+      MutableBlockPos cursor,
+      int worldX,
+      int worldZ,
+      int surface,
+      int minY,
+      boolean fullSlopeCoverage
+   ) {
+      SurfaceMaterialDepthPolicy.SnowColumn column = SurfaceMaterialDepthPolicy.snowColumn(
+         worldX, worldZ, this.worldSeed, fullSlopeCoverage
+      );
+      BlockState snow = column.powderSnow() ? POWDER_SNOW_STATE : SNOW_BLOCK_STATE;
+      for (int depth = 0; depth < column.depth(); depth++) {
+         int y = surface - depth;
+         if (y < minY) {
+            break;
          }
+
+         cursor.set(worldX, y, worldZ);
+         setChunkBlockStateDiscardingBlockEntity(chunk, cursor, snow);
       }
    }
 
-   private static void applyThinShellSnowCover(ChunkAccess chunk, MutableBlockPos cursor, int worldX, int worldZ, int surface) {
-      cursor.set(worldX, surface, worldZ);
-      setChunkBlockStateDiscardingBlockEntity(chunk, cursor, SNOW_BLOCK_STATE);
-   }
-
-	   private static void applySnowCover(
-	      EarthChunkGenerator.ChunkSectionWriter writer, int localX, int localZ, int worldX, int worldZ, int surface, int minY
-	   ) {
-	      long seed = seedFromCoords(worldX, 0, worldZ) ^ 25214903917L;
-	      Random random = snowRandom(seed);
-	      int roll = random.nextInt(200);
-      if (roll >= 33) {
-         writer.setBlock(localX, localZ, surface, SNOW_BLOCK_STATE);
-      } else {
-         int depth = 1 + random.nextInt(5);
-
-         for (int i = 0; i < depth; i++) {
-            int y = surface - i;
-            if (y < minY) {
-               break;
-            }
-
-            writer.setBlock(localX, localZ, y, POWDER_SNOW_STATE);
-         }
-      }
-   }
-
-   private static void applyThinShellSnowCover(EarthChunkGenerator.ChunkSectionWriter writer, int localX, int localZ, int surface) {
-      writer.setBlock(localX, localZ, surface, SNOW_BLOCK_STATE);
+   private void applySnowCover(
+      EarthChunkGenerator.ChunkSectionWriter writer,
+      int localX,
+      int localZ,
+      int worldX,
+      int worldZ,
+      int surface,
+      int minY,
+      boolean fullSlopeCoverage
+   ) {
+      SurfaceMaterialDepthPolicy.SnowColumn column = SurfaceMaterialDepthPolicy.snowColumn(
+         worldX, worldZ, this.worldSeed, fullSlopeCoverage
+      );
+      BlockState snow = column.powderSnow() ? POWDER_SNOW_STATE : SNOW_BLOCK_STATE;
+      int bottom = Math.max(minY, surface - column.depth() + 1);
+      writer.fillColumnConstant(localX, localZ, bottom, surface, snow);
    }
 
    public void applyRealtimeSnowCover(WorldGenLevel level, ChunkAccess chunk) {
@@ -12465,7 +12536,9 @@ public final class EarthChunkGenerator extends ChunkGenerator {
       ServerLevel serverLevel = level.getLevel();
       if (serverLevel.getServer().isSameThread()) {
          ChunkPos pos = chunk.getPos();
-         long seed = seedFromCoords(pos.x(), 11, pos.z()) ^ this.worldSeed ^ 8943931030581793800L;
+         long seed = seedFromCoords(MinecraftVersionCompat.chunkX(pos), 11, MinecraftVersionCompat.chunkZ(pos))
+            ^ this.worldSeed
+            ^ 8943931030581793800L;
          RandomSource random = RandomSource.create(seed);
          if (!(random.nextFloat() > AXOLOTL_CHUNK_CHANCE)) {
             int chunkMinX = pos.getMinBlockX();
@@ -12491,8 +12564,7 @@ public final class EarthChunkGenerator extends ChunkGenerator {
                            if (level.getBlockState(cursor).isAir()) {
                               cursor.set(worldX, y, worldZ);
                               if (level.getBiome(cursor).is(Biomes.LUSH_CAVES) && !(random.nextFloat() > AXOLOTL_POND_CHANCE)) {
-                                 Axolotl axolotl = (Axolotl)EntityTypes.AXOLOTL
-                                    .create(serverLevel, entity -> {}, cursor.immutable(), EntitySpawnReason.CHUNK_GENERATION, false, false);
+                                 Axolotl axolotl = MinecraftVersionCompat.createAxolotl(serverLevel, cursor.immutable());
                                  if (axolotl == null) {
                                     return;
                                  }
@@ -12729,7 +12801,10 @@ public final class EarthChunkGenerator extends ChunkGenerator {
             int localX = worldX - this.minX;
             int localZ = worldZ - this.minZ;
             int surfaceCoverClass = Byte.toUnsignedInt(this.surfaceCoverClasses[localZ * this.width + localX]);
-            return MountainSurfaceRules.hasSnowSource(surfaceCoverClass, EarthChunkGenerator.this.isRemaSnowTerrain(worldZ));
+            return MountainSurfaceRules.hasSnowSource(
+               surfaceCoverClass,
+               EarthChunkGenerator.this.isAntarcticSnowTerrain(surfaceCoverClass, worldZ)
+            );
          } else {
             return EarthChunkGenerator.this.hasPersistentSnowSourceAtUncached(worldX, worldZ, this.previewResolutionMeters);
          }
@@ -13048,7 +13123,9 @@ public final class EarthChunkGenerator extends ChunkGenerator {
       }
 
       private long chunkKey() {
-         return ChunkPos.pack(this.pos.x(), this.pos.z());
+         return MinecraftVersionCompat.packChunkPos(
+            MinecraftVersionCompat.chunkX(this.pos), MinecraftVersionCompat.chunkZ(this.pos)
+         );
       }
    }
 
@@ -13128,7 +13205,9 @@ public final class EarthChunkGenerator extends ChunkGenerator {
       }
 
       private long chunkKey() {
-         return ChunkPos.pack(this.pos.x(), this.pos.z());
+         return MinecraftVersionCompat.packChunkPos(
+            MinecraftVersionCompat.chunkX(this.pos), MinecraftVersionCompat.chunkZ(this.pos)
+         );
       }
 
       private Holder<Biome> sampleBiome(int worldX, int worldZ, int sampleY) {
@@ -13302,7 +13381,11 @@ public final class EarthChunkGenerator extends ChunkGenerator {
                   continue;
                }
 
-               EarthChunkGenerator.HeightGridCacheEntry entry = this.entries.get(ChunkPos.pack(pos.x() + dx, pos.z() + dz));
+               EarthChunkGenerator.HeightGridCacheEntry entry = this.entries.get(
+                  MinecraftVersionCompat.packChunkPos(
+                     MinecraftVersionCompat.chunkX(pos) + dx, MinecraftVersionCompat.chunkZ(pos) + dz
+                  )
+               );
                if (entry != null && (allowApproximate || !entry.approximate())) {
                   copied += entry.copyOverlapTo(pos, step, gridSize, target);
                }
@@ -13315,7 +13398,8 @@ public final class EarthChunkGenerator extends ChunkGenerator {
       synchronized void put(ChunkPos pos, int step, int gridSize, int[] heightGrid, boolean approximate) {
          if (this.entries != null && isReusableLayout(step, gridSize)) {
             this.entries.put(
-               ChunkPos.pack(pos.x(), pos.z()), new EarthChunkGenerator.HeightGridCacheEntry(pos, step, gridSize, heightGrid.clone(), approximate)
+               MinecraftVersionCompat.packChunkPos(MinecraftVersionCompat.chunkX(pos), MinecraftVersionCompat.chunkZ(pos)),
+               new EarthChunkGenerator.HeightGridCacheEntry(pos, step, gridSize, heightGrid.clone(), approximate)
             );
          }
       }
@@ -13780,12 +13864,14 @@ public final class EarthChunkGenerator extends ChunkGenerator {
       }
 
       private boolean hasPending(ChunkPos pos) {
-         EarthChunkGenerator.TerrainRefinementJob job = this.jobs.get(ChunkPos.pack(pos.x(), pos.z()));
+         EarthChunkGenerator.TerrainRefinementJob job = this.jobs.get(
+            MinecraftVersionCompat.packChunkPos(MinecraftVersionCompat.chunkX(pos), MinecraftVersionCompat.chunkZ(pos))
+         );
          return job != null && job.state != EarthChunkGenerator.TerrainRefinementJobState.APPLIED && job.state != EarthChunkGenerator.TerrainRefinementJobState.FAILED;
       }
 
       private EarthChunkGenerator.PreparedTerrainRefinement claimReady(ChunkPos pos) {
-         long chunkKey = ChunkPos.pack(pos.x(), pos.z());
+         long chunkKey = MinecraftVersionCompat.packChunkPos(MinecraftVersionCompat.chunkX(pos), MinecraftVersionCompat.chunkZ(pos));
          EarthChunkGenerator.TerrainRefinementJob job = this.jobs.get(chunkKey);
          if (job == null || job.state != EarthChunkGenerator.TerrainRefinementJobState.READY) {
             return null;
@@ -13916,7 +14002,7 @@ public final class EarthChunkGenerator extends ChunkGenerator {
       }
 
       private EarthChunkGenerator.PreparedChunkDetail claimReady(ChunkPos pos) {
-         long chunkKey = ChunkPos.pack(pos.x(), pos.z());
+         long chunkKey = MinecraftVersionCompat.packChunkPos(MinecraftVersionCompat.chunkX(pos), MinecraftVersionCompat.chunkZ(pos));
          EarthChunkGenerator.ChunkDetailJob job = this.jobs.get(chunkKey);
          if (job == null || job.state != EarthChunkGenerator.ChunkDetailJobState.READY) {
             return null;
@@ -13983,7 +14069,7 @@ public final class EarthChunkGenerator extends ChunkGenerator {
             activePlayers.add(playerId);
             EarthChunkGenerator.ChunkDetailManager.PlayerPrefetchState previousState = this.playerPrefetchStates.get(playerId);
             ChunkPos pos = player.chunkPosition();
-            long chunkKey = ChunkPos.pack(pos.x(), pos.z());
+            long chunkKey = MinecraftVersionCompat.packChunkPos(MinecraftVersionCompat.chunkX(pos), MinecraftVersionCompat.chunkZ(pos));
             Long previousChunkKey = previousState == null ? null : previousState.chunkKey();
             EarthChunkGenerator.ChunkDetailManager.PrefetchVector direction = this.resolvePrefetchDirection(player, pos, previousChunkKey);
             boolean changedChunk = previousState == null || previousState.chunkKey() != chunkKey;
@@ -14035,16 +14121,16 @@ public final class EarthChunkGenerator extends ChunkGenerator {
          if (previousChunkKey == null) {
             return true;
          } else {
-            int deltaX = Math.abs(current.x() - ChunkPos.getX(previousChunkKey));
-            int deltaZ = Math.abs(current.z() - ChunkPos.getZ(previousChunkKey));
+            int deltaX = Math.abs(MinecraftVersionCompat.chunkX(current) - ChunkPos.getX(previousChunkKey));
+            int deltaZ = Math.abs(MinecraftVersionCompat.chunkZ(current) - ChunkPos.getZ(previousChunkKey));
             return Math.max(deltaX, deltaZ) >= MOVEMENT_PREFETCH_TELEPORT_THRESHOLD_CHUNKS;
          }
       }
 
       private EarthChunkGenerator.ChunkDetailManager.PrefetchVector resolvePrefetchDirection(ServerPlayer player, ChunkPos current, Long previousChunkKey) {
          if (previousChunkKey != null) {
-            int deltaX = current.x() - ChunkPos.getX(previousChunkKey);
-            int deltaZ = current.z() - ChunkPos.getZ(previousChunkKey);
+            int deltaX = MinecraftVersionCompat.chunkX(current) - ChunkPos.getX(previousChunkKey);
+            int deltaZ = MinecraftVersionCompat.chunkZ(current) - ChunkPos.getZ(previousChunkKey);
             EarthChunkGenerator.ChunkDetailManager.PrefetchVector fromChunkDelta = EarthChunkGenerator.ChunkDetailManager.PrefetchVector.normalized(deltaX, deltaZ);
             if (fromChunkDelta.hasDirection()) {
                return fromChunkDelta;
@@ -14134,7 +14220,11 @@ public final class EarthChunkGenerator extends ChunkGenerator {
                      int chebyshev = Math.max(Math.abs(dx), Math.abs(dz));
                      int manhattan = Math.abs(dx) + Math.abs(dz);
                      double score = dx == 0 && dz == 0 ? Double.NEGATIVE_INFINITY : chebyshev * 8.0 + manhattan * 1.5 + side * 2.0 - forward * 3.0;
-                     ranked.add(new EarthChunkGenerator.ChunkDetailManager.PrefetchTarget(new ChunkPos(center.x() + dx, center.z() + dz), score));
+                     ranked.add(
+                        new EarthChunkGenerator.ChunkDetailManager.PrefetchTarget(
+                           new ChunkPos(MinecraftVersionCompat.chunkX(center) + dx, MinecraftVersionCompat.chunkZ(center) + dz), score
+                        )
+                     );
                   }
                }
             }
@@ -14159,7 +14249,11 @@ public final class EarthChunkGenerator extends ChunkGenerator {
                int chebyshev = Math.max(Math.abs(dx), Math.abs(dz));
                int manhattan = Math.abs(dx) + Math.abs(dz);
                double score = dx == 0 && dz == 0 ? Double.NEGATIVE_INFINITY : chebyshev * 8.0 + manhattan;
-               ranked.add(new EarthChunkGenerator.ChunkDetailManager.PrefetchTarget(new ChunkPos(center.x() + dx, center.z() + dz), score));
+               ranked.add(
+                  new EarthChunkGenerator.ChunkDetailManager.PrefetchTarget(
+                     new ChunkPos(MinecraftVersionCompat.chunkX(center) + dx, MinecraftVersionCompat.chunkZ(center) + dz), score
+                  )
+               );
             }
          }
 
@@ -14596,7 +14690,11 @@ public final class EarthChunkGenerator extends ChunkGenerator {
          StringBuilder builder = new StringBuilder(256);
          builder.append("Full chunk timing status=").append(status);
          builder.append(" stage=").append(this.stage);
-         builder.append(" chunk=[").append(this.pos.x()).append(", ").append(this.pos.z()).append(']');
+         builder.append(" chunk=[")
+            .append(MinecraftVersionCompat.chunkX(this.pos))
+            .append(", ")
+            .append(MinecraftVersionCompat.chunkZ(this.pos))
+            .append(']');
          builder.append(" total=").append(formatMillis(totalNs));
          if (!this.phaseNanos.isEmpty()) {
             builder.append(" phases={");
@@ -15207,7 +15305,7 @@ public final class EarthChunkGenerator extends ChunkGenerator {
       }
 
       static EarthChunkGenerator.SurfacePalette desert() {
-         return new EarthChunkGenerator.SurfacePalette(EarthChunkGenerator.SAND_STATE, EarthChunkGenerator.SAND_STATE, EarthChunkGenerator.SANDSTONE_STATE, 4);
+         return new EarthChunkGenerator.SurfacePalette(EarthChunkGenerator.SAND_STATE, EarthChunkGenerator.SAND_STATE, EarthChunkGenerator.SANDSTONE_STATE, 5);
       }
 
       static EarthChunkGenerator.SurfacePalette badlands(BlockState top) {
@@ -15257,7 +15355,9 @@ public final class EarthChunkGenerator extends ChunkGenerator {
       private WaterSurfaceResolver.WaterChunkData data;
 
       private boolean matches(ChunkPos pos) {
-         return this.data != null && this.chunkX == pos.x() && this.chunkZ == pos.z();
+         return this.data != null
+            && this.chunkX == MinecraftVersionCompat.chunkX(pos)
+            && this.chunkZ == MinecraftVersionCompat.chunkZ(pos);
       }
 
       private WaterSurfaceResolver.WaterChunkData data() {
@@ -15265,8 +15365,8 @@ public final class EarthChunkGenerator extends ChunkGenerator {
       }
 
       private void update(ChunkPos pos, WaterSurfaceResolver.WaterChunkData data) {
-         this.chunkX = pos.x();
-         this.chunkZ = pos.z();
+         this.chunkX = MinecraftVersionCompat.chunkX(pos);
+         this.chunkZ = MinecraftVersionCompat.chunkZ(pos);
          this.data = data;
       }
    }

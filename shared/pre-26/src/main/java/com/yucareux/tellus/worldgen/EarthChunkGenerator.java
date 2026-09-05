@@ -55,7 +55,6 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
-import java.util.Random;
 import java.util.Set;
 import java.util.UUID;
 import java.util.Map.Entry;
@@ -375,6 +374,7 @@ public final class EarthChunkGenerator extends EarthChunkGeneratorVersionCompat 
    private final int minY;
    private final int height;
    private final WaterSurfaceResolver waterResolver;
+   private final AntarcticSnowPolicy antarcticSnowPolicy;
    private final TerrainPreloadPackageRegistry.SettingsView preloadedTerrain;
    private volatile TellusVanillaCarverRunner tellusCarverRunner;
    private final ThreadLocal<EarthChunkGenerator.WaterChunkCache> waterChunkCache = ThreadLocal.withInitial(EarthChunkGenerator.WaterChunkCache::new);
@@ -398,7 +398,6 @@ public final class EarthChunkGenerator extends EarthChunkGeneratorVersionCompat 
    private static final long JAVA_RANDOM_MULTIPLIER = 25214903917L;
    private static final long JAVA_RANDOM_ADDEND = 11L;
    private static final long JAVA_RANDOM_MASK = 281474976710655L;
-   private static final ThreadLocal<Random> SNOW_RANDOM = ThreadLocal.withInitial(Random::new);
    private final AtomicBoolean fastSpawnMode = new AtomicBoolean(true);
    private final AtomicLong chunkDetailGenerationSequence = new AtomicLong();
    private final ConcurrentHashMap<Long, Long> terrainGenerationStamps = new ConcurrentHashMap<>();
@@ -412,6 +411,7 @@ public final class EarthChunkGenerator extends EarthChunkGeneratorVersionCompat 
       this.minY = limits.minY();
       this.height = limits.height();
       this.waterResolver = TellusWorldgenSources.waterResolver(settings);
+      this.antarcticSnowPolicy = AntarcticSnowPolicy.forWorldScale(settings.worldScale());
       this.preloadedTerrain = TerrainPreloadPackageRegistry.instance().viewFor(settings);
       double blocksPerDegree = blocksPerDegree(settings.worldScale());
       int spawnBlockX = Mth.floor(settings.spawnLongitude() * blocksPerDegree);
@@ -1301,8 +1301,11 @@ public final class EarthChunkGenerator extends EarthChunkGeneratorVersionCompat 
                BlockState mountainMassFill = underwater
                   ? null
                   : this.resolveMountainMassFillBlock(biome, surfaceCoverClass, surface, slopeDiff, convexity, worldX, worldZ);
-               boolean retainSurfaceSnow = surface >= this.seaLevel
+               boolean retainSurfaceSnow = !underwater && surface >= this.seaLevel
                   && this.shouldRetainSurfaceSnow(useFastSurfacePalette, surfaceCoverClass, surface, slopeDiff, convexity, worldX, worldZ);
+               boolean surfaceSnow = retainSurfaceSnow || !underwater && isSnowySurfaceBiome(biome);
+               boolean fullDepthSurfaceSnow = surfaceSnow
+                  && SnowSlopePolicy.hasFullCoverage(this.sampleDemSlopeDegrees(worldX, worldZ));
                if (thinShellTerrain) {
                   int supportAnchorY = underwater ? waterSurface : surface;
                   boolean oceanSupport = underwater && oceanFlags[index];
@@ -1471,7 +1474,7 @@ public final class EarthChunkGenerator extends EarthChunkGeneratorVersionCompat 
                         surface,
                         chunkMinY,
                         underwater,
-                        retainSurfaceSnow,
+                        surfaceSnow,
                         biome,
                         slopeDiff,
                         convexity,
@@ -1489,7 +1492,7 @@ public final class EarthChunkGenerator extends EarthChunkGeneratorVersionCompat 
                         surface,
                         chunkMinY,
                         underwater,
-                        retainSurfaceSnow,
+                        surfaceSnow,
                         biome,
                         slopeDiff,
                         convexity,
@@ -1537,18 +1540,14 @@ public final class EarthChunkGenerator extends EarthChunkGeneratorVersionCompat 
                }
                surfaceApplyNs += elapsedFullChunkProfilingSince(subPhaseStartNs);
 
-               if (retainSurfaceSnow) {
+               if (surfaceSnow) {
                   subPhaseStartNs = beginFullChunkProfiling();
                   if (sectionWriter != null) {
-                     if (thinShellTerrain) {
-                        applyThinShellSnowCover(sectionWriter, localX, localZ, surface);
-                     } else {
-                        applySnowCover(sectionWriter, localX, localZ, worldX, worldZ, surface, chunkMinY);
-                     }
-                  } else if (thinShellTerrain) {
-                     applyThinShellSnowCover(chunk, cursor, worldX, worldZ, surface);
+                     this.applySnowCover(
+                        sectionWriter, localX, localZ, worldX, worldZ, surface, chunkMinY, fullDepthSurfaceSnow
+                     );
                   } else {
-                     applySnowCover(chunk, cursor, worldX, worldZ, surface, chunkMinY);
+                     this.applySnowCover(chunk, cursor, worldX, worldZ, surface, chunkMinY, fullDepthSurfaceSnow);
                   }
                   snowApplyNs += elapsedFullChunkProfilingSince(subPhaseStartNs);
                }
@@ -5675,12 +5674,6 @@ public final class EarthChunkGenerator extends EarthChunkGeneratorVersionCompat 
 	      return (state * JAVA_RANDOM_MULTIPLIER + JAVA_RANDOM_ADDEND) & JAVA_RANDOM_MASK;
 	   }
 
-	   private static Random snowRandom(long seed) {
-	      Random random = SNOW_RANDOM.get();
-	      random.setSeed(seed);
-	      return random;
-	   }
-
    private void applyThinShellSurface(
       ChunkAccess chunk,
       MutableBlockPos cursor,
@@ -5711,12 +5704,10 @@ public final class EarthChunkGenerator extends EarthChunkGeneratorVersionCompat 
             long badlandsStartNs = beginFullChunkProfiling();
             this.applyBadlandsBands(chunk, cursor, worldX, worldZ, surface, minY, palette, slopeDiff, true);
             profiler.badlandsNs += elapsedFullChunkProfilingSince(badlandsStartNs);
-         } else if (palette != null && palette.filler().is(Blocks.DEEPSLATE)) {
-            int bottom = this.thinShellSurfaceBottomY(minY, surface, palette.depth());
-            for (int y = surface; y >= bottom; y--) {
-               cursor.set(worldX, y, worldZ);
-               chunk.setBlockState(cursor, y == surface ? top : palette.filler(), false);
-            }
+         } else if (palette != null) {
+            int depth = this.resolveSurfaceMaterialDepth(palette, top, worldX, worldZ);
+            int bottom = this.thinShellSurfaceBottomY(minY, surface, depth);
+            fillSurfaceMaterialColumn(chunk, cursor, worldX, worldZ, surface, bottom, top, palette.filler());
          } else {
             cursor.set(worldX, surface, worldZ);
             chunk.setBlockState(cursor, top, false);
@@ -5756,9 +5747,10 @@ public final class EarthChunkGenerator extends EarthChunkGeneratorVersionCompat 
             long badlandsStartNs = beginFullChunkProfiling();
             this.applyBadlandsBands(writer, localX, localZ, worldX, worldZ, surface, minY, palette, slopeDiff, true);
             profiler.badlandsNs += elapsedFullChunkProfilingSince(badlandsStartNs);
-         } else if (palette != null && palette.filler().is(Blocks.DEEPSLATE)) {
-            int bottom = this.thinShellSurfaceBottomY(minY, surface, palette.depth());
-            writer.fillSurfaceColumn(localX, localZ, surface, bottom, top, palette.filler());
+         } else if (palette != null) {
+            int depth = this.resolveSurfaceMaterialDepth(palette, top, worldX, worldZ);
+            int bottom = this.thinShellSurfaceBottomY(minY, surface, depth);
+            fillSurfaceMaterialColumn(writer, localX, localZ, surface, bottom, top, palette.filler());
          } else {
             writer.setBlock(localX, localZ, surface, top);
          }
@@ -5810,14 +5802,11 @@ public final class EarthChunkGenerator extends EarthChunkGeneratorVersionCompat 
             } else {
                BlockState top = underwater ? palette.underwaterTop() : palette.top();
                BlockState filler = palette.filler();
-               int depth = palette.depth();
+               int depth = this.resolveSurfaceMaterialDepth(palette, top, worldX, worldZ);
                int bottom = surfaceMaterialBottomY(minY, surface, depth);
 
                long blockWriteStartNs = beginFullChunkProfiling();
-               for (int y = surface; y >= bottom; y--) {
-                  cursor.set(worldX, y, worldZ);
-                  chunk.setBlockState(cursor, y == surface ? top : filler, false);
-               }
+               fillSurfaceMaterialColumn(chunk, cursor, worldX, worldZ, surface, bottom, top, filler);
                profiler.blockWriteNs += elapsedFullChunkProfilingSince(blockWriteStartNs);
             }
          }
@@ -5855,11 +5844,11 @@ public final class EarthChunkGenerator extends EarthChunkGeneratorVersionCompat 
             } else {
                BlockState top = underwater ? palette.underwaterTop() : palette.top();
                BlockState filler = palette.filler();
-               int depth = palette.depth();
+               int depth = this.resolveSurfaceMaterialDepth(palette, top, worldX, worldZ);
                int bottom = surfaceMaterialBottomY(minY, surface, depth);
 
                long blockWriteStartNs = beginFullChunkProfiling();
-               writer.fillSurfaceColumn(localX, localZ, surface, bottom, top, filler);
+               fillSurfaceMaterialColumn(writer, localX, localZ, surface, bottom, top, filler);
                profiler.blockWriteNs += elapsedFullChunkProfilingSince(blockWriteStartNs);
             }
          }
@@ -5879,7 +5868,7 @@ public final class EarthChunkGenerator extends EarthChunkGeneratorVersionCompat 
       EarthChunkGenerator.SurfaceApplyProfiler profiler,
       boolean useFastSurfacePalette
    ) {
-      boolean snowLikeTerrain = !underwater && this.isRemaSnowTerrain(worldZ);
+      boolean snowLikeTerrain = !underwater && this.isAntarcticSnowTerrain(coverClass, worldZ);
       EarthChunkGenerator.SurfacePalette palette = this.selectBaseSurfacePalette(biome, worldX, worldZ, surface, coverClass);
       if (palette == null) {
          return null;
@@ -6022,6 +6011,65 @@ public final class EarthChunkGenerator extends EarthChunkGeneratorVersionCompat 
    private static int surfaceMaterialBottomY(int minY, int surface, int depth) {
       // Bedrock is placed at minY during terrain fill; keep falling fillers one block above it.
       return Math.max(minY + 1, surface - depth + 1);
+   }
+
+   private int resolveSurfaceMaterialDepth(
+      EarthChunkGenerator.SurfacePalette palette, BlockState top, int worldX, int worldZ
+   ) {
+      return usesNaturalDepthVariation(top, palette.filler())
+         ? SurfaceMaterialDepthPolicy.naturalDepth(palette.depth(), worldX, worldZ, this.worldSeed)
+         : palette.depth();
+   }
+
+   private static boolean usesNaturalDepthVariation(BlockState top, BlockState filler) {
+      return isSoilBlock(top)
+         || isSoilBlock(filler)
+         || top.is(Blocks.SAND)
+         || top.is(Blocks.RED_SAND)
+         || filler.is(Blocks.SAND)
+         || filler.is(Blocks.RED_SAND);
+   }
+
+   private static void fillSurfaceMaterialColumn(
+      ChunkAccess chunk,
+      MutableBlockPos cursor,
+      int worldX,
+      int worldZ,
+      int surface,
+      int bottom,
+      BlockState top,
+      BlockState filler
+   ) {
+      BlockState shallowFiller = shallowSurfaceFiller(top, filler);
+      for (int y = surface; y >= bottom; y--) {
+         BlockState state = y == surface ? top : y == bottom ? filler : shallowFiller;
+         cursor.set(worldX, y, worldZ);
+         chunk.setBlockState(cursor, state, false);
+      }
+   }
+
+   private static void fillSurfaceMaterialColumn(
+      EarthChunkGenerator.ChunkSectionWriter writer,
+      int localX,
+      int localZ,
+      int surface,
+      int bottom,
+      BlockState top,
+      BlockState filler
+   ) {
+      BlockState shallowFiller = shallowSurfaceFiller(top, filler);
+      writer.fillSurfaceColumn(localX, localZ, surface, bottom, top, shallowFiller);
+      if (bottom < surface && !shallowFiller.equals(filler)) {
+         writer.setBlock(localX, localZ, bottom, filler);
+      }
+   }
+
+   private static BlockState shallowSurfaceFiller(BlockState top, BlockState filler) {
+      if (top.is(Blocks.SAND) && filler.is(Blocks.SANDSTONE)
+         || top.is(Blocks.RED_SAND) && filler.is(Blocks.RED_SANDSTONE)) {
+         return top;
+      }
+      return filler;
    }
 
    private static BlockState badlandsBand(int worldX, int worldZ, int y) {
@@ -6269,7 +6317,7 @@ public final class EarthChunkGenerator extends EarthChunkGeneratorVersionCompat 
 
    private boolean hasPersistentSnowSourceAtUncached(int sampleX, int sampleZ, double previewResolutionMeters) {
       int surfaceCoverClass = this.mountainSamplingCache(previewResolutionMeters).surfaceCoverClass(sampleX, sampleZ);
-      return MountainSurfaceRules.hasSnowSource(surfaceCoverClass, this.isRemaSnowTerrain(sampleZ));
+      return MountainSurfaceRules.hasSnowSource(surfaceCoverClass, this.isAntarcticSnowTerrain(surfaceCoverClass, sampleZ));
    }
 
    private EarthChunkGenerator.MountainSamplingCache mountainSamplingCache(double previewResolutionMeters) {
@@ -6527,7 +6575,7 @@ public final class EarthChunkGenerator extends EarthChunkGeneratorVersionCompat 
             convexity,
             worldX,
             worldZ,
-            this.isRemaSnowTerrain(worldZ),
+            this.isAntarcticSnowTerrain(surfaceCoverClass, worldZ),
             mountainOsmQueryMode
          );
          EarthChunkGenerator.LodSurface lodSurface = new EarthChunkGenerator.LodSurface(top, filler);
@@ -6664,7 +6712,7 @@ public final class EarthChunkGenerator extends EarthChunkGeneratorVersionCompat 
       int effectiveCoverClass = this.resolveEffectiveCoverClassForTerrain(rawCoverClass);
       int surfaceCoverClass = this.resolveSurfaceCoverClassForTerrain(effectiveCoverClass, visualCoverClass);
       return this.resolveLodSnowFillerBlock(
-         biome, surfaceCoverClass, surface, slopeDiff, convexity, worldX, worldZ, this.isRemaSnowTerrain(worldZ), fallback, mountainOsmQueryMode
+         biome, surfaceCoverClass, surface, slopeDiff, convexity, worldX, worldZ, this.isAntarcticSnowTerrain(surfaceCoverClass, worldZ), fallback, mountainOsmQueryMode
       );
    }
 
@@ -7314,7 +7362,12 @@ public final class EarthChunkGenerator extends EarthChunkGeneratorVersionCompat 
                   refinedWaterFlags[index] && refinement.oceanFlags()[index] && refinedWaterSurfaces[index] > newSurface
                )
                : newSurface;
-            int rewriteBottom = Mth.clamp(Math.min(Math.min(oldSurface, newSurface), Math.min(oldSupportBottom, newSupportBottom)) - 4, chunkMinY, chunkMaxY);
+            int rewriteBottom = Mth.clamp(
+               Math.min(Math.min(oldSurface, newSurface), Math.min(oldSupportBottom, newSupportBottom))
+                  - SurfaceMaterialDepthPolicy.MAX_FULL_SNOW_DEPTH,
+               chunkMinY,
+               chunkMaxY
+            );
             int rewriteTop = Mth.clamp(Math.max(oldTop, newTop) + 2, chunkMinY, chunkMaxY);
             boolean refinedUnderwater = refinedWaterFlags[index] && refinedWaterSurfaces[index] > newSurface;
             boolean refinedOceanSupport = refinedUnderwater && refinement.oceanFlags()[index];
@@ -7329,7 +7382,7 @@ public final class EarthChunkGenerator extends EarthChunkGeneratorVersionCompat 
                   worldX,
                   worldZ
                );
-            boolean retainSurfaceSnow = newSurface >= this.seaLevel
+            boolean retainSurfaceSnow = !refinedUnderwater && newSurface >= this.seaLevel
                && this.shouldRetainSurfaceSnow(
                   useFastSurfacePalette,
                   refinedSurfaceCoverClasses[index],
@@ -7339,6 +7392,9 @@ public final class EarthChunkGenerator extends EarthChunkGeneratorVersionCompat 
                   worldX,
                   worldZ
                );
+            boolean surfaceSnow = retainSurfaceSnow || !refinedUnderwater && isSnowySurfaceBiome(refinedBiomes[index]);
+            boolean fullDepthSurfaceSnow = surfaceSnow
+               && SnowSlopePolicy.hasFullCoverage(this.sampleDemSlopeDegrees(worldX, worldZ));
 
             for (int y = rewriteBottom; y <= rewriteTop; y++) {
                cursor.set(worldX, y, worldZ);
@@ -7394,7 +7450,7 @@ public final class EarthChunkGenerator extends EarthChunkGeneratorVersionCompat 
                   newSurface,
                   chunkMinY,
                   refinedUnderwater,
-                  retainSurfaceSnow,
+                  surfaceSnow,
                   refinedBiomes[index],
                   refinedSlopeDiffs[index],
                   refinedConvexities[index],
@@ -7422,12 +7478,8 @@ public final class EarthChunkGenerator extends EarthChunkGeneratorVersionCompat 
                );
             }
 
-            if (retainSurfaceSnow) {
-               if (thinShellTerrain) {
-                  applyThinShellSnowCover(chunk, cursor, worldX, worldZ, newSurface);
-               } else {
-                  applySnowCover(chunk, cursor, worldX, worldZ, newSurface, chunkMinY);
-               }
+            if (surfaceSnow) {
+               this.applySnowCover(chunk, cursor, worldX, worldZ, newSurface, chunkMinY, fullDepthSurfaceSnow);
             }
          }
       }
@@ -10875,7 +10927,7 @@ public final class EarthChunkGenerator extends EarthChunkGeneratorVersionCompat 
       EarthChunkGenerator.LodShorelineCache shorelineCache,
       OsmQueryMode mountainOsmQueryMode
    ) {
-      boolean snowLikeTerrain = !underwater && this.isRemaSnowTerrain(worldZ);
+      boolean snowLikeTerrain = !underwater && this.isAntarcticSnowTerrain(coverClass, worldZ);
       long phaseStart = beginLodSurfaceProfiling(profiler);
       EarthChunkGenerator.SurfacePalette palette = this.selectBaseSurfacePalette(biome, worldX, worldZ, surface, coverClass);
       endLodSurfaceProfiling(profiler, "generator.basePalette", phaseStart);
@@ -11005,7 +11057,7 @@ public final class EarthChunkGenerator extends EarthChunkGeneratorVersionCompat 
       OsmQueryMode mountainOsmQueryMode
    ) {
       MountainSurfaceRules.ApproximateSurface approximate = this.classifyMountainSurface(
-         surfaceCoverClass, surface - this.seaLevel, slopeDiff, convexity, this.isRemaSnowTerrain(worldZ), 0.0F, worldX, worldZ, mountainOsmQueryMode
+         surfaceCoverClass, surface - this.seaLevel, slopeDiff, convexity, this.isAntarcticSnowTerrain(surfaceCoverClass, worldZ), 0.0F, worldX, worldZ, mountainOsmQueryMode
       );
       if (approximate.palette() == MountainSurfaceRules.ApproximatePalette.SNOW
          || approximate.palette() == MountainSurfaceRules.ApproximatePalette.SNOW_STREAK) {
@@ -11536,12 +11588,22 @@ public final class EarthChunkGenerator extends EarthChunkGeneratorVersionCompat 
       );
    }
 
+   private static boolean isSnowySurfaceBiome(Holder<Biome> biome) {
+      return biome.is(Biomes.SNOWY_PLAINS)
+         || biome.is(Biomes.SNOWY_TAIGA)
+         || biome.is(Biomes.SNOWY_SLOPES)
+         || biome.is(Biomes.GROVE)
+         || biome.is(Biomes.ICE_SPIKES)
+         || biome.is(Biomes.FROZEN_PEAKS)
+         || biome.is(Biomes.SNOWY_BEACH);
+   }
+
    private static boolean isSoilBlock(BlockState state) {
       return state.is(BlockTags.DIRT) || state.is(Blocks.MUD);
    }
 
-   private boolean isRemaSnowTerrain(int worldZ) {
-      return false;
+   private boolean isAntarcticSnowTerrain(int coverClass, int worldZ) {
+      return this.antarcticSnowPolicy.shouldUseSnowFallback(coverClass, worldZ);
    }
 
    private EarthChunkGenerator.SurfacePalette selectBaseSurfacePalette(Holder<Biome> biome, int worldX, int worldZ, int surface, int coverClass) {
@@ -12297,63 +12359,52 @@ public final class EarthChunkGenerator extends EarthChunkGeneratorVersionCompat 
    private boolean shouldRetainSurfaceSnow(
       boolean useFastSurfacePalette, int surfaceCoverClass, int surface, int slopeDiff, int convexity, int worldX, int worldZ
    ) {
-      boolean snowLikeTerrain = this.isRemaSnowTerrain(worldZ);
+      boolean snowLikeTerrain = this.isAntarcticSnowTerrain(surfaceCoverClass, worldZ);
       return this.shouldRetainPersistentSnowAt(
          worldX, worldZ, surfaceCoverClass, surface - this.seaLevel, slopeDiff, convexity, snowLikeTerrain
       );
    }
 
-	   private static void applySnowCover(ChunkAccess chunk, MutableBlockPos cursor, int worldX, int worldZ, int surface, int minY) {
-	      long seed = seedFromCoords(worldX, 0, worldZ) ^ 25214903917L;
-	      Random random = snowRandom(seed);
-	      int roll = random.nextInt(200);
-      if (roll >= 33) {
-         cursor.set(worldX, surface, worldZ);
-         chunk.setBlockState(cursor, SNOW_BLOCK_STATE, false);
-      } else {
-         int depth = 1 + random.nextInt(5);
-
-         for (int i = 0; i < depth; i++) {
-            int y = surface - i;
-            if (y < minY) {
-               break;
-            }
-
-            cursor.set(worldX, y, worldZ);
-            chunk.setBlockState(cursor, POWDER_SNOW_STATE, false);
+   private void applySnowCover(
+      ChunkAccess chunk,
+      MutableBlockPos cursor,
+      int worldX,
+      int worldZ,
+      int surface,
+      int minY,
+      boolean fullSlopeCoverage
+   ) {
+      SurfaceMaterialDepthPolicy.SnowColumn column = SurfaceMaterialDepthPolicy.snowColumn(
+         worldX, worldZ, this.worldSeed, fullSlopeCoverage
+      );
+      BlockState snow = column.powderSnow() ? POWDER_SNOW_STATE : SNOW_BLOCK_STATE;
+      for (int depth = 0; depth < column.depth(); depth++) {
+         int y = surface - depth;
+         if (y < minY) {
+            break;
          }
+
+         cursor.set(worldX, y, worldZ);
+         chunk.setBlockState(cursor, snow, false);
       }
    }
 
-   private static void applyThinShellSnowCover(ChunkAccess chunk, MutableBlockPos cursor, int worldX, int worldZ, int surface) {
-      cursor.set(worldX, surface, worldZ);
-      chunk.setBlockState(cursor, SNOW_BLOCK_STATE, false);
-   }
-
-	   private static void applySnowCover(
-	      EarthChunkGenerator.ChunkSectionWriter writer, int localX, int localZ, int worldX, int worldZ, int surface, int minY
-	   ) {
-	      long seed = seedFromCoords(worldX, 0, worldZ) ^ 25214903917L;
-	      Random random = snowRandom(seed);
-	      int roll = random.nextInt(200);
-      if (roll >= 33) {
-         writer.setBlock(localX, localZ, surface, SNOW_BLOCK_STATE);
-      } else {
-         int depth = 1 + random.nextInt(5);
-
-         for (int i = 0; i < depth; i++) {
-            int y = surface - i;
-            if (y < minY) {
-               break;
-            }
-
-            writer.setBlock(localX, localZ, y, POWDER_SNOW_STATE);
-         }
-      }
-   }
-
-   private static void applyThinShellSnowCover(EarthChunkGenerator.ChunkSectionWriter writer, int localX, int localZ, int surface) {
-      writer.setBlock(localX, localZ, surface, SNOW_BLOCK_STATE);
+   private void applySnowCover(
+      EarthChunkGenerator.ChunkSectionWriter writer,
+      int localX,
+      int localZ,
+      int worldX,
+      int worldZ,
+      int surface,
+      int minY,
+      boolean fullSlopeCoverage
+   ) {
+      SurfaceMaterialDepthPolicy.SnowColumn column = SurfaceMaterialDepthPolicy.snowColumn(
+         worldX, worldZ, this.worldSeed, fullSlopeCoverage
+      );
+      BlockState snow = column.powderSnow() ? POWDER_SNOW_STATE : SNOW_BLOCK_STATE;
+      int bottom = Math.max(minY, surface - column.depth() + 1);
+      writer.fillColumnConstant(localX, localZ, bottom, surface, snow);
    }
 
    public void applyRealtimeSnowCover(WorldGenLevel level, ChunkAccess chunk) {
@@ -12666,7 +12717,10 @@ public final class EarthChunkGenerator extends EarthChunkGeneratorVersionCompat 
             int localX = worldX - this.minX;
             int localZ = worldZ - this.minZ;
             int surfaceCoverClass = Byte.toUnsignedInt(this.surfaceCoverClasses[localZ * this.width + localX]);
-            return MountainSurfaceRules.hasSnowSource(surfaceCoverClass, EarthChunkGenerator.this.isRemaSnowTerrain(worldZ));
+            return MountainSurfaceRules.hasSnowSource(
+               surfaceCoverClass,
+               EarthChunkGenerator.this.isAntarcticSnowTerrain(surfaceCoverClass, worldZ)
+            );
          } else {
             return EarthChunkGenerator.this.hasPersistentSnowSourceAtUncached(worldX, worldZ, this.previewResolutionMeters);
          }
@@ -15144,7 +15198,7 @@ public final class EarthChunkGenerator extends EarthChunkGeneratorVersionCompat 
       }
 
       static EarthChunkGenerator.SurfacePalette desert() {
-         return new EarthChunkGenerator.SurfacePalette(EarthChunkGenerator.SAND_STATE, EarthChunkGenerator.SAND_STATE, EarthChunkGenerator.SANDSTONE_STATE, 4);
+         return new EarthChunkGenerator.SurfacePalette(EarthChunkGenerator.SAND_STATE, EarthChunkGenerator.SAND_STATE, EarthChunkGenerator.SANDSTONE_STATE, 5);
       }
 
       static EarthChunkGenerator.SurfacePalette badlands(BlockState top) {

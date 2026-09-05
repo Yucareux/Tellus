@@ -1,6 +1,7 @@
 package com.yucareux.tellus.client.screen;
 
 import com.mojang.serialization.Lifecycle;
+import com.yucareux.tellus.compat.ClientMinecraftCompat;
 import com.yucareux.tellus.worldgen.EarthGeneratorSettings;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -89,7 +90,13 @@ abstract class EarthCustomizeScreenVersionCompat extends Screen {
       return modes;
    }
 
-   protected static <T> Builder<T> configureCycleButton(Builder<T> builder, T initialValue, List<T> values) {
-      return builder.withValues(values).withInitialValue(initialValue);
+   protected static <T> Builder<T> configureCycleButton(
+      Function<T, Component> formatter, T initialValue, List<T> values
+   ) {
+      return ClientMinecraftCompat.cycleButtonBuilder(formatter, initialValue, values);
+   }
+
+   protected static Builder<Boolean> configureBooleanCycleButton(Component yes, Component no, boolean initialValue) {
+      return ClientMinecraftCompat.booleanCycleButtonBuilder(yes, no, initialValue);
    }
 }

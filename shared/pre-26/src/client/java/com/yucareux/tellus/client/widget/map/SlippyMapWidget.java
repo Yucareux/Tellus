@@ -1,18 +1,18 @@
 package com.yucareux.tellus.client.widget.map;
 
 import com.yucareux.tellus.client.widget.map.component.MapComponent;
+import com.yucareux.tellus.client.compat.AbstractTellusWidget;
+import com.yucareux.tellus.compat.ClientMinecraftCompat;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Objects;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
-import net.minecraft.client.gui.components.AbstractWidget;
 import net.minecraft.client.gui.narration.NarrationElementOutput;
 import net.minecraft.network.chat.Component;
-import net.minecraft.resources.ResourceLocation;
 import net.minecraft.util.Mth;
-public class SlippyMapWidget extends AbstractWidget {
+public class SlippyMapWidget extends AbstractTellusWidget {
    private static final String ATTRIBUTION = "(c) OpenStreetMap Contributors";
    private final SlippyMap map;
    private final List<MapComponent> components = new ArrayList<>();
@@ -55,14 +55,14 @@ public class SlippyMapWidget extends AbstractWidget {
       }
 
       SlippyMapPoint mouse = this.getPointUnderMouse(mouseX, mouseY);
-      graphics.pose().pushPose();
-      graphics.pose().translate(this.getX(), this.getY(), 0.0F);
+      ClientMinecraftCompat.pushPose(graphics);
+      ClientMinecraftCompat.translatePose(graphics, this.getX(), this.getY());
 
       for (MapComponent component : this.components) {
          component.onDrawMap(this.map, graphics, mouseX, mouseY, mouse);
       }
 
-      graphics.pose().popPose();
+      ClientMinecraftCompat.popPose(graphics);
       graphics.disableScissor();
       int maxX = this.getX() + this.width - 4;
       int maxY = this.getY() + this.height - 4 - this.attributionBottomPadding;
@@ -75,7 +75,7 @@ public class SlippyMapWidget extends AbstractWidget {
 
    private void renderTile(GuiGraphics graphics, int cameraX, int cameraY, int cameraZoom, SlippyMapTilePos pos, SlippyMapTile image, float delta) {
       image.update(delta);
-      ResourceLocation location = image.getLocation();
+      Object location = image.getLocation();
       if (location != null) {
          int deltaZoom = cameraZoom - pos.getZoom();
          double zoomScale = Math.pow(2.0, deltaZoom);
@@ -83,13 +83,15 @@ public class SlippyMapWidget extends AbstractWidget {
          int renderX = (pos.getX() << deltaZoom) * 256 - cameraX;
          int renderY = (pos.getY() << deltaZoom) * 256 - cameraY;
          int textureSize = Math.max(256, size);
-         graphics.pose().pushPose();
-         graphics.pose().translate(this.getX(), this.getY(), 0.0F);
+         ClientMinecraftCompat.pushPose(graphics);
+         ClientMinecraftCompat.translatePose(graphics, this.getX(), this.getY());
          int scaleFactor = Math.max(1, (int)Math.round(Minecraft.getInstance().getWindow().getGuiScale()));
          float scale = 1.0F / scaleFactor;
-         graphics.pose().scale(scale, scale, 1.0F);
-         graphics.blit(Objects.requireNonNull(location, "tileLocation"), renderX, renderY, 0, 0.0F, 0.0F, size, size, textureSize, textureSize);
-         graphics.pose().popPose();
+         ClientMinecraftCompat.scalePose(graphics, scale, scale);
+         ClientMinecraftCompat.blit(
+            graphics, Objects.requireNonNull(location, "tileLocation"), renderX, renderY, 0.0F, 0.0F, size, size, textureSize, textureSize
+         );
+         ClientMinecraftCompat.popPose(graphics);
       }
    }
 
@@ -98,7 +100,7 @@ public class SlippyMapWidget extends AbstractWidget {
       graphics.renderOutline(this.getX(), this.getY(), this.width, this.height, -16777216);
    }
 
-   public boolean mouseClicked(double mouseX, double mouseY, int button) {
+   protected boolean tellusMouseClicked(double mouseX, double mouseY, int button) {
       if (!this.isMouseOver(mouseX, mouseY)) {
          return false;
       } else {
@@ -116,7 +118,7 @@ public class SlippyMapWidget extends AbstractWidget {
       }
    }
 
-   public boolean mouseDragged(double mouseX, double mouseY, int button, double dragX, double dragY) {
+   protected boolean tellusMouseDragged(double mouseX, double mouseY, int button, double dragX, double dragY) {
       if (this.mouseDown) {
          if (this.dragComponent != null) {
             SlippyMapPoint mouse = this.getPointUnderMouse(mouseX, mouseY);
@@ -134,7 +136,7 @@ public class SlippyMapWidget extends AbstractWidget {
       }
    }
 
-   public boolean mouseReleased(double mouseX, double mouseY, int button) {
+   protected boolean tellusMouseReleased(double mouseX, double mouseY, int button) {
       boolean handled = false;
       if (button == 0 && this.mouseDown && this.isMouseOver(mouseX, mouseY)) {
          SlippyMapPoint mouse = this.getPointUnderMouse(mouseX, mouseY);

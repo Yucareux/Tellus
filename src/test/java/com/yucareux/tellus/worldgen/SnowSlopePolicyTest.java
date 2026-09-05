@@ -25,6 +25,9 @@ class SnowSlopePolicyTest {
    void missingSlopePreservesSnowAndVerySteepTerrainRejectsIt() {
       assertTrue(SnowSlopePolicy.shouldCover(12, 34, Double.NaN));
       assertFalse(SnowSlopePolicy.shouldCover(12, 34, 60.0));
+      assertTrue(SnowSlopePolicy.hasFullCoverage(Double.NaN));
+      assertTrue(SnowSlopePolicy.hasFullCoverage(44.999));
+      assertFalse(SnowSlopePolicy.hasFullCoverage(45.0));
    }
 
    @Test

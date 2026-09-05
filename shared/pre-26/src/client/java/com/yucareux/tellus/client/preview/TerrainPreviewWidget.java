@@ -1,6 +1,7 @@
 package com.yucareux.tellus.client.preview;
 
 import com.yucareux.tellus.Tellus;
+import com.yucareux.tellus.client.compat.AbstractTellusWidget;
 import com.yucareux.tellus.compat.ClientMinecraftCompat;
 import com.yucareux.tellus.world.data.elevation.TellusElevationSource;
 import com.yucareux.tellus.worldgen.EarthGeneratorSettings;
@@ -9,14 +10,12 @@ import java.util.Objects;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.GuiGraphics;
-import net.minecraft.client.gui.components.AbstractWidget;
 import net.minecraft.client.gui.components.Button;
 import net.minecraft.client.gui.components.Tooltip;
 import net.minecraft.client.gui.narration.NarrationElementOutput;
 import net.minecraft.network.chat.Component;
-import net.minecraft.resources.ResourceLocation;
 import net.minecraft.util.Mth;
-public final class TerrainPreviewWidget extends AbstractWidget implements AutoCloseable {
+public final class TerrainPreviewWidget extends AbstractTellusWidget implements AutoCloseable {
    private static final float DEFAULT_ROTATION_X = (float)Math.toRadians(18.0);
    private static final float DEFAULT_ROTATION_Y = (float)Math.toRadians(18.0);
    private static final float DEFAULT_CAMERA_DISTANCE = 1.9F;
@@ -50,7 +49,7 @@ public final class TerrainPreviewWidget extends AbstractWidget implements AutoCl
    private static final int CLOUD_ICON_SIZE = 16;
    private static final int CLOUD_ICON_TEXTURE_WIDTH = 32;
    private static final int CLOUD_ICON_TEXTURE_HEIGHT = 16;
-   private static final ResourceLocation CLOUD_TOGGLE_TEXTURE = Objects.requireNonNull(
+   private static final Object CLOUD_TOGGLE_TEXTURE = Objects.requireNonNull(
       Tellus.id("textures/gui/cloud_toggle.png"), "cloudToggleTexture"
    );
    
@@ -175,22 +174,22 @@ public final class TerrainPreviewWidget extends AbstractWidget implements AutoCl
    }
 
    @Override
-   public boolean mouseClicked(double mouseX, double mouseY, int button) {
+   protected boolean tellusMouseClicked(double mouseX, double mouseY, int button) {
       if (!this.active || !this.visible || !this.isMouseOver(mouseX, mouseY)) {
          return false;
       } else if (this.modeButton.isMouseOver(mouseX, mouseY)) {
-         this.modeButton.mouseClicked(mouseX, mouseY, button);
+         ClientMinecraftCompat.mouseClicked(this.modeButton, mouseX, mouseY, button);
          this.lastInteractionTime = System.currentTimeMillis();
          return true;
       } else if (this.infoButton.isMouseOver(mouseX, mouseY)) {
-         this.infoButton.mouseClicked(mouseX, mouseY, button);
+         ClientMinecraftCompat.mouseClicked(this.infoButton, mouseX, mouseY, button);
          this.lastInteractionTime = System.currentTimeMillis();
          return true;
       } else if (this.fullscreenAction != null && this.fullscreenButton.isMouseOver(mouseX, mouseY)) {
-         this.fullscreenButton.mouseClicked(mouseX, mouseY, button);
+         ClientMinecraftCompat.mouseClicked(this.fullscreenButton, mouseX, mouseY, button);
          return true;
       } else if (this.fullscreenAction != null && this.cloudButton.isMouseOver(mouseX, mouseY)) {
-         this.cloudButton.mouseClicked(mouseX, mouseY, button);
+         ClientMinecraftCompat.mouseClicked(this.cloudButton, mouseX, mouseY, button);
          return true;
       } else if (this.infoPanelVisible && this.isMouseOverInfoPanel(mouseX, mouseY)) {
          this.lastInteractionTime = System.currentTimeMillis();
@@ -205,17 +204,17 @@ public final class TerrainPreviewWidget extends AbstractWidget implements AutoCl
       }
    }
 
-   public void onClick(double mouseX, double mouseY) {
+   protected void tellusOnClick(double mouseX, double mouseY) {
       if (this.modeButton.isMouseOver(mouseX, mouseY)) {
-         this.modeButton.mouseClicked(mouseX, mouseY, 0);
+         ClientMinecraftCompat.mouseClicked(this.modeButton, mouseX, mouseY, 0);
          this.lastInteractionTime = System.currentTimeMillis();
       } else if (this.infoButton.isMouseOver(mouseX, mouseY)) {
-         this.infoButton.mouseClicked(mouseX, mouseY, 0);
+         ClientMinecraftCompat.mouseClicked(this.infoButton, mouseX, mouseY, 0);
          this.lastInteractionTime = System.currentTimeMillis();
       } else if (this.fullscreenAction != null && this.fullscreenButton.isMouseOver(mouseX, mouseY)) {
-         this.fullscreenButton.mouseClicked(mouseX, mouseY, 0);
+         ClientMinecraftCompat.mouseClicked(this.fullscreenButton, mouseX, mouseY, 0);
       } else if (this.fullscreenAction != null && this.cloudButton.isMouseOver(mouseX, mouseY)) {
-         this.cloudButton.mouseClicked(mouseX, mouseY, 0);
+         ClientMinecraftCompat.mouseClicked(this.cloudButton, mouseX, mouseY, 0);
       } else if (this.infoPanelVisible && this.isMouseOverInfoPanel(mouseX, mouseY)) {
          this.lastInteractionTime = System.currentTimeMillis();
       } else {
@@ -224,7 +223,7 @@ public final class TerrainPreviewWidget extends AbstractWidget implements AutoCl
       }
    }
 
-   protected void onDrag(double mouseX, double mouseY, double deltaX, double deltaY) {
+   protected void tellusOnDrag(double mouseX, double mouseY, double deltaX, double deltaY) {
       if (this.dragging) {
          this.rotationY += (float)deltaX * ROTATION_SPEED;
          this.rotationX = Mth.clamp(this.rotationX + (float)deltaY * ROTATION_SPEED, MIN_ROTATION_X, MAX_ROTATION_X);
@@ -232,12 +231,12 @@ public final class TerrainPreviewWidget extends AbstractWidget implements AutoCl
       }
    }
 
-   public void onRelease(double mouseX, double mouseY) {
-      this.modeButton.mouseReleased(mouseX, mouseY, 0);
-      this.infoButton.mouseReleased(mouseX, mouseY, 0);
+   protected void tellusOnRelease(double mouseX, double mouseY) {
+      ClientMinecraftCompat.mouseReleased(this.modeButton, mouseX, mouseY, 0);
+      ClientMinecraftCompat.mouseReleased(this.infoButton, mouseX, mouseY, 0);
       if (this.fullscreenAction != null) {
-         this.fullscreenButton.mouseReleased(mouseX, mouseY, 0);
-         this.cloudButton.mouseReleased(mouseX, mouseY, 0);
+         ClientMinecraftCompat.mouseReleased(this.fullscreenButton, mouseX, mouseY, 0);
+         ClientMinecraftCompat.mouseReleased(this.cloudButton, mouseX, mouseY, 0);
       }
 
       this.dragging = false;
@@ -484,11 +483,11 @@ public final class TerrainPreviewWidget extends AbstractWidget implements AutoCl
          int iconX = buttonX + (CLOUD_BUTTON_SIZE - CLOUD_ICON_SIZE) / 2;
          int iconY = buttonY + (CLOUD_BUTTON_SIZE - CLOUD_ICON_SIZE) / 2;
          float textureX = this.cloudsVisible ? 0.0F : CLOUD_ICON_SIZE;
-         graphics.blit(
+         ClientMinecraftCompat.blit(
+            graphics,
             CLOUD_TOGGLE_TEXTURE,
             iconX,
             iconY,
-            0,
             textureX,
             0.0F,
             CLOUD_ICON_SIZE,

@@ -3,10 +3,56 @@ def minecraftVersion = config.minecraftVersion
 def neoForgeVersion = config.neoForgeVersion
 def javaVersion = config.javaVersion as int
 def sharedSourceLayers = config.sharedSourceLayers as List
+def sharedMainSourceLayers = (config.sharedMainSourceLayers ?: sharedSourceLayers) as List
+def sharedClientSourceLayers = (config.sharedClientSourceLayers ?: sharedSourceLayers) as List
+def sharedTestSourceLayers = (config.sharedTestSourceLayers ?: sharedMainSourceLayers) as List
+def inheritedJavaProjects = (config.inheritedJavaProjects ?: []) as List
+def inheritedMainJavaProjects = (config.inheritedMainJavaProjects ?: inheritedJavaProjects) as List
+def inheritedClientJavaProjects = (config.inheritedClientJavaProjects ?: inheritedJavaProjects) as List
+def inheritedResourceProjects = (config.inheritedResourceProjects ?: inheritedJavaProjects) as List
+def inheritedMainResourceProjects = (config.inheritedMainResourceProjects ?: inheritedResourceProjects) as List
+def inheritedClientResourceProjects = (config.inheritedClientResourceProjects ?: inheritedResourceProjects) as List
 def distantHorizonsApiVersion = '7.0.0'
 def twelveMonkeysImageioVersion = '3.13.1'
 def distantHorizonsRuntimePath = providers.gradleProperty(config.distantHorizonsRuntimeProperty).orNull
 def usesLegacyAdditionalRuntimeClasspath = minecraftVersion == '1.21.1'
+def inheritedMainJavaDirs = inheritedMainJavaProjects.collect { inheritedProject ->
+	rootProject.file("${inheritedProject}/src/main/java")
+}
+def inheritedClientJavaDirs = inheritedClientJavaProjects.collect { inheritedProject ->
+	rootProject.file("${inheritedProject}/src/client/java")
+}
+def overriddenSharedMainSources = (config.overriddenSharedMainSources ?: []) as Set
+def overriddenSharedClientSources = (config.overriddenSharedClientSources ?: []) as Set
+def overriddenInheritedMainSources = (config.overriddenInheritedMainSources ?: []) as Set
+def overriddenInheritedClientSources = (config.overriddenInheritedClientSources ?: []) as Set
+def inheritedMainResourceDirs = inheritedMainResourceProjects.collect { inheritedProject ->
+	rootProject.file("${inheritedProject}/src/main/resources")
+}
+def inheritedClientResourceDirs = inheritedClientResourceProjects.collect { inheritedProject ->
+	rootProject.file("${inheritedProject}/src/client/resources")
+}
+def overriddenInheritedMainResources = (config.overriddenInheritedMainResources ?: []) as Set
+def overriddenInheritedClientResources = (config.overriddenInheritedClientResources ?: []) as Set
+def overriddenSharedMainResources = (config.overriddenSharedMainResources ?: []) as Set
+def overriddenSharedClientResources = (config.overriddenSharedClientResources ?: []) as Set
+def sharedMainJavaDirs = rootProject.ext.tellusSharedSourceDirs(sharedMainSourceLayers, 'main/java')
+def sharedClientJavaDirs = rootProject.ext.tellusSharedSourceDirs(sharedClientSourceLayers, 'client/java')
+def sharedMainResourceDirs = rootProject.ext.tellusSharedSourceDirs(sharedMainSourceLayers, 'main/resources')
+def sharedClientResourceDirs = rootProject.ext.tellusSharedSourceDirs(sharedClientSourceLayers, 'client/resources')
+def mainJavaDirs = (sharedMainJavaDirs + sharedClientJavaDirs + inheritedMainJavaDirs + inheritedClientJavaDirs
+	+ [project.file('src/main/java'), project.file('src/client/java')])
+def mainResourceDirs = (sharedMainResourceDirs + sharedClientResourceDirs + inheritedMainResourceDirs + inheritedClientResourceDirs
+	+ [project.file('src/main/resources'), project.file('src/client/resources')])
+def isShadowed = { element, Set<String> overriddenPaths, List<File> sourceDirs ->
+	def relativePath = element.relativePath.pathString
+	if (!overriddenPaths.contains(relativePath)) {
+		return false
+	}
+	def owner = sourceDirs.reverse().find { sourceDir -> new File(sourceDir, relativePath).isFile() }
+	return owner != null && element.file.toPath().toAbsolutePath().normalize()
+		!= new File(owner, relativePath).toPath().toAbsolutePath().normalize()
+}
 
 base {
 	archivesName = "${rootProject.archives_base_name}-neoforge-${minecraftVersion}"
@@ -29,23 +75,31 @@ repositories {
 sourceSets {
 	main {
 		java {
-			setSrcDirs(
-				rootProject.ext.tellusSharedSourceDirs(sharedSourceLayers, 'main/java')
-					+ rootProject.ext.tellusSharedSourceDirs(sharedSourceLayers, 'client/java')
-					+ [project.file('src/main/java'), project.file('src/client/java')]
-			)
+			setSrcDirs(mainJavaDirs)
+			exclude { element ->
+				isShadowed(
+					element,
+					overriddenSharedMainSources + overriddenSharedClientSources
+						+ overriddenInheritedMainSources + overriddenInheritedClientSources,
+					mainJavaDirs
+				)
+			}
 		}
 		resources {
-			setSrcDirs(
-				rootProject.ext.tellusSharedSourceDirs(sharedSourceLayers, 'main/resources')
-					+ rootProject.ext.tellusSharedSourceDirs(sharedSourceLayers, 'client/resources')
-					+ [project.file('src/main/resources'), project.file('src/client/resources')]
-			)
+			setSrcDirs(mainResourceDirs)
+			exclude { element ->
+				isShadowed(
+					element,
+						overriddenSharedMainResources + overriddenSharedClientResources
+							+ overriddenInheritedMainResources + overriddenInheritedClientResources,
+					mainResourceDirs
+				)
+			}
 		}
 	}
 	test {
-		java.setSrcDirs(rootProject.ext.tellusSharedSourceDirs(sharedSourceLayers, 'test/java') + [project.file('src/test/java')])
-		resources.setSrcDirs(rootProject.ext.tellusSharedSourceDirs(sharedSourceLayers, 'test/resources') + [project.file('src/test/resources')])
+		java.setSrcDirs(rootProject.ext.tellusSharedSourceDirs(sharedTestSourceLayers, 'test/java') + [project.file('src/test/java')])
+		resources.setSrcDirs(rootProject.ext.tellusSharedSourceDirs(sharedTestSourceLayers, 'test/resources') + [project.file('src/test/resources')])
 	}
 }
 

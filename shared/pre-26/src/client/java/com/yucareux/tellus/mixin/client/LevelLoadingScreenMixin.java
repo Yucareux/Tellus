@@ -123,9 +123,9 @@ public abstract class LevelLoadingScreenMixin {
       GuiGraphics graphics, Font font, int centerX, AttributionRenderPlan plan
    ) {
       for (LoadingAttributionLayout.Block block : plan.layout().blocks()) {
-         graphics.pose().pushPose();
-         graphics.pose().translate(centerX, block.y(), 0.0F);
-         graphics.pose().scale(plan.scale(), plan.scale(), 1.0F);
+         ClientMinecraftCompat.pushPose(graphics);
+         ClientMinecraftCompat.translatePose(graphics, centerX, block.y());
+         ClientMinecraftCompat.scalePose(graphics, plan.scale(), plan.scale());
          int y = 0;
          int endLine = block.firstLine() + block.lineCount();
          for (int lineIndex = block.firstLine(); lineIndex < endLine; lineIndex++) {
@@ -133,7 +133,7 @@ public abstract class LevelLoadingScreenMixin {
             graphics.drawString(font, line, -font.width(line) / 2, y, TEXT_COLOR, true);
             y += font.lineHeight + LINE_SPACING;
          }
-         graphics.pose().popPose();
+         ClientMinecraftCompat.popPose(graphics);
       }
    }
 

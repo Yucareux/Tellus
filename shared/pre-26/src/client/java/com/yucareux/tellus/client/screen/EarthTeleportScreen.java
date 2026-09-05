@@ -4,15 +4,17 @@ import com.yucareux.tellus.client.widget.map.PlaceSearchWidget;
 import com.yucareux.tellus.client.widget.map.SlippyMapPoint;
 import com.yucareux.tellus.client.widget.map.SlippyMapWidget;
 import com.yucareux.tellus.client.widget.map.component.MarkerMapComponent;
+import com.yucareux.tellus.client.compat.AbstractTellusScreen;
+import com.yucareux.tellus.compat.ClientMinecraftCompat;
 import com.yucareux.tellus.platform.TellusClientPlatform;
 import com.yucareux.tellus.world.data.source.Geocoder;
 import com.yucareux.tellus.world.data.source.NominatimGeocoder;
 import net.minecraft.client.gui.GuiGraphics;
-import net.minecraft.client.gui.components.Button;
 import net.minecraft.client.gui.screens.Screen;
+import net.minecraft.client.gui.components.Button;
 import net.minecraft.network.chat.Component;
 
-public class EarthTeleportScreen extends Screen {
+public class EarthTeleportScreen extends AbstractTellusScreen {
    private static final int DEFAULT_ZOOM = 6;
    
    private final Screen parent;
@@ -82,29 +84,29 @@ public class EarthTeleportScreen extends Screen {
    }
 
    @Override
-   public boolean mouseClicked(double mouseX, double mouseY, int button) {
+   protected boolean tellusMouseClicked(double mouseX, double mouseY, int button) {
       if (this.isSearchOverlayMouseOver(mouseX, mouseY)) {
          this.suppressMapRelease = true;
          this.cancelMapInteraction();
          this.setFocused(this.searchWidget);
          this.searchWidget.setFocused(true);
-         this.searchWidget.mouseClicked(mouseX, mouseY, button);
+         ClientMinecraftCompat.mouseClicked(this.searchWidget, mouseX, mouseY, button);
          return true;
       }
 
       this.suppressMapRelease = false;
-      return super.mouseClicked(mouseX, mouseY, button);
+      return super.tellusMouseClicked(mouseX, mouseY, button);
    }
 
    @Override
-   public boolean mouseReleased(double mouseX, double mouseY, int button) {
+   protected boolean tellusMouseReleased(double mouseX, double mouseY, int button) {
       if (this.suppressMapRelease || this.isSearchOverlayMouseOver(mouseX, mouseY)) {
          this.suppressMapRelease = false;
          this.cancelMapInteraction();
          return true;
       }
 
-      return super.mouseReleased(mouseX, mouseY, button);
+      return super.tellusMouseReleased(mouseX, mouseY, button);
    }
 
    private void closeScreen() {

@@ -2,12 +2,56 @@ def config = project.ext.tellus
 def minecraftVersion = config.minecraftVersion
 def javaVersion = config.javaVersion as int
 def sharedSourceLayers = config.sharedSourceLayers as List
+def sharedMainSourceLayers = (config.sharedMainSourceLayers ?: sharedSourceLayers) as List
+def sharedClientSourceLayers = (config.sharedClientSourceLayers ?: sharedSourceLayers) as List
+def sharedTestSourceLayers = (config.sharedTestSourceLayers ?: sharedMainSourceLayers) as List
+def inheritedJavaProjects = (config.inheritedJavaProjects ?: []) as List
+def inheritedMainJavaProjects = (config.inheritedMainJavaProjects ?: inheritedJavaProjects) as List
+def inheritedClientJavaProjects = (config.inheritedClientJavaProjects ?: inheritedJavaProjects) as List
+def inheritedResourceProjects = (config.inheritedResourceProjects ?: inheritedJavaProjects) as List
+def inheritedMainResourceProjects = (config.inheritedMainResourceProjects ?: inheritedResourceProjects) as List
+def inheritedClientResourceProjects = (config.inheritedClientResourceProjects ?: inheritedResourceProjects) as List
 def distantHorizonsApiVersion = '7.0.0'
 def twelveMonkeysImageioVersion = '3.13.1'
 def distantHorizonsRuntimePath = providers.gradleProperty(config.distantHorizonsRuntimeProperty).orNull
 def usesLocalRuntimeMods = minecraftVersion == '26.2'
 def overriddenSharedMainSources = (config.overriddenSharedMainSources ?: []) as Set
-def sharedMainJavaPath = rootProject.file('src/main/java').toPath().toAbsolutePath().normalize()
+def overriddenSharedClientSources = (config.overriddenSharedClientSources ?: []) as Set
+def inheritedMainJavaDirs = inheritedMainJavaProjects.collect { inheritedProject ->
+	rootProject.file("${inheritedProject}/src/main/java")
+}
+def inheritedClientJavaDirs = inheritedClientJavaProjects.collect { inheritedProject ->
+	rootProject.file("${inheritedProject}/src/client/java")
+}
+def overriddenInheritedMainSources = (config.overriddenInheritedMainSources ?: []) as Set
+def overriddenInheritedClientSources = (config.overriddenInheritedClientSources ?: []) as Set
+def inheritedMainResourceDirs = inheritedMainResourceProjects.collect { inheritedProject ->
+	rootProject.file("${inheritedProject}/src/main/resources")
+}
+def inheritedClientResourceDirs = inheritedClientResourceProjects.collect { inheritedProject ->
+	rootProject.file("${inheritedProject}/src/client/resources")
+}
+def overriddenInheritedMainResources = (config.overriddenInheritedMainResources ?: []) as Set
+def overriddenInheritedClientResources = (config.overriddenInheritedClientResources ?: []) as Set
+def overriddenSharedMainResources = (config.overriddenSharedMainResources ?: []) as Set
+def overriddenSharedClientResources = (config.overriddenSharedClientResources ?: []) as Set
+def sharedMainJavaDirs = rootProject.ext.tellusSharedSourceDirs(sharedMainSourceLayers, 'main/java')
+def sharedClientJavaDirs = rootProject.ext.tellusSharedSourceDirs(sharedClientSourceLayers, 'client/java')
+def sharedMainResourceDirs = rootProject.ext.tellusSharedSourceDirs(sharedMainSourceLayers, 'main/resources')
+def sharedClientResourceDirs = rootProject.ext.tellusSharedSourceDirs(sharedClientSourceLayers, 'client/resources')
+def mainJavaDirs = sharedMainJavaDirs + inheritedMainJavaDirs + [project.file('src/main/java')]
+def clientJavaDirs = sharedClientJavaDirs + inheritedClientJavaDirs + [project.file('src/client/java')]
+def mainResourceDirs = sharedMainResourceDirs + inheritedMainResourceDirs + [project.file('src/main/resources')]
+def clientResourceDirs = sharedClientResourceDirs + inheritedClientResourceDirs + [project.file('src/client/resources')]
+def isShadowed = { element, Set<String> overriddenPaths, List<File> sourceDirs ->
+	def relativePath = element.relativePath.pathString
+	if (!overriddenPaths.contains(relativePath)) {
+		return false
+	}
+	def owner = sourceDirs.reverse().find { sourceDir -> new File(sourceDir, relativePath).isFile() }
+	return owner != null && element.file.toPath().toAbsolutePath().normalize()
+		!= new File(owner, relativePath).toPath().toAbsolutePath().normalize()
+}
 
 base {
 	archivesName = "${rootProject.archives_base_name}-fabric-${minecraftVersion}"
@@ -62,23 +106,35 @@ pluginManager.withPlugin('eclipse') {
 sourceSets {
 	main {
 		java {
-			setSrcDirs(rootProject.ext.tellusSharedSourceDirs(sharedSourceLayers, 'main/java') + [project.file('src/main/java')])
+			setSrcDirs(mainJavaDirs)
 			exclude { element ->
-				overriddenSharedMainSources.contains(element.relativePath.pathString)
-					&& element.file.toPath().toAbsolutePath().normalize().startsWith(sharedMainJavaPath)
+				isShadowed(element, overriddenSharedMainSources + overriddenInheritedMainSources, mainJavaDirs)
 			}
 		}
 		resources {
-			setSrcDirs(rootProject.ext.tellusSharedSourceDirs(sharedSourceLayers, 'main/resources') + [project.file('src/main/resources')])
+			setSrcDirs(mainResourceDirs)
+			exclude { element ->
+					isShadowed(element, overriddenSharedMainResources + overriddenInheritedMainResources, mainResourceDirs)
+			}
 		}
 	}
 	client {
-		java.setSrcDirs(rootProject.ext.tellusSharedSourceDirs(sharedSourceLayers, 'client/java') + [project.file('src/client/java')])
-		resources.setSrcDirs(rootProject.ext.tellusSharedSourceDirs(sharedSourceLayers, 'client/resources') + [project.file('src/client/resources')])
+		java {
+			setSrcDirs(clientJavaDirs)
+			exclude { element ->
+				isShadowed(element, overriddenSharedClientSources + overriddenInheritedClientSources, clientJavaDirs)
+			}
+		}
+		resources {
+			setSrcDirs(clientResourceDirs)
+			exclude { element ->
+					isShadowed(element, overriddenSharedClientResources + overriddenInheritedClientResources, clientResourceDirs)
+			}
+		}
 	}
 	test {
-		java.setSrcDirs(rootProject.ext.tellusSharedSourceDirs(sharedSourceLayers, 'test/java') + [project.file('src/test/java')])
-		resources.setSrcDirs(rootProject.ext.tellusSharedSourceDirs(sharedSourceLayers, 'test/resources') + [project.file('src/test/resources')])
+		java.setSrcDirs(rootProject.ext.tellusSharedSourceDirs(sharedTestSourceLayers, 'test/java') + [project.file('src/test/java')])
+		resources.setSrcDirs(rootProject.ext.tellusSharedSourceDirs(sharedTestSourceLayers, 'test/resources') + [project.file('src/test/resources')])
 	}
 }
 

@@ -37,7 +37,7 @@ public class CustomizationList extends ContainerObjectSelectionList<Customizatio
    protected void renderListSeparators( GuiGraphics graphics) {
    }
 
-   public static class Entry extends net.minecraft.client.gui.components.ContainerObjectSelectionList.Entry<CustomizationList.Entry> {
+   public static class Entry extends AbstractCustomizationListEntry {
       private final AbstractWidget widget;
 
       public Entry(AbstractWidget widget) {
@@ -54,8 +54,8 @@ public class CustomizationList extends ContainerObjectSelectionList<Customizatio
          return Objects.requireNonNull(List.of(this.widget), "narratables");
       }
 
-      public void render(
-         GuiGraphics graphics, int index, int top, int left, int width, int height, int mouseX, int mouseY, boolean hovered, float delta
+      protected void renderTellusContent(
+         GuiGraphics graphics, int left, int top, int width, int height, int mouseX, int mouseY, boolean hovered, float delta
       ) {
          this.widget.setX(left);
          this.widget.setY(top);

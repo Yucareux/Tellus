@@ -23,9 +23,11 @@ def tellusTargets = [
 	[project: 'mc1201-forge', suffix: '1201Forge', label: 'Minecraft 1.20.1 Forge', loader: 'forge'],
 	[project: 'mc1211', suffix: '1211', label: 'Minecraft 1.21.1 Fabric', loader: 'fabric'],
 	[project: 'mc1211-neoforge', suffix: '1211NeoForge', label: 'Minecraft 1.21.1 NeoForge', loader: 'neoforge'],
+	[project: 'mc12111', suffix: '12111', label: 'Minecraft 1.21.11 Fabric', loader: 'fabric'],
+	[project: 'mc12111-neoforge', suffix: '12111NeoForge', label: 'Minecraft 1.21.11 NeoForge', loader: 'neoforge'],
 	[project: 'mc262', suffix: '262', label: 'Minecraft 26.2 Fabric', loader: 'fabric'],
 	[project: 'mc262-neoforge', suffix: '262NeoForge', label: 'Minecraft 26.2 NeoForge', loader: 'neoforge'],
-]
+].findAll { target -> findProject(":${target.project}") != null }
 
 ['clean', 'assemble', 'check', 'build'].each { lifecycleTask ->
 	tasks.named(lifecycleTask) {

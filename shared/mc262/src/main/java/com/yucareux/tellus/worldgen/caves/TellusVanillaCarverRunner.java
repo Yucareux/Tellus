@@ -1,5 +1,6 @@
 package com.yucareux.tellus.worldgen.caves;
 
+import com.yucareux.tellus.compat.MinecraftVersionCompat;
 import com.yucareux.tellus.worldgen.UndergroundStructureExclusion;
 import java.util.List;
 import java.util.Objects;
@@ -106,7 +107,7 @@ public final class TellusVanillaCarverRunner {
          (target, pos, state, fluid) -> {
             target.setBlockState(pos, state);
             if (fluid && target instanceof ProtoChunk protoChunk) {
-               protoChunk.markPosForPostProcessing(pos);
+               MinecraftVersionCompat.markPosForPostProcessing(protoChunk, pos);
             }
          }
       );
@@ -147,13 +148,20 @@ public final class TellusVanillaCarverRunner {
 
       for (int offsetX = -CARVER_RADIUS_CHUNKS; offsetX <= CARVER_RADIUS_CHUNKS; offsetX++) {
          for (int offsetZ = -CARVER_RADIUS_CHUNKS; offsetZ <= CARVER_RADIUS_CHUNKS; offsetZ++) {
-            ChunkPos sourcePos = new ChunkPos(targetPos.x() + offsetX, targetPos.z() + offsetZ);
+            ChunkPos sourcePos = new ChunkPos(
+               MinecraftVersionCompat.chunkX(targetPos) + offsetX,
+               MinecraftVersionCompat.chunkZ(targetPos) + offsetZ
+            );
             int sourceSurfaceY = safeSurfaceHeightSampler.applyAsInt(sourcePos.getMinBlockX() + 8, sourcePos.getMinBlockZ() + 8);
             List<ConfiguredWorldCarver<?>> sourceCarvers = this.configuredCarvers.orderedCarvers(sourceSurfaceY);
 
             for (int carverIndex = 0; carverIndex < sourceCarvers.size(); carverIndex++) {
                ConfiguredWorldCarver<?> configured = sourceCarvers.get(carverIndex);
-               random.setLargeFeatureSeed(worldSeed + carverIndex, sourcePos.x(), sourcePos.z());
+               random.setLargeFeatureSeed(
+                  worldSeed + carverIndex,
+                  MinecraftVersionCompat.chunkX(sourcePos),
+                  MinecraftVersionCompat.chunkZ(sourcePos)
+               );
                if (configured.isStartChunk(random)) {
                   configured.carve(
                      carvingContext,

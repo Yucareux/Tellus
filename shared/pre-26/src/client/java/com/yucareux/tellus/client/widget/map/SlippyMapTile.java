@@ -2,10 +2,9 @@ package com.yucareux.tellus.client.widget.map;
 
 import com.mojang.blaze3d.platform.NativeImage;
 import com.yucareux.tellus.Tellus;
+import com.yucareux.tellus.compat.ClientMinecraftCompat;
 import java.util.Objects;
-import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.texture.DynamicTexture;
-import net.minecraft.resources.ResourceLocation;
 import net.minecraft.util.Mth;
 
 public class SlippyMapTile {
@@ -14,7 +13,7 @@ public class SlippyMapTile {
    private float transition;
    private volatile NativeImage image;
    private volatile boolean deleted;
-   private ResourceLocation location;
+   private Object location;
    private DynamicTexture texture;
 
    public SlippyMapTile(SlippyMapTilePos pos) {
@@ -42,7 +41,7 @@ public class SlippyMapTile {
       }
    }
 
-   public ResourceLocation getLocation() {
+   public Object getLocation() {
       synchronized (this.lock) {
          if (this.deleted) {
             return null;
@@ -69,7 +68,7 @@ public class SlippyMapTile {
             this.image = null;
          }
          if (this.location != null) {
-            Minecraft.getInstance().getTextureManager().release(Objects.requireNonNull(this.location, "tileLocation"));
+            ClientMinecraftCompat.releaseTexture(Objects.requireNonNull(this.location, "tileLocation"));
             this.location = null;
             this.texture = null;
          } else if (this.texture != null) {
@@ -79,15 +78,17 @@ public class SlippyMapTile {
       }
    }
 
-   private ResourceLocation uploadImage() {
+   private Object uploadImage() {
       synchronized (this.lock) {
          NativeImage image = Objects.requireNonNull(this.image, "tileImage");
          this.image = null;
-         DynamicTexture texture = Objects.requireNonNull(new DynamicTexture(image), "tileTexture");
+         DynamicTexture texture = Objects.requireNonNull(
+            ClientMinecraftCompat.createDynamicTexture(image, "tellus_map_" + this.pos), "tileTexture"
+         );
          this.texture = texture;
          texture.upload();
-         ResourceLocation id = Objects.requireNonNull(Tellus.id("map_" + this.pos), "tileId");
-         Minecraft.getInstance().getTextureManager().register(id, texture);
+         Object id = Objects.requireNonNull(Tellus.id("map_" + this.pos), "tileId");
+         ClientMinecraftCompat.registerTexture(id, texture);
          return id;
       }
    }

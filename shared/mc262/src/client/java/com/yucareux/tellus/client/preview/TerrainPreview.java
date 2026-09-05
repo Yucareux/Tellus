@@ -40,6 +40,7 @@ import com.yucareux.tellus.worldgen.building.TellusBuildingBlueprints;
 import com.yucareux.tellus.worldgen.building.TellusBuildingProfiles;
 import com.yucareux.tellus.worldgen.building.TellusBuildingStyles;
 import com.yucareux.tellus.worldgen.BadlandsTerrainPolicy;
+import com.yucareux.tellus.worldgen.AntarcticSnowPolicy;
 import com.yucareux.tellus.worldgen.EarthGeneratorSettings;
 import com.yucareux.tellus.worldgen.MountainSurfaceRules;
 import com.yucareux.tellus.worldgen.EarthProjection;
@@ -373,6 +374,7 @@ public final class TerrainPreview implements AutoCloseable {
       boolean roadsPreviewEnabled = settings.enableRoads() && settings.worldScale() > 0.0 && settings.worldScale() <= 15.0;
       boolean buildingsPreviewEnabled = settings.enableBuildings() && settings.worldScale() > 0.0 && settings.worldScale() <= 15.0 && this.osmBuildingSource.available();
       double worldScale = settings.worldScale();
+      AntarcticSnowPolicy antarcticSnowPolicy = AntarcticSnowPolicy.forWorldScale(worldScale);
       boolean useVisualCover = worldScale > 0.0 && worldScale < 10.0;
       long terrainDownloadUnits = gridArea;
       long coverDownloadUnits = (long)coverSize * coverSize * (useVisualCover ? 2L : 1L);
@@ -795,7 +797,7 @@ public final class TerrainPreview implements AutoCloseable {
                oceanFallbackMask[idx],
                !waterPreviewEnabled,
                settings.enableWater(),
-               false,
+               antarcticSnowPolicy.shouldUseSnowFallback(rawCoverClass, blockZ),
                desert,
                badlands,
                (int)Math.round(blockX),
@@ -1004,6 +1006,7 @@ public final class TerrainPreview implements AutoCloseable {
 
       int size = snapshot.size();
       double worldScale = snapshot.worldScale();
+      AntarcticSnowPolicy antarcticSnowPolicy = AntarcticSnowPolicy.forWorldScale(worldScale);
       boolean roadsPreviewEnabled = settings.enableRoads() && worldScale > 0.0 && worldScale <= 15.0;
       boolean buildingsPreviewEnabled = settings.enableBuildings() && worldScale > 0.0 && worldScale <= 15.0 && this.osmBuildingSource.available();
       boolean waterPreviewEnabled = settings.enableWater() && worldScale > 0.0 && this.osmWaterSource.available();
@@ -1087,7 +1090,7 @@ public final class TerrainPreview implements AutoCloseable {
                snapshot.oceanFallbackMask()[idx],
                !waterPreviewEnabled,
                settings.enableWater(),
-               false,
+               antarcticSnowPolicy.shouldUseSnowFallback(rawCoverClass, blockZ),
                snapshot.desertMask()[idx],
                snapshot.badlandsMask()[idx],
                (int)Math.round(blockX),
@@ -3405,7 +3408,7 @@ public final class TerrainPreview implements AutoCloseable {
       boolean oceanWater,
       boolean fallbackInlandWaterEnabled,
       boolean flattenWaterColor,
-      boolean remaSnowTerrain,
+      boolean antarcticSnowTerrain,
       boolean desert,
       boolean badlands,
       int worldX,
@@ -3416,7 +3419,7 @@ public final class TerrainPreview implements AutoCloseable {
       if (waterDepth >= 0.0) {
          return flattenWaterColor ? PREVIEW_FLAT_WATER_COLOR : waterColorForDepth(waterDepth);
       } else {
-         boolean snowSource = MountainSurfaceRules.hasSnowSource(surfaceCoverClass, remaSnowTerrain);
+         boolean snowSource = MountainSurfaceRules.hasSnowSource(surfaceCoverClass, antarcticSnowTerrain);
          if (snowSource && SnowSlopePolicy.shouldCover(worldX, worldZ, demSlopeDegrees)) {
             return 16119285;
          }
@@ -3442,7 +3445,7 @@ public final class TerrainPreview implements AutoCloseable {
             heightAboveSea,
             slopeDiff,
             convexity,
-            remaSnowTerrain,
+            antarcticSnowTerrain,
             vegetationTransitionWeight,
             worldX,
             worldZ

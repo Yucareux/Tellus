@@ -31,9 +31,22 @@ plugins {
 
 rootProject.name = 'Tellus'
 
-include('mc1211')
-include('mc1211-neoforge')
-include('mc262')
-include('mc262-neoforge')
-include('mc1201')
-include('mc1201-forge')
+def availableTellusTargets = [
+	'mc1201',
+	'mc1201-forge',
+	'mc1211',
+	'mc1211-neoforge',
+	'mc12111',
+	'mc12111-neoforge',
+	'mc262',
+	'mc262-neoforge',
+]
+def requestedTellusTargets = providers.gradleProperty('tellusTargets').orNull
+def selectedTellusTargets = requestedTellusTargets == null
+	? availableTellusTargets
+	: requestedTellusTargets.split(',').collect { it.trim() }.findAll { !it.isEmpty() }
+def unknownTellusTargets = selectedTellusTargets - availableTellusTargets
+if (!unknownTellusTargets.isEmpty()) {
+	throw new GradleException("Unknown Tellus target(s): ${unknownTellusTargets.join(', ')}")
+}
+selectedTellusTargets.each { include(it) }

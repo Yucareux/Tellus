@@ -20,6 +20,10 @@ public final class SnowSlopePolicy {
       }
    }
 
+   public static boolean hasFullCoverage(double slopeDegrees) {
+      return coveragePercent(slopeDegrees) == 100;
+   }
+
    public static boolean shouldCover(int worldX, int worldZ, double slopeDegrees) {
       int coverage = coveragePercent(slopeDegrees);
       if (coverage >= 100) {

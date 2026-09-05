@@ -61,7 +61,8 @@ import java.util.zip.GZIPOutputStream;
  * built-in overview levels reduce I/O for larger world scales and LODs.</p>
  */
 public final class TellusLandCoverSource implements TellusCacheHandle {
-   static final int NO_DATA_CLASS = 0;
+   public static final int NO_DATA_CLASS = 0;
+   public static final int WORLD_COVER_MIN_LATITUDE = WorldCoverCogSource.MIN_TILE_LAT;
    static final int TREE_COVER_CLASS = 10;
    static final int SHRUBLAND_CLASS = 20;
    static final int GRASSLAND_CLASS = 30;

@@ -27,6 +27,7 @@ import com.yucareux.tellus.integration.distant_horizons.managed.ManagedTerrainAv
 import com.yucareux.tellus.integration.distant_horizons.managed.ManagedTerrainCompatibility;
 import com.yucareux.tellus.integration.distant_horizons.managed.ManagedTerrainNetworkPolicy;
 import com.yucareux.tellus.world.realtime.TellusRealtimeState;
+import com.yucareux.tellus.worldgen.AntarcticSnowPolicy;
 import com.yucareux.tellus.worldgen.DhLodWaterResolver;
 import com.yucareux.tellus.worldgen.EarthBiomeSource;
 import com.yucareux.tellus.worldgen.EarthChunkGenerator;
@@ -1164,6 +1165,7 @@ public final class TellusLodGenerator implements IDhApiWorldGenerator {
       int baseZ = SectionPos.sectionToBlockCoord(chunkPosMinZ);
       int minY = this.generator.getMinY();
       EarthGeneratorSettings settings = this.generator.settings();
+      AntarcticSnowPolicy antarcticSnowPolicy = AntarcticSnowPolicy.forWorldScale(settings.worldScale());
       int maxY = dhCompatibleMaxY(minY, this.generator);
       int absoluteTop = maxY - minY;
       TellusLodGenerator.WrapperCache wrappers = this.wrapperCache.get();
@@ -1237,7 +1239,7 @@ public final class TellusLodGenerator implements IDhApiWorldGenerator {
       int[] lodConvexities = new int[area];
       IDhApiBiomeWrapper[] biomeWrappers = new IDhApiBiomeWrapper[area];
       Holder<Biome>[] biomeHolders = newBiomeHolderArray(area);
-      boolean[] remaSnowTerrainFlags = new boolean[area];
+      boolean[] antarcticSnowTerrainFlags = new boolean[area];
       boolean sampleTimingEnabled = trace.isEnabled();
       long sampleCoverNanos = 0L;
       long sampleVisualCoverNanos = 0L;
@@ -1248,7 +1250,6 @@ public final class TellusLodGenerator implements IDhApiWorldGenerator {
       for (int localZ = 0; localZ < lodSizePoints; localZ++) {
          throwIfLodCancelled();
          int worldZ = worldZs[localZ];
-         boolean remaSnowTerrain = false;
 
          for (int localX = 0; localX < lodSizePoints; localX++) {
             int index = localZ * lodSizePoints + localX;
@@ -1272,7 +1273,7 @@ public final class TellusLodGenerator implements IDhApiWorldGenerator {
             }
             coverClasses[index] = coverClass;
             visualCoverClasses[index] = visualCoverClass;
-            remaSnowTerrainFlags[index] = remaSnowTerrain;
+            antarcticSnowTerrainFlags[index] = antarcticSnowPolicy.shouldUseSnowFallback(coverClass, worldZ);
          }
       }
       long sampleRepairStart = sampleTimingEnabled ? System.nanoTime() : 0L;
@@ -1486,7 +1487,7 @@ public final class TellusLodGenerator implements IDhApiWorldGenerator {
                visualCoverClass,
                lodSlopeDiffs[index],
                lodConvexities[index],
-               remaSnowTerrainFlags[index],
+               antarcticSnowTerrainFlags[index],
                osmQueryMode,
                detail <= LOD_OSM_SURFACE_MAX_DETAIL
             );

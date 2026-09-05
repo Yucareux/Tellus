@@ -1,6 +1,7 @@
 package com.yucareux.tellus.client.screen;
 
 import com.mojang.serialization.Lifecycle;
+import com.yucareux.tellus.compat.ClientMinecraftCompat;
 import com.yucareux.tellus.worldgen.EarthGeneratorSettings;
 import java.util.ArrayList;
 import java.util.List;
@@ -33,7 +34,8 @@ abstract class EarthCustomizeScreenVersionCompat extends Screen {
    protected static <T> void registerCopy(
       Registry<T> source, MappedRegistry<T> copy, ResourceKey<T> key, T value
    ) {
-      copy.register(key, value, Objects.requireNonNull(source.lifecycle(value), "registryLifecycle"));
+      T sourceValue = Objects.requireNonNull(source.get(key), "sourceRegistryValue");
+      copy.register(key, value, Objects.requireNonNull(source.lifecycle(sourceValue), "registryLifecycle"));
    }
 
    protected static void registerUpdatedDimensionType(
@@ -67,7 +69,13 @@ abstract class EarthCustomizeScreenVersionCompat extends Screen {
       return modes;
    }
 
-   protected static <T> Builder<T> configureCycleButton(Builder<T> builder, T initialValue, List<T> values) {
-      return builder.withInitialValue(initialValue).withValues(values);
+   protected static <T> Builder<T> configureCycleButton(
+      Function<T, Component> formatter, T initialValue, List<T> values
+   ) {
+      return ClientMinecraftCompat.cycleButtonBuilder(formatter, initialValue, values);
+   }
+
+   protected static Builder<Boolean> configureBooleanCycleButton(Component yes, Component no, boolean initialValue) {
+      return ClientMinecraftCompat.booleanCycleButtonBuilder(yes, no, initialValue);
    }
 }

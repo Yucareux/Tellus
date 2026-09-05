@@ -32,6 +32,13 @@ bin/
 
 run/
 mc*/logs/
+mc*/.fabric/
+mc*/config/
+mc*/data/
+mc*/downloads/
+mc*/tellus/
+mc*/options.txt
+mc*/usercache.json
 
 # local build and integration output
 

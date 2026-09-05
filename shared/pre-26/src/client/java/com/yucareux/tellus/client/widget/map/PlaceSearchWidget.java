@@ -2,6 +2,8 @@ package com.yucareux.tellus.client.widget.map;
 
 import com.google.common.util.concurrent.ThreadFactoryBuilder;
 import com.yucareux.tellus.Tellus;
+import com.yucareux.tellus.client.compat.AbstractTellusButton;
+import com.yucareux.tellus.client.compat.AbstractTellusEditBox;
 import com.yucareux.tellus.compat.ClientMinecraftCompat;
 import com.yucareux.tellus.world.data.source.Geocoder;
 import java.util.ArrayList;
@@ -15,9 +17,8 @@ import java.util.concurrent.TimeUnit;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.components.Button;
-import net.minecraft.client.gui.components.EditBox;
 import net.minecraft.network.chat.Component;
-public class PlaceSearchWidget extends EditBox {
+public class PlaceSearchWidget extends AbstractTellusEditBox {
    private static final int SUGGESTION_COUNT = 5;
    private static final int SUGGESTION_HEIGHT = 20;
    private static final int SUGGESTION_GAP = 2;
@@ -77,10 +78,10 @@ public class PlaceSearchWidget extends EditBox {
       int height = this.getHeight();
       graphics.fill(x - 1, y - 1, x + width + 1, y + height + 1, -6250336);
       graphics.fill(x, y, x + width, y + height, this.state.getBackgroundColor());
-      graphics.pose().pushPose();
-      graphics.pose().translate((float)SEARCH_TEXT_OFFSET_X, (height - 8) / 2.0F - 1.0F, 0.0F);
+      ClientMinecraftCompat.pushPose(graphics);
+      ClientMinecraftCompat.translatePose(graphics, (float)SEARCH_TEXT_OFFSET_X, (height - 8) / 2.0F - 1.0F);
       super.renderWidget(graphics, mouseX, mouseY, delta);
-      graphics.pose().popPose();
+      ClientMinecraftCompat.popPose(graphics);
       if (this.shouldShowSuggestions()) {
          this.layoutSuggestionButtons();
 
@@ -90,16 +91,16 @@ public class PlaceSearchWidget extends EditBox {
       }
    }
 
-   public boolean mouseClicked(double mouseX, double mouseY, int button) {
+   protected boolean tellusMouseClicked(double mouseX, double mouseY, int button) {
       if (this.isVisible() && this.shouldShowSuggestions() && button == 0) {
          for (Button suggestionButton : this.suggestionButtons) {
-            if (suggestionButton.mouseClicked(mouseX, mouseY, button)) {
+            if (ClientMinecraftCompat.mouseClicked(suggestionButton, mouseX, mouseY, button)) {
                return true;
             }
          }
       }
 
-      return super.mouseClicked(mouseX, mouseY, button);
+      return super.tellusMouseClicked(mouseX, mouseY, button);
    }
 
    public boolean isMouseOver(double mouseX, double mouseY) {
@@ -118,7 +119,7 @@ public class PlaceSearchWidget extends EditBox {
       }
    }
 
-   public boolean keyPressed(int keyCode, int scanCode, int modifiers) {
+   protected boolean tellusKeyPressed(int keyCode, int scanCode, int modifiers) {
       if (!this.isFocused()) {
          return false;
       } else {
@@ -128,7 +129,7 @@ public class PlaceSearchWidget extends EditBox {
             this.clearSuggestions();
             this.handleAccept();
             return true;
-         } else if (super.keyPressed(keyCode, scanCode, modifiers)) {
+         } else if (super.tellusKeyPressed(keyCode, scanCode, modifiers)) {
             this.state = PlaceSearchWidget.State.OK;
             return true;
          } else {
@@ -351,15 +352,15 @@ public class PlaceSearchWidget extends EditBox {
          return this.backgroundColor;
       }
    }
-   private static final class SuggestionButton extends Button {
+   private static final class SuggestionButton extends AbstractTellusButton {
       private long scrollStartMillis = System.currentTimeMillis();
       private boolean wasHovering;
 
       private SuggestionButton(int x, int y, int width, int height, Component message, OnPress onPress) {
-         super(x, y, width, height, message, onPress, DEFAULT_NARRATION);
+         super(x, y, width, height, message, onPress);
       }
 
-      protected void renderWidget(GuiGraphics graphics, int mouseX, int mouseY, float delta) {
+      protected void renderTellusContents(GuiGraphics graphics, int mouseX, int mouseY, float delta) {
          int background = this.isHoveredOrFocused() ? -6710887 : -8355712;
          graphics.fill(this.getX(), this.getY(), this.getX() + this.getWidth(), this.getY() + this.getHeight(), background);
          graphics.renderOutline(this.getX(), this.getY(), this.getWidth(), this.getHeight(), -16777216);

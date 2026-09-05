@@ -1,6 +1,7 @@
 package com.yucareux.tellus.mixin;
 
 import com.yucareux.tellus.Tellus;
+import com.yucareux.tellus.compat.MinecraftVersionCompat;
 import com.yucareux.tellus.worldgen.EarthChunkGenerator;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.registries.Registries;
@@ -35,7 +36,7 @@ public abstract class MinecraftServerInitialSpawnMixin {
 
       BlockPos spawn = earthGenerator.getInitialSpawnPosition(level);
       listener.start(LevelLoadListener.Stage.PREPARE_GLOBAL_SPAWN, 0);
-      listener.updateFocus(level.dimension(), ChunkPos.containing(spawn));
+      listener.updateFocus(level.dimension(), MinecraftVersionCompat.chunkPosContaining(spawn));
       levelData.setSpawn(RespawnData.of(level.dimension(), spawn, 0.0F, 0.0F));
       if (generateBonusChest) {
          level.registryAccess()

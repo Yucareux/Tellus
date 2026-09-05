@@ -9,6 +9,8 @@ import com.yucareux.tellus.world.data.canopy.TellusCanopyHeightSource;
 import com.yucareux.tellus.world.data.resolve.ResolveBiome;
 import com.yucareux.tellus.world.data.resolve.ResolveEcoregion;
 import com.yucareux.tellus.world.data.resolve.ResolveRealm;
+import net.minecraft.SharedConstants;
+import net.minecraft.server.Bootstrap;
 import net.minecraft.util.RandomSource;
 import net.minecraft.world.level.biome.Biomes;
 import org.junit.jupiter.api.Test;
@@ -161,6 +163,8 @@ class TellusProceduralTreeGeneratorTest {
    @Test
    void registryFreePreviewPlanningUsesTheFullDetailBiomeProfiles() {
       assumeFalse(isMinecraftForge(), "Forge's raw JUnit bootstrap cannot initialize vanilla biome registry keys");
+      SharedConstants.tryDetectVersion();
+      Bootstrap.bootStrap();
       assertEquals(
          TellusProceduralTreeGenerator.Profile.TROPICAL,
          TellusProceduralTreeGenerator.plan(
