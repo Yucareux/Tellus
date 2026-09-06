@@ -6564,6 +6564,10 @@ public final class EarthChunkGenerator extends EarthChunkGeneratorVersionCompat 
       } else {
          phaseStart = beginLodSurfaceProfiling(profiler);
          BlockState top = underwater ? palette.underwaterTop() : palette.top();
+         // Full chunks apply biome snow after all terrain palette overrides.
+         if (!underwater && isSnowySurfaceBiome(biome)) {
+            top = SNOW_BLOCK_STATE;
+         }
          BlockState filler = this.resolveLodSurfaceFiller(
             palette,
             top,
@@ -6675,6 +6679,10 @@ public final class EarthChunkGenerator extends EarthChunkGeneratorVersionCompat 
       palette = this.applyDemDeepslateSlopePaletteOverride(palette, biome, worldX, worldZ, underwater, slopeDiff);
       palette = applyBadlandsCliffPalette(palette, biome, worldX, worldZ, surface, underwater, slopeDiff);
       BlockState top = underwater ? palette.underwaterTop() : palette.top();
+      // Keep the coarse LOD path consistent with the full-chunk snow pass too.
+      if (!underwater && isSnowySurfaceBiome(biome)) {
+         top = SNOW_BLOCK_STATE;
+      }
       BlockState filler = this.resolveLodSurfaceFiller(
          palette, top, underwater, biome, surfaceCoverClass, surface, slopeDiff, convexity, worldX, worldZ, snowLikeTerrain, mountainOsmQueryMode
       );
