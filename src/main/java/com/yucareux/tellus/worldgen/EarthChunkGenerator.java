@@ -197,9 +197,7 @@ public final class EarthChunkGenerator extends TellusChunkGeneratorBridge {
    private static final double OCEAN_MONUMENT_MIN_OCEAN_RATIO = 0.85;
    private static final double OCEAN_MONUMENT_MIN_DEEP_OCEAN_RATIO = 0.7;
    private static final int OCEAN_MONUMENT_TOP_BELOW_SEA = 2;
-   private static final int OSM_CROSSING_SCAN_RADIUS = 8;
-   private static final int OSM_CROSSING_STRIPE_RADIUS = 3;
-   private static final int OSM_CROSSING_HALF_SPAN = 6;
+   private static final int OSM_CROSSING_QUERY_MARGIN = 32;
    private static final BlockState ROAD_MAIN_STATE = TellusBlockReferences.concreteState("GRAY");
    private static final BlockState ROAD_PAVED_LIGHT_STATE = TellusBlockReferences.concreteState("LIGHT_GRAY");
    private static final BlockState ROAD_PAVED_SMOOTH_STATE = Blocks.SMOOTH_STONE.defaultBlockState();
@@ -1803,8 +1801,13 @@ public final class EarthChunkGenerator extends TellusChunkGeneratorBridge {
                   double blocksPerDegree = blocksPerDegree(worldScale);
                   Long2ObjectOpenHashMap<EarthChunkGenerator.RoadColumnSample> edgeColumnCache = scratch.edgeColumnCache;
                   edgeColumnCache.clear();
+                  List<OsmStreetLightFeature> crossings = filterRoadPointsByKind(
+                     this.fetchOsmRoadPointsForAreaDetailed(chunkMinX, chunkMinZ, chunkMaxX, chunkMaxZ, OSM_CROSSING_QUERY_MARGIN, queryMode).features(),
+                     RoadPointKind.CROSSING
+                  );
                   this.rasterizeRoadClassPass(
                      mainRoads,
+                     crossings,
                      RoadClass.MAIN,
                      widths.main(),
                      blocksPerDegree,
@@ -1836,6 +1839,7 @@ public final class EarthChunkGenerator extends TellusChunkGeneratorBridge {
                   );
                   this.rasterizeRoadClassPass(
                      normalRoads,
+                     crossings,
                      RoadClass.NORMAL,
                      widths.normal(),
                      blocksPerDegree,
@@ -1867,6 +1871,7 @@ public final class EarthChunkGenerator extends TellusChunkGeneratorBridge {
                   );
                   this.rasterizeRoadClassPass(
                      dirtRoads,
+                     crossings,
                      RoadClass.DIRT,
                      widths.dirt(),
                      blocksPerDegree,
@@ -2224,6 +2229,7 @@ public final class EarthChunkGenerator extends TellusChunkGeneratorBridge {
 
    private void rasterizeRoadClassPass(
       List<RoadFeature> roads,
+      List<OsmStreetLightFeature> crossings,
       RoadClass roadClass,
       int roadWidth,
       double blocksPerDegree,
@@ -2271,6 +2277,7 @@ public final class EarthChunkGenerator extends TellusChunkGeneratorBridge {
             if (road.mode() == RoadMode.BRIDGE) {
                this.rasterizeRoadFeature(
                   road,
+                  crossings,
                   featureRoadWidth,
                   blocksPerDegree,
                   extMinX,
@@ -2294,6 +2301,7 @@ public final class EarthChunkGenerator extends TellusChunkGeneratorBridge {
             } else {
                this.rasterizeRoadFeature(
                   road,
+                  crossings,
                   featureRoadWidth,
                   blocksPerDegree,
                   extMinX,
@@ -2373,6 +2381,7 @@ public final class EarthChunkGenerator extends TellusChunkGeneratorBridge {
 
    private void rasterizeRoadFeature(
       RoadFeature road,
+      List<OsmStreetLightFeature> crossings,
       int roadWidth,
       double blocksPerDegree,
       int extMinX,
@@ -2440,6 +2449,7 @@ public final class EarthChunkGenerator extends TellusChunkGeneratorBridge {
 
             double halfWidth = Math.max(0.5, (roadWidth - 1) * 0.5);
             double radiusSq = halfWidth * halfWidth + 1.0E-6;
+            double[] crossingStations = crossingStationsOnRoad(road, roadWidth, crossings, blocksPerDegree, worldScale);
             double segmentStart = 0.0;
             double x1 = startWorldX;
             double z1 = startWorldZ;
@@ -2518,8 +2528,13 @@ public final class EarthChunkGenerator extends TellusChunkGeneratorBridge {
                               if (candidateStyle != null && candidateMarking != null) {
                                  candidateStyle[extIndex] = RoadSurfaceStyle.surfaceStyleId(road, worldCellX, worldCellZ);
                                  double lateralDistance = ((worldCellX - projectionX) * -dz + (worldCellZ - projectionZ) * dx) / segmentLength;
-                                 candidateMarking[extIndex] = RoadSurfaceStyle.shouldDrawLaneMarking(
-                                    road, roadWidth, station, lateralDistance, Math.sqrt(distanceSq), 0.45
+                                 candidateMarking[extIndex] = RoadCrossingLayout.marking(
+                                    crossingStations,
+                                    station,
+                                    lateralDistance,
+                                    dx / segmentLength,
+                                    dz / segmentLength,
+                                    RoadSurfaceStyle.shouldDrawLaneMarking(road, roadWidth, station, lateralDistance, Math.sqrt(distanceSq), 0.45)
                                  );
                               }
                               if (candidateMode != null && candidateTunnelCarve != null) {
@@ -2538,6 +2553,34 @@ public final class EarthChunkGenerator extends TellusChunkGeneratorBridge {
             }
          }
       }
+   }
+
+   private static double[] crossingStationsOnRoad(
+      RoadFeature road, int roadWidth, List<OsmStreetLightFeature> crossings, double blocksPerDegree, double worldScale
+   ) {
+      if (crossings.isEmpty()
+         || roadWidth < 3
+         || road.mode() == RoadMode.TUNNEL
+         || RoadSurfaceStyle.isPedestrianLike(road)
+         || RoadSurfaceStyle.isUnpaved(road.roadSurface())) {
+         return RoadCrossingLayout.NO_CROSSINGS;
+      }
+
+      double[] xs = new double[road.pointCount()];
+      double[] zs = new double[road.pointCount()];
+      for (int i = 0; i < xs.length; i++) {
+         xs[i] = road.lonAt(i) * blocksPerDegree;
+         zs[i] = EarthProjection.latToBlockZ(road.latAt(i), worldScale);
+      }
+
+      double[] crossingXs = new double[crossings.size()];
+      double[] crossingZs = new double[crossings.size()];
+      for (int i = 0; i < crossingXs.length; i++) {
+         crossingXs[i] = crossings.get(i).longitude() * blocksPerDegree;
+         crossingZs[i] = EarthProjection.latToBlockZ(crossings.get(i).latitude(), worldScale);
+      }
+
+      return RoadCrossingLayout.crossingStations(xs, zs, crossingXs, crossingZs);
    }
 
    private EarthChunkGenerator.RoadColumnSample sampleRoadColumnForOverlay(
@@ -9624,9 +9667,6 @@ public final class EarthChunkGenerator extends TellusChunkGeneratorBridge {
          int localX = quantizeRoadCoordinate(roadPoint.longitude() * blocksPerDegree) - chunkMinX;
          int localZ = quantizeRoadCoordinate(EarthProjection.latToBlockZ(roadPoint.latitude(), worldScale)) - chunkMinZ;
          switch (kind) {
-            case CROSSING -> this.paintZebraCrossing(
-               level, chunk, cursor, chunkMinX, chunkMinZ, chunkMinY, chunkMaxY, localX, localZ, chunkRoadClass, chunkRoadMode, chunkRoadDeckY, preparedBuildings
-            );
             case TRAFFIC_SIGNAL -> this.placeRoadSignal(
                level,
                chunk,
@@ -9678,61 +9718,6 @@ public final class EarthChunkGenerator extends TellusChunkGeneratorBridge {
             );
             default -> {
             }
-         }
-      }
-   }
-
-   private void paintZebraCrossing(
-      WorldGenLevel level,
-      ChunkAccess chunk,
-      MutableBlockPos cursor,
-      int chunkMinX,
-      int chunkMinZ,
-      int chunkMinY,
-      int chunkMaxY,
-      int localX,
-      int localZ,
-      byte[] chunkRoadClass,
-      byte[] chunkRoadMode,
-      int[] chunkRoadDeckY,
-      EarthChunkGenerator.PreparedChunkBuildings preparedBuildings
-   ) {
-      RoadCrossingLayout.Anchor anchor = RoadCrossingLayout.findAnchor(
-         localX,
-         localZ,
-         chunkRoadClass,
-         chunkRoadMode,
-         (byte)(RoadMode.TUNNEL.ordinal() + 1),
-         CHUNK_SIDE,
-         OSM_CROSSING_SCAN_RADIUS
-      );
-      if (anchor == null) {
-         return;
-      }
-
-      for (RoadCrossingLayout.Cell cell : RoadCrossingLayout.markedCells(
-         anchor,
-         chunkRoadClass,
-         chunkRoadMode,
-         (byte)(RoadMode.TUNNEL.ordinal() + 1),
-         CHUNK_SIDE,
-         OSM_CROSSING_HALF_SPAN,
-         OSM_CROSSING_STRIPE_RADIUS
-      )) {
-         int targetX = cell.localX();
-         int targetZ = cell.localZ();
-         int deckY = chunkRoadDeckY[cell.index()];
-         if (deckY < chunkMinY || deckY > chunkMaxY) {
-            continue;
-         }
-
-         if (preparedBuildings != null && preparedBuildings.intersectsRoad(targetX, targetZ, deckY)) {
-            continue;
-         }
-
-         cursor.set(chunkMinX + targetX, deckY, chunkMinZ + targetZ);
-         if (isRoadDeckState(blockStateAt(level, chunk, cursor))) {
-            this.setChunkBlock(level, chunk, cursor, ROAD_MARKING_STATE);
          }
       }
    }
