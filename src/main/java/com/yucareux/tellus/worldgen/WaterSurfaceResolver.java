@@ -77,6 +77,8 @@ public final class WaterSurfaceResolver implements TellusCacheHandle {
    private static final double BORDER_HEIGHT_PERCENTILE = 0.1;
    private static final double LAKE_SURFACE_HINT_PERCENTILE = 0.10;
    private static final int LAKE_MAX_TERRAIN_CUT = intProperty("tellus.water.lakeMaxTerrainCut", 12, 1, 64);
+   // A planned lake spreads up to 7 blocks past its mapped outline onto lower shore.
+   private static final double LAKE_SHORE_REACH = 8.0;
    private static final int MAX_LAKE_SURFACE_CACHE = intProperty("tellus.waterLakeSurfaceCacheSize", 8192, 256, 65536);
    private static final int MAX_FEATURE_SURFACE_SAMPLES = intProperty("tellus.water.featureSurfaceSamples", 128, 8, 2048);
    private static final int ESA_LAKE_KEY_GRID_BLOCKS = intProperty("tellus.water.esaLakeKeyGridBlocks", 512, 64, 8192);
@@ -465,6 +467,18 @@ public final class WaterSurfaceResolver implements TellusCacheHandle {
       if (!region.sourceConversionProtection[index]) return false;
       return this.inlandCoastProtection(regionCoord(x), regionCoord(z)).band()[index] || y == region.waterSurface[index]
          || region.falling[index] && y > region.terrainSurface[index] && y <= region.waterSurface[index];
+   }
+
+   /** Whether this column's water belongs to a mapped lake rather than a river; false until its map has loaded. */
+   public boolean isLakeWater(int x, int z) {
+      if (!this.osmWaterEnabled) return false;
+      try {
+         return this.inlandHydrology.nearLake(x, z, LAKE_SHORE_REACH);
+      } catch (RuntimeException error) {
+         // Block ticks ask again later; a tile still loading must not fail the server tick.
+         if (findOceanCoverageError(error) == null) throw error;
+         return false;
+      }
    }
 
    static boolean isSourceConversionProtectedCell(

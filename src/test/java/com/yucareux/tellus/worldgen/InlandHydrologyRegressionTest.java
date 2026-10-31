@@ -43,6 +43,19 @@ class InlandHydrologyRegressionTest {
          (x, z) -> Integer.MIN_VALUE, (x, z) -> true, (m, z) -> m);
    }
 
+   @Test void onlyMappedLakesCountAsLakeWater() {
+      OsmWaterFeature lake = feature(900, false, OsmWaterKind.LAKE, 100, 100, 300, 100, 300, 300, 100, 300, 100, 100);
+      OsmWaterFeature river = feature(901, false, OsmWaterKind.RIVER, 500, 100, 540, 100, 540, 900, 500, 900, 500, 100);
+      OsmWaterFeature stream = feature(902, true, OsmWaterKind.STREAM, 700, 100, 700, 900);
+      InlandHydrologyPlanner planner = planner((x, z) -> 100.0, 30, lake, river, stream);
+      assertTrue(planner.nearLake(200, 200, 8.0));
+      assertTrue(planner.nearLake(305, 200, 8.0), "Lake water spread past the outline");
+      assertFalse(planner.nearLake(320, 200, 8.0));
+      assertFalse(planner.nearLake(520, 500, 8.0), "River area");
+      assertFalse(planner.nearLake(700, 500, 8.0), "Stream line");
+      assertFalse(planner.nearLake(400, 600, 8.0), "Dry land");
+   }
+
    @Test void narrowRiverFollowingTileEdgeDoesNotSproutTransverseChannels() {
       OsmWaterFeature line = feature(1, true, OsmWaterKind.RIVER, 1022, 128, 1022, 896);
       InlandHydrologyPlanner planner = planner((x, z) -> 80.0 + Math.abs(x - 1022) * 0.4, 30, line);

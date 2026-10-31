@@ -5,6 +5,7 @@
 	"mixins": [
 		"DistantHorizonsChunkUpdateMixin",
 		"BiomeFreezeMixin",
+		"IceBlockMeltMixin",
 		"BiomePrecipitationMixin",
 		"BlockEntityLoadStaticMixin",
 		"BlockPosHighYMixin",

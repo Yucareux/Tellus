@@ -93,6 +93,23 @@ class EarthGeneratorSettingsCodecTest {
    }
 
    @Test
+   void lakeFreezingDefaultOnAndRoundTrip() {
+      assertTrue(EarthGeneratorSettings.DEFAULT.lakeFreezing());
+      // Worlds saved before the setting existed already froze water, so they keep lake freezing on.
+      EarthGeneratorSettings legacy = requireSuccess(EarthGeneratorSettings.CODEC.parse(JsonOps.INSTANCE, JsonParser.parseString("{\"realtime_weather\":true}")));
+      assertTrue(legacy.lakeFreezing());
+
+      EarthGeneratorSettings disabled = requireSuccess(
+         EarthGeneratorSettings.CODEC.parse(JsonOps.INSTANCE, JsonParser.parseString("{\"lake_freezing\":false,\"add_abandoned_camps\":true}"))
+      );
+      JsonObject encoded = requireSuccess(EarthGeneratorSettings.CODEC.encodeStart(JsonOps.INSTANCE, disabled)).getAsJsonObject();
+      assertFalse(disabled.lakeFreezing());
+      assertTrue(disabled.addAbandonedCamps());
+      assertFalse(encoded.get("lake_freezing").getAsBoolean());
+      assertEquals(disabled, requireSuccess(EarthGeneratorSettings.CODEC.parse(JsonOps.INSTANCE, encoded)));
+   }
+
+   @Test
    void abandonedCampsDefaultOffAndRoundTrip() {
       assertFalse(EarthGeneratorSettings.DEFAULT.addAbandonedCamps());
       // Worlds saved before the setting existed keep camps off.

@@ -225,6 +225,8 @@
   "property.tellus.historical_snow.name": "過去の積雪範囲",
   "property.tellus.historical_snow.tooltip": "最近の降雪と気温履歴に基づいて雪を適用します",
   "property.tellus.historical_snow.rework.tooltip": "この機能は現在作り直し中です",
+  "property.tellus.lake_freezing.name": "湖の結氷",
+  "property.tellus.lake_freezing.tooltip": "現実の気温に従い、0 °C 未満の日が続くと湖が凍り、0 °C を上回る日が続くと解けます。川と海は凍りません",
   "property.tellus.voxy_chunk_pregen_enabled.name": "Voxy チャンク事前生成",
   "property.tellus.voxy_chunk_pregen_enabled.tooltip": "Voxy が取り込んで描画できるように、プレイヤー周辺にフルチャンクを生成します",
   "property.tellus.voxy_chunk_pregen_max_radius.name": "事前生成最大半径",

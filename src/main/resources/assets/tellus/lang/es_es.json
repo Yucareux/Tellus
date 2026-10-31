@@ -225,6 +225,8 @@
   "property.tellus.historical_snow.name": "Cobertura de nieve histórica",
   "property.tellus.historical_snow.tooltip": "Aplica nieve según nevadas recientes y el historial de temperatura",
   "property.tellus.historical_snow.rework.tooltip": "Esta función se está rediseñando actualmente",
+  "property.tellus.lake_freezing.name": "Congelación de lagos",
+  "property.tellus.lake_freezing.tooltip": "Los lagos se congelan tras días bajo 0 °C y se descongelan tras días sobre esa temperatura, según la temperatura real. Los ríos y el mar nunca se congelan",
   "property.tellus.voxy_chunk_pregen_enabled.name": "Pregeneración de chunks de Voxy",
   "property.tellus.voxy_chunk_pregen_enabled.tooltip": "Genera chunks completos alrededor de los jugadores para que Voxy pueda ingerirlos y renderizarlos",
   "property.tellus.voxy_chunk_pregen_max_radius.name": "Radio máximo de pregeneración",

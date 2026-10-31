@@ -225,6 +225,8 @@
   "property.tellus.historical_snow.name": "Historical Snow Coverage",
   "property.tellus.historical_snow.tooltip": "Applies snow based on recent snowfall and temperature history",
   "property.tellus.historical_snow.rework.tooltip": "This feature is currently being reworked",
+  "property.tellus.lake_freezing.name": "Lake Freezing",
+  "property.tellus.lake_freezing.tooltip": "Lakes freeze after days below 0 °C and thaw after days above it, following the real-world temperature. Rivers and the sea never freeze",
   "property.tellus.voxy_chunk_pregen_enabled.name": "Voxy Chunk Pregen",
   "property.tellus.voxy_chunk_pregen_enabled.tooltip": "Generates full chunks around players so Voxy can ingest and render them",
   "property.tellus.voxy_chunk_pregen_max_radius.name": "Pregen Max Radius",

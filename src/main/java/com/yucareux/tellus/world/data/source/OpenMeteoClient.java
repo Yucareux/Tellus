@@ -77,7 +77,7 @@ public final class OpenMeteoClient {
                OpenMeteoClient.SnowHistory history = parseSnowHistory(hourly);
                float snowIndex = computeSnowIndex(history);
                return new OpenMeteoClient.WeatherPointData(
-                  latitude, longitude, utcOffset, timezoneId, weatherCode, temperature, precipitation, snowfall, snowIndex
+                  latitude, longitude, utcOffset, timezoneId, weatherCode, temperature, precipitation, snowfall, snowIndex, history.avgTemp()
                );
             } catch (IOException error) {
                throw error;
@@ -92,7 +92,7 @@ public final class OpenMeteoClient {
 
    private static OpenMeteoClient.SnowHistory parseSnowHistory(JsonObject hourly) {
       if (hourly == null) {
-         return new OpenMeteoClient.SnowHistory(0.0F, 0, 0.0F);
+         return new OpenMeteoClient.SnowHistory(0.0F, 0, Float.NaN);
       } else {
          JsonArray temps = hourly.getAsJsonArray("temperature_2m");
          JsonArray snowfall = hourly.getAsJsonArray("snowfall");
@@ -120,10 +120,10 @@ public final class OpenMeteoClient {
                tempCount++;
             }
 
-            float avgTemp = tempCount == 0 ? 0.0F : tempSum / tempCount;
+            float avgTemp = tempCount == 0 ? Float.NaN : tempSum / tempCount;
             return new OpenMeteoClient.SnowHistory(snowSum, meltHours, avgTemp);
          } else {
-            return new OpenMeteoClient.SnowHistory(0.0F, 0, 0.0F);
+            return new OpenMeteoClient.SnowHistory(0.0F, 0, Float.NaN);
          }
       }
    }
@@ -156,6 +156,8 @@ public final class OpenMeteoClient {
    private record SnowHistory(float snowfallSum, int meltHours, float avgTemp) {
    }
 
+   // recentMeanTemperatureC is the mean over the snow history's hourly window, NaN without data.
+   // shortcut: that window is the last three calendar days, so today's later hours are forecast; stop at the current hour if lake ice timing needs it.
    public record WeatherPointData(
       double latitude,
       double longitude,
@@ -165,7 +167,8 @@ public final class OpenMeteoClient {
       float temperatureC,
       float precipitationMm,
       float snowfallCm,
-      float snowIndex
+      float snowIndex,
+      float recentMeanTemperatureC
    ) {
       public WeatherPointData(
          double latitude,
@@ -176,7 +179,8 @@ public final class OpenMeteoClient {
          float temperatureC,
          float precipitationMm,
          float snowfallCm,
-         float snowIndex
+         float snowIndex,
+         float recentMeanTemperatureC
       ) {
          timeZoneId = Objects.requireNonNullElse(timeZoneId, "UTC");
          this.latitude = latitude;
@@ -188,6 +192,7 @@ public final class OpenMeteoClient {
          this.precipitationMm = precipitationMm;
          this.snowfallCm = snowfallCm;
          this.snowIndex = snowIndex;
+         this.recentMeanTemperatureC = recentMeanTemperatureC;
       }
    }
 }

@@ -52,6 +52,15 @@ final class InlandHydrologyPlanner {
    }
 
    /**
+    * Whether a mapped lake, pond or reservoir, rather than a river or nothing, lies within {@code reach} blocks of
+    * a column. Reads only the map, never plans, and throws the unavailable-coverage error while its tile loads.
+    */
+   boolean nearLake(int x, int z, double reach) {
+      // shortcut: an untyped polygon the river plans level (Lake.flowing) still counts as a lake; ask the planned lake if such water visibly freezes.
+      return HydrologyWaterMap.hint(state.map.shapesWithoutWaiting(x, z), x, z, reach).lake();
+   }
+
+   /**
     * Water surface of an already planned lake: the identity-wide level that planned columns use,
     * independent of tile clipping and of the caller's resolution. Never plans a lake;
     * {@link Integer#MIN_VALUE} when this one is not planned (or incomplete), or for line and point water.

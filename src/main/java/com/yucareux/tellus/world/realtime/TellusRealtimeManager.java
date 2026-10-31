@@ -720,13 +720,18 @@ public final class TellusRealtimeManager {
          }
 
          float[] temperatures = new float[GRID_POINTS];
+         float[] recentMeanTemperatures = new float[GRID_POINTS];
          for (int i = 0; i < temperatures.length && i < points.length; i++) {
             temperatures[i] = points[i].temperatureC();
+            recentMeanTemperatures[i] = points[i].recentMeanTemperatureC();
          }
          TemperatureGrid temperatureGrid = new TemperatureGrid(
             anchor.centerX(), anchor.centerZ(), anchor.spacingBlocks(), temperatures, now
          );
          TellusRealtimeState.updateWeatherState(includeWeather, mode, includeSnow, grid, temperatureGrid);
+         TellusRealtimeState.updateRecentTemperature(
+            new TemperatureGrid(anchor.centerX(), anchor.centerZ(), anchor.spacingBlocks(), recentMeanTemperatures, now)
+         );
          this.sendWeatherPayload(server, includeWeather, mode, includeSnow, grid);
          if (includeSnow && this.pendingInitialSnowPass.getAndSet(false)) {
             ServerLevel level = server.getLevel(Level.OVERWORLD);

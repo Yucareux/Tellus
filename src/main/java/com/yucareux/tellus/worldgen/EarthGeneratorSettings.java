@@ -81,7 +81,8 @@ public record EarthGeneratorSettings(
    boolean automaticHeightScaling,
    boolean hugeRedMushrooms,
    int distantHorizonsCityLightsDistance,
-   boolean addAbandonedCamps
+   boolean addAbandonedCamps,
+   boolean lakeFreezing
 ) {
    public static final double DEFAULT_SPAWN_LATITUDE = 27.9881;
    public static final double DEFAULT_SPAWN_LONGITUDE = 86.925;
@@ -180,7 +181,8 @@ public record EarthGeneratorSettings(
       DEFAULT_AUTOMATIC_HEIGHT_SCALING,
       false,
       DEFAULT_DH_CITY_LIGHTS_DISTANCE,
-      false
+      false,
+      true
    );
    private static final MapCodec<EarthGeneratorSettings.BaseToggles> BASE_TOGGLES_CODEC = RecordCodecBuilder.mapCodec(
       instance -> instance.group(
@@ -412,6 +414,7 @@ public record EarthGeneratorSettings(
    );
    private static final MapCodec<Boolean> TRAIL_RUINS_CODEC = Codec.BOOL.fieldOf("add_trail_ruins").orElse(DEFAULT.addTrailRuins());
    private static final MapCodec<Boolean> ABANDONED_CAMPS_CODEC = Codec.BOOL.fieldOf("add_abandoned_camps").orElse(DEFAULT.addAbandonedCamps());
+   private static final MapCodec<Boolean> LAKE_FREEZING_CODEC = Codec.BOOL.fieldOf("lake_freezing").orElse(DEFAULT.lakeFreezing());
    private static final MapCodec<EarthGeneratorSettings> MAP_CODEC = MapCodec.of(
       new Implementation<EarthGeneratorSettings>() {
          public <T> RecordBuilder<T> encode(EarthGeneratorSettings input, DynamicOps<T> ops, RecordBuilder<T> prefix) {
@@ -448,6 +451,7 @@ public record EarthGeneratorSettings(
             builder = EarthGeneratorSettings.STRUCTURE_CODEC.encode(EarthGeneratorSettings.StructureSettings.fromSettings(input), ops, builder);
             builder = EarthGeneratorSettings.TRAIL_RUINS_CODEC.encode(input.addTrailRuins(), ops, builder);
             builder = EarthGeneratorSettings.ABANDONED_CAMPS_CODEC.encode(input.addAbandonedCamps(), ops, builder);
+            builder = EarthGeneratorSettings.LAKE_FREEZING_CODEC.encode(input.lakeFreezing(), ops, builder);
             builder = EarthGeneratorSettings.TELLUS_MANAGED_TERRAIN_DOWNLOADS_CODEC.encode(input.tellusManagedTerrainDownloads(), ops, builder);
             builder = EarthGeneratorSettings.SHOW_TERRAIN_DOWNLOAD_OVERLAY_CODEC.encode(input.showTerrainDownloadOverlay(), ops, builder);
             builder = EarthGeneratorSettings.CAVES_REACH_SURFACE_CODEC.encode(input.cavesReachSurface(), ops, builder);
@@ -493,7 +497,8 @@ public record EarthGeneratorSettings(
             baseKeys = Stream.concat(baseKeys, EarthGeneratorSettings.HUGE_RED_MUSHROOMS_CODEC.keys(ops));
             Stream<T> structureKeys = Stream.concat(baseKeys, EarthGeneratorSettings.STRUCTURE_CODEC.keys(ops));
             structureKeys = Stream.concat(structureKeys, EarthGeneratorSettings.TRAIL_RUINS_CODEC.keys(ops));
-            return Stream.concat(structureKeys, EarthGeneratorSettings.ABANDONED_CAMPS_CODEC.keys(ops));
+            structureKeys = Stream.concat(structureKeys, EarthGeneratorSettings.ABANDONED_CAMPS_CODEC.keys(ops));
+            return Stream.concat(structureKeys, EarthGeneratorSettings.LAKE_FREEZING_CODEC.keys(ops));
          }
       },
       new com.mojang.serialization.MapDecoder.Implementation<EarthGeneratorSettings>() {
@@ -537,6 +542,7 @@ public record EarthGeneratorSettings(
             DataResult<EarthGeneratorSettings.StructureSettings> structures = EarthGeneratorSettings.STRUCTURE_CODEC.decode(ops, input);
             DataResult<Boolean> trailRuins = EarthGeneratorSettings.TRAIL_RUINS_CODEC.decode(ops, input);
             DataResult<Boolean> abandonedCamps = EarthGeneratorSettings.ABANDONED_CAMPS_CODEC.decode(ops, input);
+            DataResult<Boolean> lakeFreezing = EarthGeneratorSettings.LAKE_FREEZING_CODEC.decode(ops, input);
             DataResult<EarthGeneratorSettings.SettingsBase> withRenderMode = base.apply2(
                EarthGeneratorSettings::applyDistantHorizonsRenderMode, distantHorizonsRenderMode
             );
@@ -574,6 +580,7 @@ public record EarthGeneratorSettings(
             settings = settings.apply2(EarthGeneratorSettings::withStructureSettings, structures);
             settings = settings.apply2(EarthGeneratorSettings::applyTrailRuins, trailRuins);
             settings = settings.apply2(EarthGeneratorSettings::applyAbandonedCamps, abandonedCamps);
+            settings = settings.apply2(EarthGeneratorSettings::applyLakeFreezing, lakeFreezing);
             settings = settings.apply2(EarthGeneratorSettings::applyThinShellTerrain, thinShellTerrain);
             settings = settings.apply2(EarthGeneratorSettings::applyRandomBiomes, randomBiomes);
             settings = settings.apply2(EarthGeneratorSettings::applyRandomBiomeDensity, randomBiomeDensity);
@@ -645,7 +652,8 @@ public record EarthGeneratorSettings(
             baseKeys = Stream.concat(baseKeys, EarthGeneratorSettings.HUGE_RED_MUSHROOMS_CODEC.keys(ops));
             Stream<T> structureKeys = Stream.concat(baseKeys, EarthGeneratorSettings.STRUCTURE_CODEC.keys(ops));
             structureKeys = Stream.concat(structureKeys, EarthGeneratorSettings.TRAIL_RUINS_CODEC.keys(ops));
-            return Stream.concat(structureKeys, EarthGeneratorSettings.ABANDONED_CAMPS_CODEC.keys(ops));
+            structureKeys = Stream.concat(structureKeys, EarthGeneratorSettings.ABANDONED_CAMPS_CODEC.keys(ops));
+            return Stream.concat(structureKeys, EarthGeneratorSettings.LAKE_FREEZING_CODEC.keys(ops));
          }
       }
    );
@@ -716,7 +724,8 @@ public record EarthGeneratorSettings(
       boolean automaticHeightScaling,
       boolean hugeRedMushrooms,
       int distantHorizonsCityLightsDistance,
-      boolean addAbandonedCamps
+      boolean addAbandonedCamps,
+      boolean lakeFreezing
    ) {
       worldScale = clampWorldScale(worldScale);
       randomBiomeDensity = Mth.clamp(randomBiomeDensity, MIN_RANDOM_BIOME_DENSITY, MAX_RANDOM_BIOME_DENSITY);
@@ -803,6 +812,7 @@ public record EarthGeneratorSettings(
       this.hugeRedMushrooms = hugeRedMushrooms;
       this.distantHorizonsCityLightsDistance = distantHorizonsCityLightsDistance;
       this.addAbandonedCamps = addAbandonedCamps;
+      this.lakeFreezing = lakeFreezing;
    }
 
    public double effectiveTerrestrialHeightScale() {
@@ -1066,7 +1076,7 @@ public record EarthGeneratorSettings(
          this.undergroundDepth, this.customTrees,
          this.automaticHeightScaling,
          this.hugeRedMushrooms,
-         this.distantHorizonsCityLightsDistance, this.addAbandonedCamps
+         this.distantHorizonsCityLightsDistance, this.addAbandonedCamps, this.lakeFreezing
       );
    }
 
@@ -1088,7 +1098,7 @@ public record EarthGeneratorSettings(
          this.showTerrainDownloadOverlay, this.cavesReachSurface, undergroundDepth, this.customTrees,
          this.automaticHeightScaling,
          this.hugeRedMushrooms,
-         this.distantHorizonsCityLightsDistance, this.addAbandonedCamps
+         this.distantHorizonsCityLightsDistance, this.addAbandonedCamps, this.lakeFreezing
       );
    }
 
@@ -1107,7 +1117,7 @@ public record EarthGeneratorSettings(
          this.distantHorizonsRenderMode, this.demSelection, this.enableRoads, this.enableBuildings, this.enableWater,
          this.thinShellTerrain, this.climateBasedBuiltUpTerrain, this.randomBiomes, this.randomBiomeDensity,
          this.randomBiomeSeed, this.randomBiomeIds, this.experimentalIncreaseHeight, this.tellusManagedTerrainDownloads,
-         this.showTerrainDownloadOverlay, this.cavesReachSurface, this.undergroundDepth, customTrees, this.automaticHeightScaling, this.hugeRedMushrooms, this.distantHorizonsCityLightsDistance, this.addAbandonedCamps
+         this.showTerrainDownloadOverlay, this.cavesReachSurface, this.undergroundDepth, customTrees, this.automaticHeightScaling, this.hugeRedMushrooms, this.distantHorizonsCityLightsDistance, this.addAbandonedCamps, this.lakeFreezing
       );
    }
 
@@ -1127,7 +1137,7 @@ public record EarthGeneratorSettings(
          this.thinShellTerrain, this.climateBasedBuiltUpTerrain, this.randomBiomes, this.randomBiomeDensity,
          this.randomBiomeSeed, this.randomBiomeIds, this.experimentalIncreaseHeight, this.tellusManagedTerrainDownloads,
          this.showTerrainDownloadOverlay, this.cavesReachSurface, this.undergroundDepth, this.customTrees,
-         this.automaticHeightScaling, hugeRedMushrooms, this.distantHorizonsCityLightsDistance, this.addAbandonedCamps
+         this.automaticHeightScaling, hugeRedMushrooms, this.distantHorizonsCityLightsDistance, this.addAbandonedCamps, this.lakeFreezing
       );
    }
 
@@ -1151,7 +1161,7 @@ public record EarthGeneratorSettings(
          this.thinShellTerrain, this.climateBasedBuiltUpTerrain, this.randomBiomes, this.randomBiomeDensity,
          this.randomBiomeSeed, this.randomBiomeIds, this.experimentalIncreaseHeight, this.tellusManagedTerrainDownloads,
          this.showTerrainDownloadOverlay, this.cavesReachSurface, this.undergroundDepth, this.customTrees,
-         this.automaticHeightScaling, this.hugeRedMushrooms, distanceChunks, this.addAbandonedCamps
+         this.automaticHeightScaling, this.hugeRedMushrooms, distanceChunks, this.addAbandonedCamps, this.lakeFreezing
       );
    }
 
@@ -1237,7 +1247,7 @@ public record EarthGeneratorSettings(
          this.customTrees,
          this.automaticHeightScaling,
          this.hugeRedMushrooms,
-         this.distantHorizonsCityLightsDistance, this.addAbandonedCamps
+         this.distantHorizonsCityLightsDistance, this.addAbandonedCamps, this.lakeFreezing
       );
    }
 
@@ -1265,7 +1275,31 @@ public record EarthGeneratorSettings(
          this.thinShellTerrain, this.climateBasedBuiltUpTerrain, this.randomBiomes, this.randomBiomeDensity,
          this.randomBiomeSeed, this.randomBiomeIds, this.experimentalIncreaseHeight, this.tellusManagedTerrainDownloads,
          this.showTerrainDownloadOverlay, this.cavesReachSurface, this.undergroundDepth, this.customTrees,
-         this.automaticHeightScaling, this.hugeRedMushrooms, this.distantHorizonsCityLightsDistance, addAbandonedCamps
+         this.automaticHeightScaling, this.hugeRedMushrooms, this.distantHorizonsCityLightsDistance, addAbandonedCamps, this.lakeFreezing
+      );
+   }
+
+   private static EarthGeneratorSettings applyLakeFreezing(EarthGeneratorSettings settings, Boolean lakeFreezing) {
+      return settings.withLakeFreezing(Objects.requireNonNull(lakeFreezing, "lakeFreezing"));
+   }
+
+   private EarthGeneratorSettings withLakeFreezing(boolean lakeFreezing) {
+      return new EarthGeneratorSettings(
+         this.worldScale, this.terrestrialHeightScale, this.oceanicHeightScale, this.heightOffset,
+         this.spawnLatitude, this.spawnLongitude, this.minAltitude, this.maxAltitude,
+         this.riverLakeShorelineBlend, this.oceanShorelineBlend, this.shorelineBlendCliffLimit, this.caveGeneration, this.oreDistribution, this.geologicalStonePatches, this.lavaPools,
+         this.addStrongholds, this.addVillages, this.addMineshafts, this.addOceanMonuments, this.addWoodlandMansions,
+         this.addDesertTemples, this.addJungleTemples, this.addPillagerOutposts, this.addRuinedPortals, this.addShipwrecks,
+         this.addOceanRuins, this.addBuriedTreasure, this.addIgloos, this.addWitchHuts, this.addAncientCities,
+         this.addTrialChambers, this.addTrailRuins, this.deepDark, this.geodes,
+         this.distantHorizonsOsmFeatures, this.distantHorizonsOsmRoadMaxDetail, this.distantHorizonsOsmBuildingMaxDetail,
+         this.distantHorizonsOsmNonBlockingFetch, this.realtimeTime, this.realtimeWeather, this.historicalSnow,
+         this.voxyChunkPregenEnabled, this.voxyChunkPregenMaxRadius, this.voxyChunkPregenChunksPerTick,
+         this.distantHorizonsRenderMode, this.demSelection, this.enableRoads, this.enableBuildings, this.enableWater,
+         this.thinShellTerrain, this.climateBasedBuiltUpTerrain, this.randomBiomes, this.randomBiomeDensity,
+         this.randomBiomeSeed, this.randomBiomeIds, this.experimentalIncreaseHeight, this.tellusManagedTerrainDownloads,
+         this.showTerrainDownloadOverlay, this.cavesReachSurface, this.undergroundDepth, this.customTrees,
+         this.automaticHeightScaling, this.hugeRedMushrooms, this.distantHorizonsCityLightsDistance, this.addAbandonedCamps, lakeFreezing
       );
    }
 
@@ -1342,7 +1376,7 @@ public record EarthGeneratorSettings(
          this.customTrees,
          this.automaticHeightScaling,
          this.hugeRedMushrooms,
-         this.distantHorizonsCityLightsDistance, this.addAbandonedCamps
+         this.distantHorizonsCityLightsDistance, this.addAbandonedCamps, this.lakeFreezing
       );
    }
 
@@ -1411,7 +1445,7 @@ public record EarthGeneratorSettings(
          this.customTrees,
          this.automaticHeightScaling,
          this.hugeRedMushrooms,
-         this.distantHorizonsCityLightsDistance, this.addAbandonedCamps
+         this.distantHorizonsCityLightsDistance, this.addAbandonedCamps, this.lakeFreezing
       );
    }
 
@@ -1480,7 +1514,7 @@ public record EarthGeneratorSettings(
          this.customTrees,
          this.automaticHeightScaling,
          this.hugeRedMushrooms,
-         this.distantHorizonsCityLightsDistance, this.addAbandonedCamps
+         this.distantHorizonsCityLightsDistance, this.addAbandonedCamps, this.lakeFreezing
       );
    }
 
@@ -1549,7 +1583,7 @@ public record EarthGeneratorSettings(
          this.customTrees,
          this.automaticHeightScaling,
          this.hugeRedMushrooms,
-         this.distantHorizonsCityLightsDistance, this.addAbandonedCamps
+         this.distantHorizonsCityLightsDistance, this.addAbandonedCamps, this.lakeFreezing
       );
    }
 
@@ -1618,7 +1652,7 @@ public record EarthGeneratorSettings(
          this.customTrees,
          this.automaticHeightScaling,
          this.hugeRedMushrooms,
-         this.distantHorizonsCityLightsDistance, this.addAbandonedCamps
+         this.distantHorizonsCityLightsDistance, this.addAbandonedCamps, this.lakeFreezing
       );
    }
 
@@ -1687,7 +1721,7 @@ public record EarthGeneratorSettings(
          this.customTrees,
          this.automaticHeightScaling,
          this.hugeRedMushrooms,
-         this.distantHorizonsCityLightsDistance, this.addAbandonedCamps
+         this.distantHorizonsCityLightsDistance, this.addAbandonedCamps, this.lakeFreezing
       );
    }
 
@@ -1756,7 +1790,7 @@ public record EarthGeneratorSettings(
          this.customTrees,
          this.automaticHeightScaling,
          this.hugeRedMushrooms,
-         this.distantHorizonsCityLightsDistance, this.addAbandonedCamps
+         this.distantHorizonsCityLightsDistance, this.addAbandonedCamps, this.lakeFreezing
       );
    }
 
@@ -1825,7 +1859,7 @@ public record EarthGeneratorSettings(
          this.customTrees,
          this.automaticHeightScaling,
          this.hugeRedMushrooms,
-         this.distantHorizonsCityLightsDistance, this.addAbandonedCamps
+         this.distantHorizonsCityLightsDistance, this.addAbandonedCamps, this.lakeFreezing
       );
    }
 
@@ -1894,7 +1928,7 @@ public record EarthGeneratorSettings(
          this.customTrees,
          this.automaticHeightScaling,
          this.hugeRedMushrooms,
-         this.distantHorizonsCityLightsDistance, this.addAbandonedCamps
+         this.distantHorizonsCityLightsDistance, this.addAbandonedCamps, this.lakeFreezing
       );
    }
 
@@ -1963,7 +1997,7 @@ public record EarthGeneratorSettings(
          this.customTrees,
          this.automaticHeightScaling,
          this.hugeRedMushrooms,
-         this.distantHorizonsCityLightsDistance, this.addAbandonedCamps
+         this.distantHorizonsCityLightsDistance, this.addAbandonedCamps, this.lakeFreezing
       );
    }
 
@@ -2032,7 +2066,7 @@ public record EarthGeneratorSettings(
          this.customTrees,
          this.automaticHeightScaling,
          this.hugeRedMushrooms,
-         this.distantHorizonsCityLightsDistance, this.addAbandonedCamps
+         this.distantHorizonsCityLightsDistance, this.addAbandonedCamps, this.lakeFreezing
       );
    }
 
@@ -2119,7 +2153,7 @@ public record EarthGeneratorSettings(
          this.customTrees,
          this.automaticHeightScaling,
          this.hugeRedMushrooms,
-         this.distantHorizonsCityLightsDistance, this.addAbandonedCamps
+         this.distantHorizonsCityLightsDistance, this.addAbandonedCamps, this.lakeFreezing
       );
    }
 
@@ -2223,7 +2257,7 @@ public record EarthGeneratorSettings(
          this.customTrees,
          this.automaticHeightScaling,
          this.hugeRedMushrooms,
-         this.distantHorizonsCityLightsDistance, this.addAbandonedCamps
+         this.distantHorizonsCityLightsDistance, this.addAbandonedCamps, this.lakeFreezing
       );
    }
 
@@ -2292,7 +2326,7 @@ public record EarthGeneratorSettings(
          this.customTrees,
          automaticHeightScaling,
          this.hugeRedMushrooms,
-         this.distantHorizonsCityLightsDistance, this.addAbandonedCamps
+         this.distantHorizonsCityLightsDistance, this.addAbandonedCamps, this.lakeFreezing
       );
    }
 
@@ -2955,7 +2989,8 @@ public record EarthGeneratorSettings(
             EarthGeneratorSettings.DEFAULT.automaticHeightScaling(),
             EarthGeneratorSettings.DEFAULT.hugeRedMushrooms(),
             EarthGeneratorSettings.DEFAULT.distantHorizonsCityLightsDistance(),
-            EarthGeneratorSettings.DEFAULT.addAbandonedCamps()
+            EarthGeneratorSettings.DEFAULT.addAbandonedCamps(),
+            EarthGeneratorSettings.DEFAULT.lakeFreezing()
          );
       }
    }

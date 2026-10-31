@@ -480,6 +480,10 @@ public final class EarthChunkGenerator extends TellusChunkGeneratorBridge {
       return this.waterResolver.shouldSuppressWaterSourceConversion(blockX, blockY, blockZ);
    }
 
+   public boolean isLakeWater(int blockX, int blockZ) {
+      return this.waterResolver.isLakeWater(blockX, blockZ);
+   }
+
    public long worldSeed() {
       return this.worldSeed;
    }

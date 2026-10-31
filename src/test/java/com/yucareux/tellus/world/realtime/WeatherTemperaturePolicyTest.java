@@ -22,22 +22,33 @@ class WeatherTemperaturePolicyTest {
    }
 
    @Test
-   void freshWaterCanFreezeAtThePhysicalFreezingPoint() {
-      assertTrue(WeatherTemperaturePolicy.canWaterFreeze(false, 0.0F));
+   void lakeFreezesAtThePhysicalFreezingPointAfterFreezingDays() {
+      assertTrue(WeatherTemperaturePolicy.canLakeFreeze(0.0F, 0.0F));
+      assertFalse(WeatherTemperaturePolicy.canLakeFreeze(0.1F, -10.0F));
    }
 
    @Test
-   void freshWaterCannotFreezeAboveThePhysicalFreezingPoint() {
-      assertFalse(WeatherTemperaturePolicy.canWaterFreeze(false, 0.1F));
+   void coldNightAfterMildDaysDoesNotFreezeALake() {
+      assertFalse(WeatherTemperaturePolicy.canLakeFreeze(-5.0F, 3.0F));
    }
 
    @Test
-   void missingTemperatureCannotFreezeFreshWater() {
-      assertFalse(WeatherTemperaturePolicy.canWaterFreeze(false, Float.NaN));
+   void lakeIceMeltsOnlyAfterDaysAboveFreezing() {
+      assertTrue(WeatherTemperaturePolicy.canLakeIceMelt(0.1F, 0.1F));
+      assertFalse(WeatherTemperaturePolicy.canLakeIceMelt(0.0F, 5.0F));
    }
 
    @Test
-   void oceanWaterCannotFreezeEvenBelowTheFreshWaterFreezingPoint() {
-      assertFalse(WeatherTemperaturePolicy.canWaterFreeze(true, -20.0F));
+   void mildAfternoonInAColdSpellKeepsLakeIce() {
+      assertFalse(WeatherTemperaturePolicy.canLakeIceMelt(5.0F, -3.0F));
+      assertFalse(WeatherTemperaturePolicy.canLakeFreeze(5.0F, -3.0F));
+   }
+
+   @Test
+   void missingTemperatureNeitherFreezesNorMelts() {
+      assertFalse(WeatherTemperaturePolicy.canLakeFreeze(Float.NaN, -10.0F));
+      assertFalse(WeatherTemperaturePolicy.canLakeFreeze(-10.0F, Float.NaN));
+      assertFalse(WeatherTemperaturePolicy.canLakeIceMelt(Float.NaN, 10.0F));
+      assertFalse(WeatherTemperaturePolicy.canLakeIceMelt(10.0F, Float.NaN));
    }
 }

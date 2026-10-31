@@ -14,6 +14,8 @@ public final class TellusRealtimeState {
    private static volatile TellusRealtimeState.PrecipitationMode precipitationMode = TellusRealtimeState.PrecipitationMode.CLEAR;
    private static volatile SnowGrid snowGrid = SnowGrid.empty();
    private static volatile TemperatureGrid temperatureGrid = TemperatureGrid.empty();
+   // Server only: lake freezing reads it, clients never receive it.
+   private static volatile TemperatureGrid recentTemperatureGrid = TemperatureGrid.empty();
 
    private TellusRealtimeState() {
    }
@@ -70,8 +72,13 @@ public final class TellusRealtimeState {
       return temperatureGrid;
    }
 
+   public static void updateRecentTemperature(TemperatureGrid recentTemperatureGrid) {
+      TellusRealtimeState.recentTemperatureGrid = recentTemperatureGrid == null ? TemperatureGrid.empty() : recentTemperatureGrid;
+   }
+
    public static void clearTemperature() {
       TellusRealtimeState.temperatureGrid = TemperatureGrid.empty();
+      TellusRealtimeState.recentTemperatureGrid = TemperatureGrid.empty();
    }
 
    public static float realWorldTemperatureC(BlockPos pos) {
@@ -82,8 +89,12 @@ public final class TellusRealtimeState {
       return WeatherTemperaturePolicy.hasTemperature(realWorldTemperatureC(pos));
    }
 
-   public static boolean canWaterFreeze(BlockPos pos, boolean ocean) {
-      return WeatherTemperaturePolicy.canWaterFreeze(ocean, realWorldTemperatureC(pos));
+   public static boolean canLakeFreeze(BlockPos pos) {
+      return WeatherTemperaturePolicy.canLakeFreeze(realWorldTemperatureC(pos), recentTemperatureGrid.sample(pos.getX(), pos.getZ()));
+   }
+
+   public static boolean canLakeIceMelt(BlockPos pos) {
+      return WeatherTemperaturePolicy.canLakeIceMelt(realWorldTemperatureC(pos), recentTemperatureGrid.sample(pos.getX(), pos.getZ()));
    }
 
    public static Precipitation precipitationOverride(boolean biomeHasPrecipitation, BlockPos pos) {

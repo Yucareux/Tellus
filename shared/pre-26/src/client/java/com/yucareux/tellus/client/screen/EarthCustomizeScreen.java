@@ -506,6 +506,7 @@ public class EarthCustomizeScreen extends EarthCustomizeScreenVersionCompat {
       boolean realtimeTime = this.findToggleValue("realtime_time", EarthGeneratorSettings.DEFAULT.realtimeTime());
       boolean realtimeWeather = this.findToggleValue("realtime_weather", EarthGeneratorSettings.DEFAULT.realtimeWeather());
       boolean historicalSnow = false;
+      boolean lakeFreezing = this.findToggleValue("lake_freezing", EarthGeneratorSettings.DEFAULT.lakeFreezing());
       boolean voxyChunkPregenEnabled = this.findToggleValue("voxy_chunk_pregen_enabled", EarthGeneratorSettings.DEFAULT.voxyChunkPregenEnabled());
       int voxyChunkPregenMaxRadius = (int)Math.round(
          this.findSliderValue("voxy_chunk_pregen_max_radius", EarthGeneratorSettings.DEFAULT.voxyChunkPregenMaxRadius())
@@ -589,7 +590,8 @@ public class EarthCustomizeScreen extends EarthCustomizeScreenVersionCompat {
          automaticHeightScaling,
          hugeRedMushrooms,
          distantHorizonsCityLightsDistance,
-         EarthGeneratorSettings.DEFAULT.addAbandonedCamps()
+         EarthGeneratorSettings.DEFAULT.addAbandonedCamps(),
+         lakeFreezing
       );
    }
 
@@ -669,6 +671,7 @@ public class EarthCustomizeScreen extends EarthCustomizeScreenVersionCompat {
       this.setToggleValue("realtime_time", initialSettings.realtimeTime());
       this.setToggleValue("realtime_weather", initialSettings.realtimeWeather());
       this.setToggleValue("historical_snow", false);
+      this.setToggleValue("lake_freezing", initialSettings.lakeFreezing());
       this.setToggleValue("voxy_chunk_pregen_enabled", initialSettings.voxyChunkPregenEnabled());
       this.setSliderValue("voxy_chunk_pregen_max_radius", initialSettings.voxyChunkPregenMaxRadius());
       this.setSliderValue("voxy_chunk_pregen_chunks_per_tick", initialSettings.voxyChunkPregenChunksPerTick());
@@ -875,7 +878,8 @@ public class EarthCustomizeScreen extends EarthCustomizeScreenVersionCompat {
             List.of(
                toggle("realtime_time", EarthGeneratorSettings.DEFAULT.realtimeTime()),
                toggle("realtime_weather", EarthGeneratorSettings.DEFAULT.realtimeWeather()),
-               toggle("historical_snow", false).forceDisabled(true, historicalSnowReworkTooltip())
+               toggle("historical_snow", false).forceDisabled(true, historicalSnowReworkTooltip()),
+               toggle("lake_freezing", EarthGeneratorSettings.DEFAULT.lakeFreezing())
             )
          )
       );

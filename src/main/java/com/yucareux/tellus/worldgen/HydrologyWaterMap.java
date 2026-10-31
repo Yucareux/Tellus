@@ -54,7 +54,12 @@ final class HydrologyWaterMap {
    }
 
    List<Shape> shapes(int x, int z) {
-      return tile(x, z).water;
+      return tile(x, z, OsmQueryMode.BLOCKING).water;
+   }
+
+   /** {@link #shapes} without loading map data on this thread: a missing tile loads in the background and reads as unavailable coverage until then. */
+   List<Shape> shapesWithoutWaiting(int x, int z) {
+      return tile(x, z, OsmQueryMode.NON_BLOCKING).water;
    }
 
    List<Shape> waterfalls(int x, int z) {
@@ -72,7 +77,7 @@ final class HydrologyWaterMap {
       } catch (ExecutionException error) { throw new IllegalStateException("Unable to read waterfall map", error.getCause()); }
    }
 
-   private InputTile tile(int x, int z) {
+   private InputTile tile(int x, int z, OsmQueryMode mode) {
       int tx = Math.floorDiv(x, TILE);
       int tz = Math.floorDiv(z, TILE);
       long key = HydrologyBlockCache.mix(key(tx, tz));
@@ -84,7 +89,7 @@ final class HydrologyWaterMap {
          tile = tiles.get(key, () -> {
             long started = HydrologyMetrics.now();
             TellusOsmWaterSource.WaterQueryResult query = source.waterForAreaWithStatus(
-               tx * TILE, tz * TILE, (tx + 1) * TILE - 1, (tz + 1) * TILE - 1, scale, TILE_MARGIN, OsmQueryMode.BLOCKING);
+               tx * TILE, tz * TILE, (tx + 1) * TILE - 1, (tz + 1) * TILE - 1, scale, TILE_MARGIN, mode);
             if (!query.complete()) throw new OceanCoverageUnavailableException(query.coverageStatus(), x, z);
             List<Shape> shapes = new ArrayList<>();
             List<Shape> waterfalls = new ArrayList<>();
