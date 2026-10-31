@@ -14,15 +14,19 @@ import com.yucareux.tellus.world.data.elevation.TerrainSlopeFixture;
 import com.yucareux.tellus.world.data.elevation.TiltedTerrainFixture;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
+import java.lang.reflect.Proxy;
 import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import net.minecraft.SharedConstants;
 import net.minecraft.core.Holder;
+import net.minecraft.core.HolderGetter;
 import net.minecraft.core.HolderLookup;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.core.registries.Registries;
@@ -483,6 +487,28 @@ class LodBiomeSnowTest {
          biome, worldX, worldZ, 220, false, MountainSurfaceRules.ESA_SNOW_ICE, MountainSurfaceRules.ESA_SNOW_ICE,
          8, 0, null, null, OsmQueryMode.NON_BLOCKING
       );
+   }
+
+   @Test
+   void asksOnlyForBiomesThisVersionRegisters() {
+      // A new world's registration lookup turns each missing biome asked for into an unbound holder that stops world creation.
+      Set<Object> missing = new HashSet<>();
+      @SuppressWarnings("unchecked")
+      HolderGetter<Biome> recording = (HolderGetter<Biome>)Proxy.newProxyInstance(
+         LodBiomeSnowTest.class.getClassLoader(),
+         new Class<?>[]{HolderGetter.class},
+         (proxy, method, args) -> {
+            Object result = method.invoke(biomes, args);
+            if (result instanceof Optional<?> found && found.isEmpty()) {
+               missing.add(args[0]);
+            }
+            return result;
+         }
+      );
+      try (@SuppressWarnings("unused") ManagedTerrainNetworkPolicy.Scope ignored = ManagedTerrainNetworkPolicy.cacheOnly()) {
+         new EarthBiomeSource(recording, EarthGeneratorSettings.DEFAULT);
+      }
+      assertEquals(Set.of(), missing);
    }
 
    private static ResourceKey<Biome> classifyAt(double longitude, double latitude, String climate, int coverClass) {

@@ -3,6 +3,7 @@ package com.yucareux.tellus.worldgen;
 import com.mojang.datafixers.util.Pair;
 import com.mojang.serialization.MapCodec;
 import com.mojang.serialization.codecs.RecordCodecBuilder;
+import com.yucareux.tellus.compat.MinecraftVersionCompat;
 import com.yucareux.tellus.world.data.biome.BiomeClassification;
 import com.yucareux.tellus.world.data.biome.BiomeClassificationProviders;
 import com.yucareux.tellus.world.data.cover.TellusLandCoverSource;
@@ -157,7 +158,10 @@ public final class EarthBiomeSource extends TellusBiomeSourceBridge {
       this.sunflowerPlains = this.resolveBiome(Biomes.SUNFLOWER_PLAINS, this.plains);
       this.flowerForest = this.resolveBiome(Biomes.FLOWER_FOREST, this.plains);
       this.cherryGrove = this.resolveBiome(Biomes.CHERRY_GROVE, this.flowerForest);
-      this.dappledForest = this.resolveOptionalBiome(DAPPLED_FOREST);
+      // A new world's registration lookup turns a missing biome into an unbound holder that stops world creation.
+      this.dappledForest = MinecraftVersionCompat.defaultRandomBiomeIds().contains("dappled_forest")
+         ? this.resolveOptionalBiome(DAPPLED_FOREST)
+         : null;
       this.ocean = this.resolveBiome(Biomes.OCEAN, this.plains);
       this.warmOcean = this.resolveBiome(Biomes.WARM_OCEAN, this.ocean);
       this.lukewarmOcean = this.resolveBiome(Biomes.LUKEWARM_OCEAN, this.ocean);
