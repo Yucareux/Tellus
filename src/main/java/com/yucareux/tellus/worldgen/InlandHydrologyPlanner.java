@@ -422,7 +422,7 @@ final class InlandHydrologyPlanner {
          for (HydrologyWaterMap.Shape shape : shapes) for (int p = 0; p < shape.xs.length; p++)
             for (int i = 1; i < shape.xs[p].length; i++) perimeter += Math.hypot(shape.xs[p][i] - shape.xs[p][i - 1], shape.zs[p][i] - shape.zs[p][i - 1]);
          double spacing = Math.max(8.0, perimeter / 512.0);
-         List<Double> levels = new ArrayList<>(), outletLevels = new ArrayList<>();
+         List<Double> levels = new ArrayList<>();
          it.unimi.dsi.fastutil.ints.IntArrayList shoreXs = new it.unimi.dsi.fastutil.ints.IntArrayList();
          it.unimi.dsi.fastutil.ints.IntArrayList shoreZs = new it.unimi.dsi.fastutil.ints.IntArrayList();
          for (HydrologyWaterMap.Shape shape : shapes) for (int p = 0; p < shape.xs.length; p++) {
@@ -443,19 +443,14 @@ final class InlandHydrologyPlanner {
                }
             }
          }
-         // A large lake's shoreline spans many DEM tiles; fetch them together, then survey in order.
-         sampler.preload(shoreXs.elements(), shoreZs.elements(), shoreXs.size());
-         for (int point = 0; point < shoreXs.size(); point++) {
-            int x = shoreXs.getInt(point), z = shoreZs.getInt(point);
-            double h = elevation(x, z).height();
-            if (!Double.isFinite(h)) continue;
-            levels.add(h);
-            for (HydrologyWaterMap.Shape nearby : map.shapes(x, z)) {
-               if (nearby.river && (nearby.contains(x, z) || nearby.distance(x, z, 12.0) < 12.0)) {
-                  outletLevels.add(h); break;
-               }
-            }
+         // A detailed outline gives a sample per segment (the Great Salt Lake's over 4000), each decoding terrain tiles
+         // of its own at fine scales; every few of them measure the shore as well.
+         if (shoreXs.size() > 1024) {
+            int stride = shoreXs.size() / 512, kept = 0;
+            for (int i = 0; i < shoreXs.size(); i += stride, kept++) { shoreXs.set(kept, shoreXs.getInt(i)); shoreZs.set(kept, shoreZs.getInt(i)); }
+            shoreXs.size(kept); shoreZs.size(kept);
          }
+         for (double h : surveyHeights(shoreXs, shoreZs)) if (Double.isFinite(h)) levels.add(h);
          if (levels.isEmpty()) return new Lake(shapes, 0, seed.engineered, false);
          levels.sort(Double::compare);
          // Terrain models flatten water bodies: away from the shore, the surface inside the lake is its
@@ -468,11 +463,27 @@ final class InlandHydrologyPlanner {
          // the terrain instead. Its flat level stays for any part they do not draw.
          boolean flowing = seed.feature.kind() == com.yucareux.tellus.world.data.osm.OsmWaterKind.UNKNOWN && survey != null
             && survey[2] - survey[1] > Math.max(2.5, 5.0 / Math.sqrt(Math.max(1.0, scale)));
-         double shoreMedian = levels.get(levels.size() / 2);
+         double shoreMedian = levels.get(levels.size() / 2), shoreLow = levels.get((int)((levels.size() - 1) * 0.12));
          int level;
-         if (Double.isFinite(interior)) level = (int)Math.ceil(Math.min(interior, shoreMedian) - 1.0E-6) - 1;
+         // A lake whose terrain is far from flat (the Great Salt Lake: arms at different heights, a receded bed) stood
+         // above much of its shore, walled in by banks and its islands sunk below it. It now keeps to its shore's low
+         // end, never below its own lowest tenth: an outline running down a slope does not sink it.
+         if (Double.isFinite(interior))
+            level = (int)Math.ceil(Math.min(Math.min(interior, shoreMedian), Math.max(shoreLow, survey[1])) - 1.0E-6) - 1;
          else {
-            double shore = levels.get((int)((levels.size() - 1) * 0.12)) - 0.75;
+            double shore = shoreLow - 0.75;
+            // Only a pond reads its outlets: every shore point of a large lake read a map tile for them.
+            List<Double> outletLevels = new ArrayList<>();
+            for (int point = 0; point < shoreXs.size(); point++) {
+               int x = shoreXs.getInt(point), z = shoreZs.getInt(point);
+               double h = elevation(x, z).height();
+               if (!Double.isFinite(h)) continue;
+               for (HydrologyWaterMap.Shape nearby : map.shapes(x, z)) {
+                  if (nearby.river && (nearby.contains(x, z) || nearby.distance(x, z, 12.0) < 12.0)) {
+                     outletLevels.add(h); break;
+                  }
+               }
+            }
             if (!outletLevels.isEmpty()) {
                outletLevels.sort(Double::compare);
                shore = Math.min(shore, outletLevels.get((int)((outletLevels.size() - 1) * 0.25)) - 0.75);
@@ -507,16 +518,27 @@ final class InlandHydrologyPlanner {
                xs.add((int)Math.floor(x)); zs.add((int)Math.floor(z));
             }
          if (xs.size() < 6) return null;
-         sampler.preload(xs.elements(), zs.elements(), xs.size());
-         double[] heights = new double[xs.size()];
+         double[] heights = surveyHeights(xs, zs);
          int n = 0;
-         for (int i = 0; i < xs.size(); i++) {
-            double h = elevation(xs.getInt(i), zs.getInt(i)).height();
-            if (Double.isFinite(h)) heights[n++] = h;
-         }
+         for (double h : heights) if (Double.isFinite(h)) heights[n++] = h;
          if (n < 6) return null;
          Arrays.sort(heights, 0, n);
          return new double[]{heights[n / 2], heights[(n - 1) / 10], heights[(n - 1) * 9 / 10]};
+      }
+
+      /**
+       * Terrain at a large lake's survey points, which span many DEM tiles: fetched together a batch at a time, then
+       * read in order. Preloaded all at once, a fine scale's tiles overflowed the terrain cache before they were read
+       * and were decoded again one by one; 64 points' tiles at every zoom the sampler may probe fit it.
+       */
+      private double[] surveyHeights(it.unimi.dsi.fastutil.ints.IntArrayList xs, it.unimi.dsi.fastutil.ints.IntArrayList zs) {
+         double[] heights = new double[xs.size()];
+         for (int start = 0; start < heights.length; start += 64) {
+            int end = Math.min(heights.length, start + 64);
+            sampler.preload(Arrays.copyOfRange(xs.elements(), start, end), Arrays.copyOfRange(zs.elements(), start, end), end - start);
+            for (int i = start; i < end; i++) heights[i] = elevation(xs.getInt(i), zs.getInt(i)).height();
+         }
+         return heights;
       }
    }
 
