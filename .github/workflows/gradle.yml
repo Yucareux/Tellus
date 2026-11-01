@@ -41,9 +41,13 @@ jobs:
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         env:
           GH_TOKEN: ${{ github.token }}
+          # The Distant Horizons fork is built outside this repository, so its jars come from their own release.
+          DH_RELEASE: distant-horizons-3.3.4-tellus.1
         run: |
           jars=$(ls mc*/build/libs/Tellus-*.jar | grep -vE -- '-(sources|unshaded|dev-shadow)\.jar$')
+          # Downloads before the delete, so a missing release leaves the previous dev build in place.
+          gh release download "$DH_RELEASE" --pattern '*.jar' --dir "$RUNNER_TEMP/dh"
           gh release delete dev-build --cleanup-tag --yes || true
-          gh release create dev-build $jars --prerelease --target "$GITHUB_SHA" \
+          gh release create dev-build $jars "$RUNNER_TEMP"/dh/*.jar --prerelease --target "$GITHUB_SHA" \
             --title "Dev build ${GITHUB_SHA::7}" \
-            --notes "Built automatically from the latest commit on main. Not a stable release."
+            --notes "Built automatically from the latest commit on main. Not a stable release. The DistantHorizons jars are the Tellus fork from the $DH_RELEASE release."
