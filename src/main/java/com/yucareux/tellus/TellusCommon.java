@@ -54,9 +54,11 @@ import net.minecraft.network.chat.MutableComponent;
 import net.minecraft.resources.RegistryOps;
 import net.minecraft.resources.ResourceKey;
 import net.minecraft.server.MinecraftServer;
+import net.minecraft.server.level.ServerBossEvent;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.util.Mth;
+import net.minecraft.world.BossEvent;
 import net.minecraft.world.level.DataPackConfig;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.WorldDataConfiguration;
@@ -87,6 +89,8 @@ public class TellusCommon {
    private static final TellusVoxyPregenManager VOXY_PREGEN_MANAGER = new TellusVoxyPregenManager();
    private static final ManagedTerrainDownloadManager MANAGED_TERRAIN_DOWNLOAD_MANAGER = new ManagedTerrainDownloadManager();
    private static final Map<UUID, CompletableFuture<BlockPos>> GEO_TELEPORT_LOOKUPS = new ConcurrentHashMap<>();
+   private static final Map<UUID, TellusCommon.TeleportProgress> GEO_TELEPORT_PROGRESS = new ConcurrentHashMap<>();
+   private static volatile Boolean teleportProgressOverride;
    public static final Logger LOGGER = LoggerFactory.getLogger("tellus");
 
 
@@ -172,6 +176,17 @@ public class TellusCommon {
                                  )
                            ))
                         .then(
+                           Commands.literal("teleport_progress")
+                              .then(
+                                 Commands.argument("enabled", Objects.requireNonNull(BoolArgumentType.bool(), "enabledArgument"))
+                                    .executes(
+                                       context -> setTeleportProgressOverride(
+                                          (CommandSourceStack)context.getSource(), BoolArgumentType.getBool(context, "enabled")
+                                       )
+                                    )
+                              )
+                        )
+                        .then(
                            ((((Commands.literal("voxy")
                                           .then(Commands.literal("status").executes(context -> showVoxyPregenStatus((CommandSourceStack)context.getSource()))))
                                        .then(
@@ -225,12 +240,15 @@ public class TellusCommon {
          }
       }));
       runtime.onServerStopping(server -> {
+         GEO_TELEPORT_PROGRESS.clear();
+         teleportProgressOverride = null;
          REALTIME_MANAGER.onServerStopping(server);
          VOXY_PREGEN_MANAGER.shutdown();
          MANAGED_TERRAIN_DOWNLOAD_MANAGER.reset();
       });
       runtime.onServerTick(REALTIME_MANAGER::onServerTick);
       runtime.onServerTick(VOXY_PREGEN_MANAGER::onServerTick);
+      runtime.onServerTick(server -> GEO_TELEPORT_PROGRESS.values().forEach(TellusCommon.TeleportProgress::update));
       runtime.onServerTick(MANAGED_TERRAIN_DOWNLOAD_MANAGER::onServerTick);
       runtime.onServerTick(server -> {
          if (MANAGED_TERRAIN_DOWNLOAD_MANAGER.shouldBroadcastStatus()) {
@@ -431,6 +449,20 @@ public class TellusCommon {
          REALTIME_MANAGER.setRealtimeWeatherOverride(enabled);
          source.sendSuccess(
             () -> Component.translatable("tellus.command.config.weather_set", booleanLabel(enabled)), false
+         );
+         return 1;
+      }
+   }
+
+   private static int setTeleportProgressOverride(CommandSourceStack source, boolean enabled) {
+      EarthChunkGenerator earthGenerator = resolveEarthGenerator(source);
+      if (earthGenerator == null) {
+         source.sendFailure(Component.translatable("tellus.command.geotp.tellus_world_only"));
+         return 0;
+      } else {
+         teleportProgressOverride = enabled;
+         source.sendSuccess(
+            () -> Component.translatable("tellus.command.config.teleport_progress_set", booleanLabel(enabled)), false
          );
          return 1;
       }
@@ -652,16 +684,26 @@ public class TellusCommon {
                   "tellus_geotp", () -> earthGenerator.getSurfacePosition(level, latitude, longitude)
                );
                GEO_TELEPORT_LOOKUPS.put(player.getUUID(), lookup);
+               Boolean override = teleportProgressOverride;
+               if (override != null ? override : earthGenerator.settings().teleportProgress()) {
+                  player.sendSystemMessage(Component.translatable("tellus.command.geotp.preparing").withStyle(ChatFormatting.GRAY));
+                  showTeleportProgress(player);
+               }
+
                lookup.whenCompleteAsync((target, error) -> {
                   // Only the player's latest request teleports, and only while they are still in that level.
-                  if (!GEO_TELEPORT_LOOKUPS.remove(player.getUUID(), lookup)
-                     || player.isRemoved()
-                     || MinecraftVersionCompat.serverLevel(player) != level) {
+                  if (!GEO_TELEPORT_LOOKUPS.remove(player.getUUID(), lookup)) {
+                     return;
+                  }
+
+                  hideTeleportProgress(player);
+                  if (player.isRemoved() || MinecraftVersionCompat.serverLevel(player) != level) {
                      return;
                   }
 
                   if (error != null) {
                      LOGGER.warn("Failed to find the teleport surface at lat={}, lon={}", latitude, longitude, error);
+                     player.sendSystemMessage(Component.translatable("tellus.command.geotp.failed").withStyle(ChatFormatting.RED));
                   } else {
                      player.teleportTo(target.getX() + 0.5, target.getY(), target.getZ() + 0.5);
                   }
@@ -670,6 +712,25 @@ public class TellusCommon {
                player.sendSystemMessage(Component.translatable("tellus.command.geotp.tellus_world_only"));
             }
          });
+      }
+   }
+
+   private static void showTeleportProgress(ServerPlayer player) {
+      ServerBossEvent bar = MinecraftVersionCompat.bossEvent(
+         Component.translatable("tellus.command.geotp.progress"), BossEvent.BossBarColor.GREEN, BossEvent.BossBarOverlay.NOTCHED_10
+      );
+      bar.setProgress(0.0F);
+      bar.addPlayer(player);
+      TellusCommon.TeleportProgress previous = GEO_TELEPORT_PROGRESS.put(player.getUUID(), new TellusCommon.TeleportProgress(bar, System.nanoTime()));
+      if (previous != null) {
+         previous.bar().removeAllPlayers();
+      }
+   }
+
+   private static void hideTeleportProgress(ServerPlayer player) {
+      TellusCommon.TeleportProgress progress = GEO_TELEPORT_PROGRESS.remove(player.getUUID());
+      if (progress != null) {
+         progress.bar().removeAllPlayers();
       }
    }
 
@@ -794,5 +855,13 @@ public class TellusCommon {
    }
 
    private record WeatherDisplay(String translationKey, ChatFormatting color) {
+   }
+
+   private record TeleportProgress(ServerBossEvent bar, long startNanos) {
+      // shortcut: the surface lookup reports no progress, so the bar eases toward full over time (half at 4 s); upgrade if downloads report their progress.
+      void update() {
+         double seconds = (System.nanoTime() - this.startNanos) / 1.0E9;
+         this.bar.setProgress((float)(seconds / (seconds + 4.0)));
+      }
    }
 }

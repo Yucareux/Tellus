@@ -507,6 +507,7 @@ public class EarthCustomizeScreen extends EarthCustomizeScreenVersionCompat {
       boolean realtimeWeather = this.findToggleValue("realtime_weather", EarthGeneratorSettings.DEFAULT.realtimeWeather());
       boolean historicalSnow = false;
       boolean lakeFreezing = this.findToggleValue("lake_freezing", EarthGeneratorSettings.DEFAULT.lakeFreezing());
+      boolean teleportProgress = this.findToggleValue("teleport_progress", EarthGeneratorSettings.DEFAULT.teleportProgress());
       boolean voxyChunkPregenEnabled = this.findToggleValue("voxy_chunk_pregen_enabled", EarthGeneratorSettings.DEFAULT.voxyChunkPregenEnabled());
       int voxyChunkPregenMaxRadius = (int)Math.round(
          this.findSliderValue("voxy_chunk_pregen_max_radius", EarthGeneratorSettings.DEFAULT.voxyChunkPregenMaxRadius())
@@ -591,7 +592,8 @@ public class EarthCustomizeScreen extends EarthCustomizeScreenVersionCompat {
          hugeRedMushrooms,
          distantHorizonsCityLightsDistance,
          EarthGeneratorSettings.DEFAULT.addAbandonedCamps(),
-         lakeFreezing
+         lakeFreezing,
+         teleportProgress
       );
    }
 
@@ -672,6 +674,7 @@ public class EarthCustomizeScreen extends EarthCustomizeScreenVersionCompat {
       this.setToggleValue("realtime_weather", initialSettings.realtimeWeather());
       this.setToggleValue("historical_snow", false);
       this.setToggleValue("lake_freezing", initialSettings.lakeFreezing());
+      this.setToggleValue("teleport_progress", initialSettings.teleportProgress());
       this.setToggleValue("voxy_chunk_pregen_enabled", initialSettings.voxyChunkPregenEnabled());
       this.setSliderValue("voxy_chunk_pregen_max_radius", initialSettings.voxyChunkPregenMaxRadius());
       this.setSliderValue("voxy_chunk_pregen_chunks_per_tick", initialSettings.voxyChunkPregenChunksPerTick());
@@ -800,7 +803,8 @@ public class EarthCustomizeScreen extends EarthCustomizeScreenVersionCompat {
             slider("height_offset", EarthGeneratorSettings.DEFAULT.heightOffset(), -2000.0, 128.0, 1.0)
                .withDisplay(EarthCustomizeScreen::formatHeightOffset),
             slider("max_altitude", -1.0, -1.0, 2031.0, 16.0).withDisplay(EarthCustomizeScreen::formatMaxAltitude),
-            slider("min_altitude", EarthGeneratorSettings.DEFAULT.minAltitude(), -2048.0, 2031.0, 16.0).withDisplay(EarthCustomizeScreen::formatMinAltitude)
+            slider("min_altitude", EarthGeneratorSettings.DEFAULT.minAltitude(), -2048.0, 2031.0, 16.0).withDisplay(EarthCustomizeScreen::formatMinAltitude),
+            toggle("teleport_progress", EarthGeneratorSettings.DEFAULT.teleportProgress())
          )
       );
       categories.add(

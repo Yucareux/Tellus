@@ -74,6 +74,7 @@ The `3.3.1-tellus.1` fork preserves extended-height LODs and Iris compatibility,
 - `/tellus weather`: Shows local Tellus weather and time information at your current position.
 - `/tellus config weather enable_realtime_time <true|false>`: Overrides the real-time time setting on the server (requires gamemaster permissions).
 - `/tellus config weather enable_realtime_weather <true|false>`: Overrides the real-time weather setting on the server (requires gamemaster permissions).
+- `/tellus config teleport_progress <true|false>`: Overrides the Teleport Progress setting on the server until it restarts (requires gamemaster permissions).
 
 More commands will be added over time.
 
@@ -93,6 +94,7 @@ These options are available in the "Customize World Generation" screen when crea
 - **Height Offset**: Shifts all terrain up or down by a fixed number of blocks. Use this to raise or lower the entire world.
 - **Max Altitude**: Upper world limit in blocks. Set to Automatic to let Tellus compute a safe cap based on your scale settings.
 - **Min Altitude**: Lower world limit in blocks. Set to Automatic to let Tellus compute a safe floor based on your scale settings.
+- **Teleport Progress**: On by default, also in worlds created before the setting existed. When you teleport with the GeoTP map, a chat message says the destination is being prepared and a progress bar shows at the top of the screen until you arrive. The bar is an estimate, because Tellus cannot tell in advance how much terrain data a destination needs.
 - **Water**: Uses Overture Maps `subtype=ocean` surface polygons as the sole ocean and coastline authority. Physical sea and ocean labels do not generate water. Rivers and lakes retain their own Overture feature kinds, and ocean floors use OpenWaters bathymetry with a corrective coastal safety ramp.
 
 ### Ecological Settings (work in progress)

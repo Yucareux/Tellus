@@ -110,6 +110,22 @@ class EarthGeneratorSettingsCodecTest {
    }
 
    @Test
+   void teleportProgressDefaultOnAndRoundTrip() {
+      assertTrue(EarthGeneratorSettings.DEFAULT.teleportProgress());
+      EarthGeneratorSettings legacy = requireSuccess(EarthGeneratorSettings.CODEC.parse(JsonOps.INSTANCE, JsonParser.parseString("{\"lake_freezing\":false}")));
+      assertTrue(legacy.teleportProgress());
+
+      EarthGeneratorSettings disabled = requireSuccess(
+         EarthGeneratorSettings.CODEC.parse(JsonOps.INSTANCE, JsonParser.parseString("{\"teleport_progress\":false,\"lake_freezing\":false}"))
+      );
+      JsonObject encoded = requireSuccess(EarthGeneratorSettings.CODEC.encodeStart(JsonOps.INSTANCE, disabled)).getAsJsonObject();
+      assertFalse(disabled.teleportProgress());
+      assertFalse(disabled.lakeFreezing());
+      assertFalse(encoded.get("teleport_progress").getAsBoolean());
+      assertEquals(disabled, requireSuccess(EarthGeneratorSettings.CODEC.parse(JsonOps.INSTANCE, encoded)));
+   }
+
+   @Test
    void abandonedCampsDefaultOffAndRoundTrip() {
       assertFalse(EarthGeneratorSettings.DEFAULT.addAbandonedCamps());
       // Worlds saved before the setting existed keep camps off.

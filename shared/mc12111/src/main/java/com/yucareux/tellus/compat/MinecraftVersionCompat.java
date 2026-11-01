@@ -16,14 +16,17 @@ import net.minecraft.core.HolderSet;
 import net.minecraft.core.LayeredRegistryAccess;
 import net.minecraft.core.Registry;
 import net.minecraft.core.RegistryAccess;
+import net.minecraft.network.chat.Component;
 import net.minecraft.resources.Identifier;
 import net.minecraft.resources.ResourceKey;
 import net.minecraft.server.RegistryLayer;
 import net.minecraft.server.WorldStem;
+import net.minecraft.server.level.ServerBossEvent;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.tags.BlockTags;
 import net.minecraft.util.Util;
+import net.minecraft.world.BossEvent;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.EntitySpawnReason;
 import net.minecraft.world.entity.EntityType;
@@ -202,6 +205,10 @@ public final class MinecraftVersionCompat {
    public static <T> String registryKeyPath(Registry<T> registry, T value) {
       Identifier id = registry.getKey(value);
       return id == null ? null : id.getPath();
+   }
+
+   public static ServerBossEvent bossEvent(Component name, BossEvent.BossBarColor color, BossEvent.BossBarOverlay overlay) {
+      return new ServerBossEvent(name, color, overlay);
    }
 
    public static <T> CompletableFuture<T> supplyBackground(String taskName, Supplier<T> task) {
