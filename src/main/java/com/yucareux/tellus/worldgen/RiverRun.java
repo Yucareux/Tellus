@@ -17,7 +17,8 @@ import java.util.List;
  * <p>The network gives a monotone level from terrain observed every network cell at a moderate resolution.
  * Along the course the level also stays under the native terrain: a narrow gorge or a channel finer than that
  * resolution lowers it, and it then follows the lowest native terrain of the last stretch upstream (a short
- * window, after filling dips of a few blocks). The water never rises downstream: where that window would let it
+ * window, after filling dips of a few blocks). Nor does it drop faster than that terrain: the network's coarse steps
+ * only hold it where the terrain rises. The water never rises downstream: where that window would let it
  * climb again (the far end of a long dip in the terrain model) the level is the nearest one that only falls, so a
  * dip becomes a pool and a rise is cut through, whichever moves less water. The pieces upstream of a piece hold
  * its level at most at theirs where they meet it. A fall follows the terrain down its drop (the network's level holds
@@ -269,7 +270,7 @@ final class RiverRun {
          }
          ground[k] = (float)low;
       }
-      // Native terrain with short dips filled, never above the network's level but where the course goes down a cliff.
+      // Native terrain with short dips filled, capped by the network's level (as below) but where the course goes down a cliff.
       // Inside a river area the terrain along the line is the water's own surface (the model flattens it), as the area's
       // levels are: the network's coarse cells would spread a fall over their length and put its lip apart from the
       // area's crest.
@@ -277,10 +278,16 @@ final class RiverRun {
       // Down a cliff (a fall, a cascade) a natural course follows its own terrain too: the network's coarser cells put
       // the drop elsewhere and would sink the water into a slot cut through the lip.
       boolean[] cliff = terrain == null || line.engineered() || step > 2.0 ? new boolean[samples] : cliffs(closed, step);
+      // The network's level drops a whole cell's descent at a time, often where the native terrain still stands above the
+      // cell below: the water fell sheer there and lay in a trench until the terrain came down to it. A natural course
+      // never drops faster than its terrain: the network's level only holds it where the terrain rises (a bridge, a col),
+      // at the level reached upstream unless the network's is higher.
+      boolean slope = terrain != null && !line.engineered() && step <= 2.0;
       float[] bounded = new float[samples];
       for (int k = 0; k < samples; k++) {
          float g = Float.isFinite(closed[k]) ? closed[k] : upper[k];
-         bounded[k] = (line.inRiverArea() || cliff[k]) && terrain != null && Float.isFinite(closed[k]) ? g : Math.min(upper[k], g);
+         float cap = !slope ? upper[k] : k == 0 ? g : Math.max(upper[k], bounded[k - 1]);
+         bounded[k] = (line.inRiverArea() || cliff[k]) && terrain != null && Float.isFinite(closed[k]) ? g : Math.min(cap, g);
       }
       // A line drawn in its river area stands at the area's level where its channel shows beyond the outline (along a
       // bank, where it leaves the area), read every few blocks, so it meets the area's water there. Deep inside the

@@ -2,6 +2,7 @@ package com.yucareux.tellus.worldgen;
 
 import com.yucareux.tellus.world.data.osm.OsmWaterFeature;
 import com.yucareux.tellus.world.data.osm.OsmWaterKind;
+import java.util.function.DoubleBinaryOperator;
 import org.junit.jupiter.api.Test;
 import static com.yucareux.tellus.worldgen.InlandHydrologyRegressionTest.feature;
 import static com.yucareux.tellus.worldgen.InlandHydrologyRegressionTest.planner;
@@ -27,6 +28,29 @@ class WaterfallTerrainTest {
          assertTrue(column.terrain() >= raw - 4, "Slope dug out at z=" + z + ": " + column);
          assertTrue(column.water() <= previous + (column.falling() ? 2 : 0), "Water rises at z=" + z);
          if (!column.falling()) previous = column.water();
+      }
+   }
+
+   @Test void streamKeepsToASlopeTheNetworkReadsLower() {
+      // A steady slope the network's coarser model reads 8 blocks low: its level steps down a cell at a time below the
+      // terrain, which used to drop the water sheer at each step into a trench.
+      DoubleBinaryOperator dem = (x, z) -> 400.0 - z * 0.5 + Math.min(6.0, Math.abs(x - 512) * 0.5);
+      OsmWaterFeature stream = feature(7, true, OsmWaterKind.STREAM, 512, 100, 512, 900);
+      InlandHydrologyPlanner planner = new InlandHydrologyPlanner(InlandHydrologyRegressionTest.input(stream), 1.0, 24,
+         new InlandHydrologyPlanner.TerrainSampler() {
+            @Override public InlandHydrologyPlanner.Elevation sample(int x, int z) {
+               return new InlandHydrologyPlanner.Elevation(dem.applyAsDouble(x, z), 2);
+            }
+
+            @Override public InlandHydrologyPlanner.Elevation sampleAtResolution(int x, int z, double meters) {
+               return new InlandHydrologyPlanner.Elevation(dem.applyAsDouble(x, z) - 8.0, meters);
+            }
+         }, (x, z) -> Integer.MIN_VALUE, (x, z) -> true, (m, z) -> m);
+      for (int z = 300; z <= 700; z++) {
+         int raw = (int)Math.ceil(dem.applyAsDouble(512, z));
+         InlandHydrologyPlanner.Column column = planner.sample(512, z, raw);
+         assertTrue(column.wet() && !column.falling(), "Fall on a steady slope at z=" + z + ": " + column);
+         assertTrue(column.water() >= raw - 3, "Water in a trench at z=" + z + ": " + column);
       }
    }
 

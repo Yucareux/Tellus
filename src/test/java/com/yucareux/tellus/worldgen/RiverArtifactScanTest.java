@@ -121,6 +121,18 @@ class RiverArtifactScanTest {
       int[] falls = new int[cells];
       for (int i = 0; i < cells; i++) if (area.kind[i] == FALLING) falls[i] = Math.max(1, area.water[i] - area.terrain[i]);
       report("FALLS", falls, 1, area, out);
+      // Curtains falling further than the natural ground drops beside them: sheer water where the terrain only slopes.
+      int[] sheer = new int[cells];
+      for (int i = 0; i < cells; i++) {
+         if (area.kind[i] != FALLING) continue;
+         int x = i % size, z = i / size, drop = 0;
+         for (int d = 0; d < 4; d++) {
+            int nx = x + (d == 0 ? 1 : d == 1 ? -1 : 0), nz = z + (d == 2 ? 1 : d == 3 ? -1 : 0);
+            if (nx >= 0 && nz >= 0 && nx < size && nz < size) drop = Math.max(drop, area.raw[i] - area.raw[nz * size + nx]);
+         }
+         sheer[i] = Math.max(0, area.water[i] - area.terrain[i] - drop);
+      }
+      report("SHEER", sheer, 3, area, out);
       // Columns the inland planner leaves to the coastal solver (unplanned water), every fourth column.
       int[] unplanned = new int[cells];
       Method planned = WaterSurfaceResolver.class.getDeclaredMethod("plannedInlandColumn", int.class, int.class, int.class);
