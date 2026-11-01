@@ -10,6 +10,7 @@ import java.util.Random;
 
 /**
  * @see TestCustomColorEvent
+ * @see TestCustomTextureEvent
  */
 public class TestBlockWrapperCreatedEvent extends DhApiBlockStateWrapperCreatedEvent
 {
@@ -38,6 +39,8 @@ public class TestBlockWrapperCreatedEvent extends DhApiBlockStateWrapperCreatedE
 		
 		// needed for TestCustomColorEvent
 		eventParam.setAllowApiColorOverride(true);
+		// needed for TestCustomTextureEvent
+		eventParam.setAllowApiTextureOverride(true);
 	}
 	
 }

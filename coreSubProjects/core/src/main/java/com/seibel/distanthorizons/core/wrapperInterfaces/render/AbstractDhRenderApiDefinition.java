@@ -1,10 +1,11 @@
 package com.seibel.distanthorizons.core.wrapperInterfaces.render;
 
+import com.seibel.distanthorizons.api.enums.config.EDhApiDepthDirection;
+import com.seibel.distanthorizons.api.enums.config.EDhApiDepthRange;
 import com.seibel.distanthorizons.api.enums.config.EDhApiRenderingApi;
 import com.seibel.distanthorizons.api.enums.config.EDhApiRenderingEngine;
 import com.seibel.distanthorizons.core.dependencyInjection.SingletonInjector;
 import com.seibel.distanthorizons.core.jar.EPlatform;
-import com.seibel.distanthorizons.core.render.EDhRenderDepth;
 import com.seibel.distanthorizons.core.render.renderer.AbstractDebugWireframeRenderer;
 import com.seibel.distanthorizons.core.wrapperInterfaces.render.objects.IDhGenericObjectVertexBufferContainer;
 import com.seibel.distanthorizons.core.wrapperInterfaces.render.objects.ILodContainerUniformBufferWrapper;
@@ -32,8 +33,10 @@ public abstract class AbstractDhRenderApiDefinition implements IBindable
 	 */
 	public boolean useSingleIbo() { return this.useSingleIbo; }
 	
-	public abstract EDhRenderDepth getRenderDepth();
+	public abstract EDhApiDepthDirection getDepthDirection();
+	public abstract EDhApiDepthRange getDepthRange();
 	public abstract EDhApiRenderingApi getRenderApi();
+	public abstract EDhApiRenderingEngine getRenderingEngine();
 	/** 
 	 * Returns true if the current renderer
 	 * is calling the base rendering API's method calls. <br>
@@ -58,6 +61,7 @@ public abstract class AbstractDhRenderApiDefinition implements IBindable
 	public abstract IDhSsaoRenderer getSsaoRenderer();
 	public abstract IDhFogRenderer getFogRenderer();
 	public abstract IDhFarFadeRenderer getFarFadeRenderer();
+	public abstract IDhAntiAliasRenderer getAntiAliasRenderer();
 	public abstract AbstractDebugWireframeRenderer getDebugWireframeRenderer();
 	public abstract IDhVanillaFadeRenderer getVanillaFadeRenderer();
 	public abstract IDhTestTriangleRenderer getTestTriangleRenderer();
@@ -76,6 +80,7 @@ public abstract class AbstractDhRenderApiDefinition implements IBindable
 		SingletonInjector.INSTANCE.bind(IDhSsaoRenderer.class, this.getSsaoRenderer());
 		SingletonInjector.INSTANCE.bind(IDhFogRenderer.class, this.getFogRenderer());
 		SingletonInjector.INSTANCE.bind(IDhFarFadeRenderer.class, this.getFarFadeRenderer());
+		SingletonInjector.INSTANCE.bind(IDhAntiAliasRenderer.class, this.getAntiAliasRenderer());
 		SingletonInjector.INSTANCE.bind(AbstractDebugWireframeRenderer.class, this.getDebugWireframeRenderer());
 		SingletonInjector.INSTANCE.bind(IDhVanillaFadeRenderer.class, this.getVanillaFadeRenderer());
 		SingletonInjector.INSTANCE.bind(IDhTestTriangleRenderer.class, this.getTestTriangleRenderer());

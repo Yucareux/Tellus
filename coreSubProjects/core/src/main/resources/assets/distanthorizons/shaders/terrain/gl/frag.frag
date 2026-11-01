@@ -119,10 +119,11 @@ void main()
     if (vTextureTileId != 0u)
     {
         // tile id -> grid cell -> exact texel.
-        // texelFetch makes sure the texture renders correctly regardless of the bound sampler's filtering
-        ivec2 tileOrigin = ivec2(int(vTextureTileId % 256u), int(vTextureTileId / 256u)) * 16;
-        ivec2 texelPos = tileOrigin + ivec2(clamp(blockFaceUv() * 16.0, 0.0, 15.0));
-        vec4 tile = texelFetch(uBlockAtlas, texelPos, 0);
+        // texture() allow us to use mipmaps
+        ivec2 atlasSize = textureSize(uBlockAtlas, 0);
+        vec2 tileOrigin = vec2(float(vTextureTileId % 256u), float(vTextureTileId / 256u)) * 16.0;
+        vec2 uv = (tileOrigin + blockFaceUv() * 16.0) / vec2(atlasSize);
+        vec4 tile = texture(uBlockAtlas, uv);
         
         // The tile's color ratio preserves the LOD's original tint and shading.
         // Tile color value of gray, 128 (half way between 0 and 255)

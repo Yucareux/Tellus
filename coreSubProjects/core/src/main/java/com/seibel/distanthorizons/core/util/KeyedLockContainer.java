@@ -21,9 +21,9 @@ public class KeyedLockContainer<TKey>
 	
 	public KeyedLockContainer()
 	{
-		// the lock array's length is 2x the number of CPU cores so the number of collisions
-		// should be relatively low without having too many extra locks
-		this(Runtime.getRuntime().availableProcessors() * 2);
+		// the lock array's length is significantly higher than the number of CPU cores 
+		// to reduce the number of unintended collisions
+		this(Runtime.getRuntime().availableProcessors() * 64);
 	}
 	public KeyedLockContainer(int lockCount)
 	{

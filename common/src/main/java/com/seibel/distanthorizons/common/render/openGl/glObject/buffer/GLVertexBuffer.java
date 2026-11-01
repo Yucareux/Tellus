@@ -30,9 +30,10 @@ import com.seibel.distanthorizons.core.render.RenderThreadTaskHandler;
 import com.seibel.distanthorizons.core.util.objects.pooling.PhantomArrayList.PhantomArrayListCheckout;
 import com.seibel.distanthorizons.core.wrapperInterfaces.render.AbstractDhRenderApiDefinition;
 import com.seibel.distanthorizons.core.wrapperInterfaces.render.objects.IVertexBufferWrapper;
-import org.lwjgl.opengl.GL33;
+import static com.seibel.distanthorizons.lwjgl.LWJGLServiceProvider.LWJGL;
 
 import com.seibel.distanthorizons.api.enums.config.EDhApiGpuUploadMethod;
+import org.lwjgl.opengl.GL15;
 
 /**
  * This is a container for a OpenGL
@@ -50,6 +51,7 @@ public class GLVertexBuffer extends GLBuffer implements IVertexBufferWrapper
 	 * bigger than the upload payload
 	 */
 	protected int vertexCount = 0;
+	@Override
 	public int getVertexCount() { return this.vertexCount; }
 	
 	
@@ -108,7 +110,7 @@ public class GLVertexBuffer extends GLBuffer implements IVertexBufferWrapper
 	//region
 	
 	@Override
-	public int getBufferBindingTarget() { return GL33.GL_ARRAY_BUFFER; }
+	public int getBufferBindingTarget() { return GL15.GL_ARRAY_BUFFER; }
 	
 	@Override
 	public void uploadVertexBuffer(ByteBuffer buffer, int vertexCount)
@@ -133,7 +135,7 @@ public class GLVertexBuffer extends GLBuffer implements IVertexBufferWrapper
 		// If size is zero, just ignore it.
 		if (byteBuffer.limit() - byteBuffer.position() != 0)
 		{
-			super.uploadBuffer(byteBuffer, uploadMethod, maxExpansionSize, uploadMethod.useBufferStorage ? 0 : GL33.GL_STATIC_DRAW);
+			super.uploadBuffer(byteBuffer, uploadMethod, maxExpansionSize, uploadMethod.useBufferStorage ? 0 : GL15.GL_STATIC_DRAW);
 		}
 		
 		this.vertexCount = vertexCount;

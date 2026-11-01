@@ -26,8 +26,11 @@ import com.seibel.distanthorizons.core.dependencyInjection.SingletonInjector;
 import com.seibel.distanthorizons.core.render.RenderParams;
 import com.seibel.distanthorizons.core.wrapperInterfaces.minecraft.IMinecraftRenderWrapper;
 import com.seibel.distanthorizons.core.wrapperInterfaces.render.renderPass.IDhFogRenderer;
-import org.lwjgl.opengl.GL33;
-import org.lwjgl.opengl.GL43C;
+import org.lwjgl.opengl.GL11;
+import org.lwjgl.opengl.GL12;
+import org.lwjgl.opengl.GL30;
+
+import static com.seibel.distanthorizons.lwjgl.LWJGLServiceProvider.LWJGL;
 
 import java.nio.ByteBuffer;
 
@@ -74,7 +77,7 @@ public class GlDhFogRenderer implements IDhFogRenderer
 	{
 		if (this.fogFramebuffer != -1)
 		{
-			GL33.glDeleteFramebuffers(this.fogFramebuffer);
+			LWJGL.glDeleteFramebuffers(this.fogFramebuffer);
 			this.fogFramebuffer = -1;
 		}
 		
@@ -84,20 +87,20 @@ public class GlDhFogRenderer implements IDhFogRenderer
 			this.fogTexture = -1;
 		}
 		
-		this.fogFramebuffer = GL33.glGenFramebuffers();
-		GLMC.glBindFramebuffer(GL33.GL_FRAMEBUFFER, this.fogFramebuffer);
+		this.fogFramebuffer = LWJGL.glGenFramebuffers();
+		GLMC.glBindFramebuffer(GL30.GL_FRAMEBUFFER, this.fogFramebuffer);
 		
 		this.fogTexture = GLMC.glGenTextures();
 		{
 			GLMC.glBindTexture(this.fogTexture);
-			GL33.glTexImage2D(GL33.GL_TEXTURE_2D, 0, GL33.GL_RGBA16, width, height, 0, GL33.GL_RGBA, GL33.GL_UNSIGNED_SHORT_4_4_4_4, (ByteBuffer) null);
-			GL33.glTexParameteri(GL33.GL_TEXTURE_2D, GL33.GL_TEXTURE_MIN_FILTER, GL33.GL_LINEAR);
-			GL33.glTexParameteri(GL33.GL_TEXTURE_2D, GL33.GL_TEXTURE_MAG_FILTER, GL33.GL_LINEAR);
-			GL33.glFramebufferTexture2D(GL33.GL_FRAMEBUFFER, GL33.GL_COLOR_ATTACHMENT0, GL33.GL_TEXTURE_2D, this.fogTexture, 0);
+			LWJGL.glTexImage2D(GL11.GL_TEXTURE_2D, 0, GL11.GL_RGBA16, width, height, 0, GL11.GL_RGBA, GL12.GL_UNSIGNED_SHORT_4_4_4_4, (ByteBuffer) null);
+			LWJGL.glTexParameteri(GL11.GL_TEXTURE_2D, GL11.GL_TEXTURE_MIN_FILTER, GL11.GL_LINEAR);
+			LWJGL.glTexParameteri(GL11.GL_TEXTURE_2D, GL11.GL_TEXTURE_MAG_FILTER, GL11.GL_LINEAR);
+			LWJGL.glFramebufferTexture2D(GL30.GL_FRAMEBUFFER, GL30.GL_COLOR_ATTACHMENT0, GL11.GL_TEXTURE_2D, this.fogTexture, 0);
 			
 			// disable mip-mapping since DH is just going to draw straight to the screen
-			GL43C.glTexParameteri(GL43C.GL_TEXTURE_2D, GL43C.GL_TEXTURE_BASE_LEVEL, 0);
-			GL43C.glTexParameteri(GL43C.GL_TEXTURE_2D, GL43C.GL_TEXTURE_MAX_LEVEL, 0);
+			LWJGL.glTexParameteri(GL11.GL_TEXTURE_2D, GL12.GL_TEXTURE_BASE_LEVEL, 0);
+			LWJGL.glTexParameteri(GL11.GL_TEXTURE_2D, GL12.GL_TEXTURE_MAX_LEVEL, 0);
 		}
 	}
 	

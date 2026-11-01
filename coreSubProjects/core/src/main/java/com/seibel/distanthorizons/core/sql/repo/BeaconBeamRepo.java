@@ -27,7 +27,6 @@ import com.seibel.distanthorizons.core.pos.DhSectionPos;
 import com.seibel.distanthorizons.core.sql.DbConnectionClosedException;
 import com.seibel.distanthorizons.core.sql.dto.BeaconBeamDTO;
 import com.seibel.distanthorizons.core.util.LodUtil;
-import com.seibel.distanthorizons.core.logging.DhLogger;
 import org.jetbrains.annotations.Nullable;
 
 import java.awt.*;
@@ -98,7 +97,7 @@ public class BeaconBeamRepo extends AbstractDhRepo<DhBlockPos, BeaconBeamDTO>
 		return dto;
 	}
 	
-	private final String insertSqlTemplate =
+	private final String upsertSqlTemplate =
 		"INSERT INTO "+this.getTableName() + " (\n" +
 		"   BlockPosX, BlockPosY, BlockPosZ, \n" +
 		"   ColorR, ColorG, ColorB, \n" +
@@ -107,11 +106,16 @@ public class BeaconBeamRepo extends AbstractDhRepo<DhBlockPos, BeaconBeamDTO>
 		"    ?, ?, ?, \n" +
 		"    ?, ?, ?, \n" +
 		"    ?, ? \n" +
-		");";
-	@Override
-	public PreparedStatement createInsertStatement(BeaconBeamDTO dto) throws SQLException
+		") \n" +
+		"ON CONFLICT(BlockPosX, BlockPosY, BlockPosZ) DO UPDATE SET\n" +
+		"    ColorR = excluded.ColorR \n" +
+		"   ,ColorG = excluded.ColorG \n" +
+		"   ,ColorB = excluded.ColorB \n" +
+		"   ,LastModifiedUnixDateTime = excluded.LastModifiedUnixDateTime";
+	@Override 
+	public @Nullable PreparedStatement createUpsertStatement(BeaconBeamDTO dto) throws SQLException
 	{
-		PreparedStatement statement = this.createPreparedStatement(this.insertSqlTemplate);
+		PreparedStatement statement = this.createPreparedStatement(this.upsertSqlTemplate);
 		if (statement == null)
 		{
 			return null;
@@ -129,35 +133,6 @@ public class BeaconBeamRepo extends AbstractDhRepo<DhBlockPos, BeaconBeamDTO>
 		
 		statement.setLong(i++, System.currentTimeMillis()); // last modified unix time
 		statement.setLong(i++, System.currentTimeMillis()); // created unix time
-		
-		return statement;
-	}
-	
-	private final String updateSqlTemplate =
-		"UPDATE "+this.getTableName()+" \n" +
-		"SET \n" +
-		"    ColorR = ?, ColorG = ?, ColorB = ?,  \n" +
-		"    LastModifiedUnixDateTime = ? \n" +
-		"WHERE BlockPosX = ? AND BlockPosY = ? AND BlockPosZ = ?";
-	@Override
-	public PreparedStatement createUpdateStatement(BeaconBeamDTO dto) throws SQLException
-	{
-		PreparedStatement statement = this.createPreparedStatement(this.updateSqlTemplate);
-		if (statement == null)
-		{
-			return null;
-		}
-		
-		int i = 1;
-		statement.setInt(i++, dto.color.getRed());
-		statement.setInt(i++, dto.color.getGreen());
-		statement.setInt(i++, dto.color.getBlue());
-		
-		statement.setLong(i++, System.currentTimeMillis()); // last modified unix time
-		
-		statement.setInt(i++, dto.blockPos.getX());
-		statement.setInt(i++, dto.blockPos.getY());
-		statement.setInt(i++, dto.blockPos.getZ());
 		
 		return statement;
 	}

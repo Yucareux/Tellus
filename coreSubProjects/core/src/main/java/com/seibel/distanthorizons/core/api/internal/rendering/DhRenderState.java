@@ -12,8 +12,8 @@ import com.seibel.distanthorizons.core.wrapperInterfaces.world.IClientLevelWrapp
  */
 public class DhRenderState
 {
-	public DhMat4f mcModelViewMatrix = null;
-	public DhMat4f mcProjectionMatrix = null;
+	public DhMat4f mcModelViewMatrix = new DhMat4f();
+	public DhMat4f mcProjectionMatrix = new DhMat4f();
 	/** 
 	 * percentage of time into the current client tick. <br><br>
 	 * 
@@ -45,6 +45,7 @@ public class DhRenderState
 	//========//
 	// checks //
 	//========//
+	//region
 	
 	public String unableToRenderBecause()
 	{
@@ -83,6 +84,8 @@ public class DhRenderState
 			throw new IllegalStateException(errorReasons);
 		}
 	}
+	
+	//endregion
 	
 	
 	

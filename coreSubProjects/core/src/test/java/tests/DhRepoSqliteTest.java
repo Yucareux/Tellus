@@ -250,7 +250,7 @@ public class DhRepoSqliteTest
 				{
 					TestSingleKeyDto insertDto = new TestSingleKeyDto(i, "a", 0L, (byte) 0);
 					
-					try (PreparedStatement statement = primaryKeyRepo.createInsertStatement(insertDto))
+					try (PreparedStatement statement = primaryKeyRepo.createUpsertStatement(insertDto))
 					{
 						primaryKeyRepo.query(statement);
 						
@@ -301,7 +301,7 @@ public class DhRepoSqliteTest
 				for (int i = 0; i < insertCount; i++)
 				{
 					TestSingleKeyDto insertDto = new TestSingleKeyDto(i, "a", 0L, (byte) 0);
-					PreparedStatement statement = primaryKeyRepo.createInsertStatement(insertDto);
+					PreparedStatement statement = primaryKeyRepo.createUpsertStatement(insertDto);
 					primaryKeyRepo.query(statement);
 					
 					if (i % 1_000 == 0)

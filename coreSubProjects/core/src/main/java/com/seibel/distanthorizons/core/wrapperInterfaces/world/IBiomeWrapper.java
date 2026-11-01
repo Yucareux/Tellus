@@ -31,4 +31,6 @@ public interface IBiomeWrapper extends IDhApiBiomeWrapper, IBindable
 	String getName();
 	String getSerialString();
 	
+	boolean isColdBiome();
+	
 }

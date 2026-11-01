@@ -1,12 +1,10 @@
 package com.seibel.distanthorizons.fabric.testing;
 
 import com.seibel.distanthorizons.api.DhApi;
-import com.seibel.distanthorizons.api.enums.worldGeneration.EDhApiLevelType;
 import com.seibel.distanthorizons.api.interfaces.block.IDhApiBlockStateWrapper;
 import com.seibel.distanthorizons.api.methods.events.abstractEvents.DhApiBlockColorOverrideEvent;
 import com.seibel.distanthorizons.api.methods.events.sharedParameterObjects.DhApiEventParam;
 import com.seibel.distanthorizons.api.objects.DhApiResult;
-import com.seibel.distanthorizons.common.wrappers.WrapperFactory;
 import com.seibel.distanthorizons.core.logging.DhLogger;
 import com.seibel.distanthorizons.core.logging.DhLoggerBuilder;
 import com.seibel.distanthorizons.core.util.LodUtil;
@@ -37,7 +35,7 @@ public class TestCustomColorEvent extends DhApiBlockColorOverrideEvent
 	}
 	
 	/** each datapoint has a random color */
-	private void randomDatapointColors(EventParam eventParam)
+	private static void randomDatapointColors(EventParam eventParam)
 	{
 		// random colors for each datapoint
 		int a = eventParam.getAlpha();
@@ -56,7 +54,7 @@ public class TestCustomColorEvent extends DhApiBlockColorOverrideEvent
 	}
 	
 	/** each block has a different color */
-	private void randomPerBlockColors(EventParam eventParam)
+	private static void randomPerBlockColors(EventParam eventParam)
 	{
 		// random colors per block
 		int r = Math.abs(eventParam.getBlockStateWrapper().hashCode() % 255);
@@ -66,7 +64,7 @@ public class TestCustomColorEvent extends DhApiBlockColorOverrideEvent
 	}
 	
 	/** every block will be rendered using water's color */
-	private void useWaterTint(EventParam eventParam)
+	private static void useWaterTint(EventParam eventParam)
 	{
 		IDhApiBlockStateWrapper blockWrapper;
 		try
@@ -95,7 +93,7 @@ public class TestCustomColorEvent extends DhApiBlockColorOverrideEvent
 		eventParam.setColor(result.payload.getRed(), result.payload.getGreen(), result.payload.getBlue());
 	}
 	
-	private void blackWhitePositionStripe(EventParam eventParam)
+	private static void blackWhitePositionStripe(EventParam eventParam)
 	{
 		// black-white stripes
 		int r = Math.abs(eventParam.getBlockPosX() % 255);
@@ -105,7 +103,7 @@ public class TestCustomColorEvent extends DhApiBlockColorOverrideEvent
 	}
 	
 	/** rainbow along the X axis repeating every 255 blocks */
-	private void positionRainbow(EventParam eventParam)
+	private static void positionRainbow(EventParam eventParam)
 	{
 		float[] ahsv = ColorUtil.argbToAhsv(ColorUtil.RED);
 		float a = ahsv[0];

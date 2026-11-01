@@ -67,6 +67,7 @@ import net.minecraft.world.level.chunk.status.ChunkStatus;
 
 
 
+// TODO this is awful, refactor
 public class WorldGenStructFeatManager extends #if MC_VER < MC_1_19_2 StructureFeatureManager #else StructureManager #endif
 {
 	final WorldGenLevel genLevel;
@@ -139,6 +140,8 @@ public class WorldGenStructFeatManager extends #if MC_VER < MC_1_19_2 StructureF
 		}).filter(structureStart -> structureStart != null && structureStart.isValid());
 	}
 	#else
+	
+	#if MC_VER <= MC_26_2_0
 	@Override
 	public boolean hasAnyStructureAt(BlockPos blockPos)
 	{
@@ -147,6 +150,8 @@ public class WorldGenStructFeatManager extends #if MC_VER < MC_1_19_2 StructureF
 		if (chunk == null) return false;
 		return chunk.hasAnyStructureReferences();
 	}
+	#else
+	#endif
 	
 	#if MC_VER == MC_1_18_1
 	@Override
@@ -224,6 +229,8 @@ public class WorldGenStructFeatManager extends #if MC_VER < MC_1_19_2 StructureF
 		return chunk.getAllReferences();
 	}
 	#else
+	
+	#if MC_VER <= MC_26_2_0
 	@Override
 	public List<StructureStart> startsForStructure(ChunkPos chunkPos, Predicate<Structure> predicate)
 	{
@@ -265,12 +272,14 @@ public class WorldGenStructFeatManager extends #if MC_VER < MC_1_19_2 StructureF
 		this.fillStartsForStructure(structure, longSet, builder::add);
 		return builder.build();
 	}
+	#else
+	#endif
 	
 	@Override
 	public Map<Structure, LongSet> getAllStructuresAt(BlockPos blockPos)
 	{
 		SectionPos sectionPos = SectionPos.of(blockPos);
-		ChunkAccess chunk = _getChunk(sectionPos.x(), sectionPos.z(), ChunkStatus.STRUCTURE_REFERENCES);
+		ChunkAccess chunk = this._getChunk(sectionPos.x(), sectionPos.z(), ChunkStatus.STRUCTURE_REFERENCES);
 		if (chunk == null) return (Map<Structure, LongSet>) Stream.empty();
 		return chunk.getAllReferences();
 	}

@@ -20,6 +20,8 @@
 package com.seibel.distanthorizons.core.file.fullDatafile;
 
 import com.google.common.cache.CacheBuilder;
+import com.seibel.distanthorizons.api.enums.worldGeneration.EDhApiGeneratorPlan;
+import com.seibel.distanthorizons.core.config.Config;
 import com.seibel.distanthorizons.core.dataObjects.fullData.sources.FullDataSourceV2;
 import com.seibel.distanthorizons.core.file.structure.ISaveStructure;
 import com.seibel.distanthorizons.core.generation.queues.RemoteWorldRetrievalQueue;
@@ -29,6 +31,7 @@ import com.seibel.distanthorizons.core.generation.queues.LodRequestModule;
 import com.seibel.distanthorizons.core.logging.DhLoggerBuilder;
 import com.seibel.distanthorizons.core.generation.tasks.ERetrievalResultState;
 import com.seibel.distanthorizons.core.multiplayer.client.SyncOnLoadRequestQueue;
+import com.seibel.distanthorizons.core.multiplayer.client.ClientNetworkState;
 import com.seibel.distanthorizons.core.logging.DhLogger;
 import org.jetbrains.annotations.Nullable;
 
@@ -48,6 +51,8 @@ public class RemoteFullDataSourceProvider extends GeneratedFullDataSourceProvide
 	private static final DhLogger LOGGER = new DhLoggerBuilder().build();
 	
 	@Nullable
+	private final ClientNetworkState networkState;
+	@Nullable
 	private final SyncOnLoadRequestQueue syncOnLoadRequestQueue;
 	private final Set<Long> visitedPositions = Collections.newSetFromMap(CacheBuilder.newBuilder()
 			.expireAfterWrite(20, TimeUnit.MINUTES)
@@ -61,12 +66,14 @@ public class RemoteFullDataSourceProvider extends GeneratedFullDataSourceProvide
 	//=============//
 	
 	public RemoteFullDataSourceProvider(
-			IDhLevel level, ISaveStructure saveStructure, @Nullable File saveDirOverride, 
-			@Nullable SyncOnLoadRequestQueue syncOnLoadRequestQueue
+			IDhLevel level, ISaveStructure saveStructure, @Nullable File saveDirOverride,
+			@Nullable SyncOnLoadRequestQueue syncOnLoadRequestQueue,
+			@Nullable ClientNetworkState networkState
 		) throws SQLException, IOException
 	{
 		super(level, saveStructure, saveDirOverride);
 		this.syncOnLoadRequestQueue = syncOnLoadRequestQueue;
+		this.networkState = networkState;
 	}
 	
 	
@@ -75,6 +82,14 @@ public class RemoteFullDataSourceProvider extends GeneratedFullDataSourceProvide
 	// override methods //
 	//==================//
 	
+	@Override
+	public EDhApiGeneratorPlan getGeneratorPlan()
+	{
+		return this.networkState != null
+			? this.networkState.sessionConfig.getGeneratorPlan()
+			: Config.Common.WorldGenerator.generatorPlan.get();
+	}
+
 	@Override
 	public boolean canQueueRetrievalNow() { return this.canQueueRetrievalNow(true); }
 	

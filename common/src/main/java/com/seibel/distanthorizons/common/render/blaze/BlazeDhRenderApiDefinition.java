@@ -5,27 +5,22 @@ public class BlazeDhRenderApiDefinition {}
 
 #else
 
+import com.seibel.distanthorizons.api.enums.config.EDhApiDepthDirection;
+import com.seibel.distanthorizons.api.enums.config.EDhApiDepthRange;
 import com.seibel.distanthorizons.api.enums.config.EDhApiRenderingApi;
+import com.seibel.distanthorizons.api.enums.config.EDhApiRenderingEngine;
 import com.seibel.distanthorizons.common.render.blaze.objects.BlazeGenericObjectVertexContainer;
-import com.seibel.distanthorizons.common.render.blaze.postProcessing.BlazeDhFarFadeRenderer;
-import com.seibel.distanthorizons.common.render.blaze.postProcessing.BlazeDhFogRenderer;
-import com.seibel.distanthorizons.common.render.blaze.postProcessing.BlazeDhSsaoRenderer;
-import com.seibel.distanthorizons.common.render.blaze.postProcessing.BlazeVanillaFadeRenderer;
+import com.seibel.distanthorizons.common.render.blaze.postProcessing.*;
 import com.seibel.distanthorizons.common.render.blaze.test.BlazeDhTestTriangleRenderer;
 import com.seibel.distanthorizons.common.render.blaze.wrappers.buffer.BlazeVertexBufferWrapper;
 import com.seibel.distanthorizons.common.render.blaze.wrappers.uniform.BlazeLodUniformBufferWrapper;
 import com.seibel.distanthorizons.common.wrappers.minecraft.MinecraftRenderWrapper;
-import com.seibel.distanthorizons.core.render.EDhRenderDepth;
 import com.seibel.distanthorizons.core.render.renderer.AbstractDebugWireframeRenderer;
 import com.seibel.distanthorizons.core.wrapperInterfaces.render.AbstractDhRenderApiDefinition;
 import com.seibel.distanthorizons.core.wrapperInterfaces.render.objects.IDhGenericObjectVertexBufferContainer;
 import com.seibel.distanthorizons.core.wrapperInterfaces.render.objects.ILodContainerUniformBufferWrapper;
 import com.seibel.distanthorizons.core.wrapperInterfaces.render.objects.IVertexBufferWrapper;
 import com.seibel.distanthorizons.core.wrapperInterfaces.render.renderPass.*;
-
-#if MC_VER <= MC_26_1_2
-#else
-#endif
 
 public class BlazeDhRenderApiDefinition extends AbstractDhRenderApiDefinition
 {
@@ -37,18 +32,30 @@ public class BlazeDhRenderApiDefinition extends AbstractDhRenderApiDefinition
 	private final String engineName;
 	public String getEngineName() { return this.engineName; }
 	
-	public EDhRenderDepth getRenderDepth()
+	@Override
+	public EDhApiDepthDirection getDepthDirection()
 	{
 		#if MC_VER <= MC_26_1_2
-		return EDhRenderDepth.FORWARD_Z;
+		return EDhApiDepthDirection.FORWARD_Z;
 		#else
-		return EDhRenderDepth.REVERSE_Z;
+		return EDhApiDepthDirection.REVERSE_Z;
 		#endif
 	}
 	
+	@Override
+	public EDhApiDepthRange getDepthRange()
+	{
+		#if MC_VER <= MC_26_1_2
+		return EDhApiDepthRange.NEG_ONE_TO_POS_ONE;
+		#else
+		// probably caused due to the starting changes to Vulkan
+		return EDhApiDepthRange.ZERO_TO_POS_ONE;
+		#endif
+	}
 	
 	private final EDhApiRenderingApi renderApi;
-	public EDhApiRenderingApi getRenderApi() { return renderApi; }
+	public EDhApiRenderingApi getRenderApi() { return this.renderApi; }
+	public EDhApiRenderingEngine getRenderingEngine() { return EDhApiRenderingEngine.BLAZE_3D; }
 	public boolean isNativeRenderer() { return false; }
 	
 	//endregion
@@ -86,6 +93,7 @@ public class BlazeDhRenderApiDefinition extends AbstractDhRenderApiDefinition
 	@Override public IDhSsaoRenderer getSsaoRenderer() { return BlazeDhSsaoRenderer.INSTANCE; }
 	@Override public IDhFogRenderer getFogRenderer() { return BlazeDhFogRenderer.INSTANCE; }
 	@Override public IDhFarFadeRenderer getFarFadeRenderer() { return BlazeDhFarFadeRenderer.INSTANCE; }
+	@Override public IDhAntiAliasRenderer getAntiAliasRenderer() { return BlazeDhTaaRenderer.INSTANCE; }
 	@Override public AbstractDebugWireframeRenderer getDebugWireframeRenderer() { return BlazeDebugWireframeRenderer.INSTANCE; }
 	
 	@Override public IDhVanillaFadeRenderer getVanillaFadeRenderer() { return BlazeVanillaFadeRenderer.INSTANCE; }

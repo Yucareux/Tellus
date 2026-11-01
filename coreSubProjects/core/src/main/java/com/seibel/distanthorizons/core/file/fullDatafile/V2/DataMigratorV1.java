@@ -271,7 +271,7 @@ public class DataMigratorV1 implements AutoCloseable
 		}
 		this.migrationStartMessageQueued = true;
 		
-		ClientApi.INSTANCE.showChatMessageNextFrame(
+		ClientApi.INSTANCE.queueSlowChatMessage(
 				"Old Distant Horizons data is being migrated for ["+this.levelId+"]. \n" +
 				"While migrating LODs may load slowly \n" +
 				"and DH world gen will be disabled. \n" +
@@ -283,11 +283,11 @@ public class DataMigratorV1 implements AutoCloseable
 	{
 		if (success)
 		{
-			ClientApi.INSTANCE.showChatMessageNextFrame("Distant Horizons data migration for ["+this.levelId+"] completed.");
+			ClientApi.INSTANCE.queueSlowChatMessage("Distant Horizons data migration for ["+this.levelId+"] completed.");
 		}
 		else
 		{
-			ClientApi.INSTANCE.showChatMessageNextFrame(
+			ClientApi.INSTANCE.queueSlowChatMessage(
 					"Distant Horizons data migration for ["+this.levelId+"] stopped. \n" +
 					"Some data may not have been migrated."
 			);

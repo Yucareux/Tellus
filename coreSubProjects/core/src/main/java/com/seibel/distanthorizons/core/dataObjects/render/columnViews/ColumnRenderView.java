@@ -37,10 +37,13 @@ import java.util.concurrent.ConcurrentLinkedQueue;
  */
 public final class ColumnRenderView implements AutoCloseable
 {
-	private static final ConcurrentLinkedQueue<ColumnRenderView> POOL = new ConcurrentLinkedQueue<>();
+	private static final ConcurrentLinkedQueue<ColumnRenderView> COLUMN_VIEW_POOL = new ConcurrentLinkedQueue<>();
 	
 	
+	/** @see ColumnRenderSource#renderDataContainer */
 	public LongArrayList data;
+	/** @see ColumnRenderSource#voidRenderDataContainer */
+	public LongArrayList voidData;
 	
 	/** 
 	 * How many data points are currently being represented by this view. <br>
@@ -58,7 +61,12 @@ public final class ColumnRenderView implements AutoCloseable
 	 * Where the relative starting index is in the {@link ColumnRenderView#data} array
 	 * if this view is representing part of a {@link ColumnRenderSource}.
 	 */
-	public int offset;
+	public int dataOffset;
+	/** 
+	 * only one void data point is present per column view
+	 * since this column is only a single datapoint wide.
+	 */
+	public int voidDataOffset;
 	
 	
 	
@@ -71,14 +79,18 @@ public final class ColumnRenderView implements AutoCloseable
 	
 	/** 
 	 * returns an un-populated view. <br>
-	 * {@link ColumnRenderView#populate(LongArrayList, int, int, int)} must be called before the
+	 * {@link ColumnRenderView#populate(LongArrayList, LongArrayList, int, int, int, int)} must be called before the
 	 * view can be used.s
 	 */
-	public static ColumnRenderView getPooled() { return getPooled(null, 0, 0, 0); }
-	public static ColumnRenderView getPooled(LongArrayList data, int size, int offset, int maxVerticalSliceCount) throws IllegalArgumentException
+	public static ColumnRenderView getPooled() { return getPooled(null, null, 0, 0, 0, 0); }
+	public static ColumnRenderView getPooled(
+		LongArrayList data, LongArrayList voidData, 
+		int size, 
+		int offset, int voidOffset, 
+		int maxVerticalSliceCount) throws IllegalArgumentException
 	{
 		// try getting an existing pooled object first
-		ColumnRenderView view = POOL.poll();
+		ColumnRenderView view = COLUMN_VIEW_POOL.poll();
 		if (view == null)
 		{
 			// no pooled object 
@@ -88,7 +100,11 @@ public final class ColumnRenderView implements AutoCloseable
 		// data will be null if the object will be populated at a later date
 		if (data != null)
 		{
-			view.populate(data, size, offset, maxVerticalSliceCount);
+			view.populate(
+				data, voidData, 
+				size, 
+				offset, voidOffset, 
+				maxVerticalSliceCount);
 		}
 		
 		return view;
@@ -98,24 +114,37 @@ public final class ColumnRenderView implements AutoCloseable
 	 * Mutates this object so the necessary data is visible.  
 	 * @throws IllegalArgumentException if the offset is greater than the data's size 
 	 */
-	public void populate(LongArrayList data, int size, int offset, int maxVerticalSliceCount) throws IllegalArgumentException
+	public void populate(
+		LongArrayList data, LongArrayList voidData,
+		int size, 
+		int offset, int voidDataOffset, 
+		int maxVerticalSliceCount) throws IllegalArgumentException
 	{
 		this.data = data;
+		this.voidData = voidData;
 		this.size = size;
-		this.offset = offset;
+		this.dataOffset = offset;
+		this.voidDataOffset = voidDataOffset;
 		this.maxVerticalSliceCount = maxVerticalSliceCount;
 		
-		if (this.data.size() < this.offset)
+		if (this.data.size() < this.dataOffset)
 		{
-			throw new IllegalArgumentException("data size ["+this.data.size()+"] is shorter than offset ["+this.offset+"].");
+			throw new IllegalArgumentException("data size ["+this.data.size()+"] is shorter than offset ["+this.dataOffset +"].");
+		}
+		
+		if (this.voidData.size() < this.voidDataOffset)
+		{
+			throw new IllegalArgumentException("void data size ["+this.voidData.size()+"] is shorter than offset ["+this.voidDataOffset +"].");
 		}
 	}
 	
 	public void clear()
 	{
 		this.data = null;
+		this.voidData = null;
 		this.size = 0;
-		this.offset = 0;
+		this.dataOffset = 0;
+		this.voidDataOffset = 0;
 		this.maxVerticalSliceCount = 0;
 	}
 	
@@ -132,7 +161,7 @@ public final class ColumnRenderView implements AutoCloseable
 	{
 		try
 		{
-			return this.data.getLong(index + this.offset);
+			return this.data.getLong(index + this.dataOffset);
 		}
 		catch (IndexOutOfBoundsException e)
 		{
@@ -142,11 +171,28 @@ public final class ColumnRenderView implements AutoCloseable
 			throw new ConcurrentModificationException("Potential concurrent modification detected. Make sure the parent ColumnRenderSource isn't being closed before the ColumnRenderView processing is complete.", e);
 		}
 	}
-	public void set(int index, long value) { this.data.set(index + this.offset, value); }
+	public void set(int index, long value) { this.data.set(index + this.dataOffset, value); }
 	
-	public void fill(long value) { Arrays.fill(this.data.elements(), this.offset, this.offset + this.size, value); }
+	/** gets the void datapoint below this render column */
+	public long getVoid()
+	{
+		try
+		{
+			return this.voidData.getLong(this.voidDataOffset);
+		}
+		catch (IndexOutOfBoundsException e)
+		{
+			// we can fairly confidently say this is a concurrent exception over an actual
+			// index out of bounds, since we're generally iterating over the whole
+			// array any time we use this getter.
+			throw new ConcurrentModificationException("Potential concurrent modification detected. Make sure the parent ColumnRenderSource isn't being closed before the ColumnRenderView processing is complete.", e);
+		}
+	}
+	/** sets the void datapoint below this render column */
+	public void setVoid(long value) { this.voidData.set(this.voidDataOffset, value); }
 	
 	//endregion
+	
 	
 	
 	//=========//
@@ -158,9 +204,10 @@ public final class ColumnRenderView implements AutoCloseable
 	public ColumnRenderView subView(int dataIndexStart, int dataCount)
 	{
 		return ColumnRenderView.getPooled(
-			this.data,
+			this.data, this.voidData,
 			dataCount * this.maxVerticalSliceCount,
-			this.offset + dataIndexStart * this.maxVerticalSliceCount,
+			this.dataOffset + dataIndexStart * this.maxVerticalSliceCount,
+			this.voidDataOffset + dataIndexStart,
 			this.maxVerticalSliceCount);
 	}
 	
@@ -199,6 +246,9 @@ public final class ColumnRenderView implements AutoCloseable
 				}
 			}
 		}
+		
+		// copy over the void data too
+		this.setVoid(source.getVoid());
 	}
 	private void copyFrom(ColumnRenderView source, int outputDataIndexOffset)
 	{
@@ -214,7 +264,7 @@ public final class ColumnRenderView implements AutoCloseable
 		{
 			for (int i = 0; i < source.subViewCount(); i++)
 			{
-				int outputOffset = this.offset + (outputDataIndexOffset * this.maxVerticalSliceCount) + (i * this.maxVerticalSliceCount);
+				int outputOffset = this.dataOffset + (outputDataIndexOffset * this.maxVerticalSliceCount) + (i * this.maxVerticalSliceCount);
 				try(ColumnRenderView subView = source.subView(i, 1))
 				{
 					subView.copyTo(this.data.elements(), outputOffset, source.maxVerticalSliceCount);
@@ -227,10 +277,10 @@ public final class ColumnRenderView implements AutoCloseable
 		}
 		else
 		{
-			source.copyTo(this.data.elements(), this.offset + outputDataIndexOffset * this.maxVerticalSliceCount, source.size);
+			source.copyTo(this.data.elements(), this.dataOffset + outputDataIndexOffset * this.maxVerticalSliceCount, source.size);
 		}
 	}
-	private void copyTo(long[] target, int offset, int size) { System.arraycopy(this.data.elements(), this.offset, target, offset, size); }
+	private void copyTo(long[] target, int offset, int size) { System.arraycopy(this.data.elements(), this.dataOffset, target, offset, size); }
 	/**
 	 * This method merge column of multiple data together
 	 *
@@ -262,6 +312,7 @@ public final class ColumnRenderView implements AutoCloseable
 			reducingList.copyTo(output);
 		}
 	}
+	private void fill(long value) { Arrays.fill(this.data.elements(), this.dataOffset, this.dataOffset + this.size, value); }
 	
 	//endregion
 	
@@ -278,12 +329,14 @@ public final class ColumnRenderView implements AutoCloseable
 		StringBuilder sb = new StringBuilder();
 		sb.append("S:").append(this.size);
 		sb.append(" V:").append(this.maxVerticalSliceCount);
-		sb.append(" O:").append(this.offset);
+		sb.append(" O:").append(this.dataOffset);
+		sb.append(" A:").append(this.voidDataOffset);
+		sb.append(" = ").append(this.getVoid());
 		
 		sb.append(" [");
 		for (int i = 0; i < this.size; i++)
 		{
-			sb.append(RenderDataPointUtil.toString(this.data.getLong(this.offset + i)));
+			sb.append(RenderDataPointUtil.toString(this.data.getLong(this.dataOffset + i)));
 			if (i < this.size - 1)
 			{
 				sb.append(",\n");
@@ -299,7 +352,7 @@ public final class ColumnRenderView implements AutoCloseable
 	{
 		// no validation is done to make sure this object is only added to the pool once
 		// please only use this object in a try-finally so the close is handled implicitly
-		POOL.add(this); 
+		COLUMN_VIEW_POOL.add(this); 
 	}
 	
 	//endregion

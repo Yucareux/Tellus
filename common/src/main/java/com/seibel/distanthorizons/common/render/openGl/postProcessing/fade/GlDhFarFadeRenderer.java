@@ -27,8 +27,11 @@ import com.seibel.distanthorizons.core.logging.DhLoggerBuilder;
 import com.seibel.distanthorizons.core.render.RenderParams;
 import com.seibel.distanthorizons.core.wrapperInterfaces.minecraft.IMinecraftRenderWrapper;
 import com.seibel.distanthorizons.core.wrapperInterfaces.render.renderPass.IDhFarFadeRenderer;
-import org.lwjgl.opengl.GL33;
-import org.lwjgl.opengl.GL43C;
+import org.lwjgl.opengl.GL11;
+import org.lwjgl.opengl.GL12;
+import org.lwjgl.opengl.GL30;
+
+import static com.seibel.distanthorizons.lwjgl.LWJGLServiceProvider.LWJGL;
 
 import java.nio.ByteBuffer;
 
@@ -78,12 +81,12 @@ public class GlDhFarFadeRenderer implements IDhFarFadeRenderer
 	{
 		if (this.fadeFramebuffer != -1)
 		{
-			GL33.glDeleteFramebuffers(this.fadeFramebuffer);
+			LWJGL.glDeleteFramebuffers(this.fadeFramebuffer);
 			this.fadeFramebuffer = -1;
 		}
 		
-		this.fadeFramebuffer = GL33.glGenFramebuffers();
-		GLMC.glBindFramebuffer(GL33.GL_FRAMEBUFFER, this.fadeFramebuffer);
+		this.fadeFramebuffer = LWJGL.glGenFramebuffers();
+		GLMC.glBindFramebuffer(GL30.GL_FRAMEBUFFER, this.fadeFramebuffer);
 		
 		
 		if (this.fadeTexture != -1)
@@ -92,19 +95,19 @@ public class GlDhFarFadeRenderer implements IDhFarFadeRenderer
 			this.fadeTexture = -1;
 		}
 		
-		this.fadeTexture = GL33.glGenTextures();
+		this.fadeTexture = LWJGL.glGenTextures();
 		{
 			GLMC.glBindTexture(this.fadeTexture);
-			GL33.glTexImage2D(GL33.GL_TEXTURE_2D, 0, GL33.GL_RGBA16, width, height, 0, GL33.GL_RGBA, GL33.GL_UNSIGNED_SHORT_4_4_4_4, (ByteBuffer) null);
-			GL33.glTexParameteri(GL33.GL_TEXTURE_2D, GL33.GL_TEXTURE_MIN_FILTER, GL33.GL_LINEAR);
-			GL33.glTexParameteri(GL33.GL_TEXTURE_2D, GL33.GL_TEXTURE_MAG_FILTER, GL33.GL_LINEAR);
+			LWJGL.glTexImage2D(GL11.GL_TEXTURE_2D, 0, GL11.GL_RGBA16, width, height, 0, GL11.GL_RGBA, GL12.GL_UNSIGNED_SHORT_4_4_4_4, (ByteBuffer) null);
+			LWJGL.glTexParameteri(GL11.GL_TEXTURE_2D, GL11.GL_TEXTURE_MIN_FILTER, GL11.GL_LINEAR);
+			LWJGL.glTexParameteri(GL11.GL_TEXTURE_2D, GL11.GL_TEXTURE_MAG_FILTER, GL11.GL_LINEAR);
 			
 			// disable mip-mapping since DH is just going to draw straight to the screen
-			GL43C.glTexParameteri(GL43C.GL_TEXTURE_2D, GL43C.GL_TEXTURE_BASE_LEVEL, 0);
-			GL43C.glTexParameteri(GL43C.GL_TEXTURE_2D, GL43C.GL_TEXTURE_MAX_LEVEL, 0);
+			LWJGL.glTexParameteri(GL11.GL_TEXTURE_2D, GL12.GL_TEXTURE_BASE_LEVEL, 0);
+			LWJGL.glTexParameteri(GL11.GL_TEXTURE_2D, GL12.GL_TEXTURE_MAX_LEVEL, 0);
 		}
 		
-		GL33.glFramebufferTexture2D(GL33.GL_FRAMEBUFFER, GL33.GL_COLOR_ATTACHMENT0, GL33.GL_TEXTURE_2D, this.fadeTexture, 0);
+		LWJGL.glFramebufferTexture2D(GL30.GL_FRAMEBUFFER, GL30.GL_COLOR_ATTACHMENT0, GL11.GL_TEXTURE_2D, this.fadeTexture, 0);
 		
 	}
 	

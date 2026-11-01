@@ -41,7 +41,10 @@ public class DhServerLevel extends AbstractDhServerLevel
 		IServerLevelWrapper serverLevelWrapper, 
 		ServerPlayerStateManager serverPlayerStateManager
 		) throws SQLException, IOException
-	{ super(saveStructure, serverLevelWrapper, serverPlayerStateManager); }
+	{ 
+		super(saveStructure, serverLevelWrapper, serverPlayerStateManager);
+		this.serverLevelWrapper.setDhLevel(this);
+	}
 	
 	
 	

@@ -1,27 +1,29 @@
 package com.seibel.distanthorizons.common.render.openGl.glObject.texture;
 
 import com.seibel.distanthorizons.common.render.openGl.glObject.enums.EGlVersion;
-import org.lwjgl.opengl.GL11C;
-import org.lwjgl.opengl.GL12C;
-import org.lwjgl.opengl.GL30C;
+import org.lwjgl.opengl.GL11;
+import org.lwjgl.opengl.GL12;
+import org.lwjgl.opengl.GL30;
+
+import static com.seibel.distanthorizons.lwjgl.LWJGLServiceProvider.LWJGL;
 
 import java.util.Locale;
 import java.util.Optional;
 
 public enum EGlDhPixelFormat
 {
-	RED(GL11C.GL_RED, EGlVersion.GL_11, false),
-	RG(GL30C.GL_RG, EGlVersion.GL_30, false),
-	RGB(GL11C.GL_RGB, EGlVersion.GL_11, false),
-	BGR(GL12C.GL_BGR, EGlVersion.GL_12, false),
-	RGBA(GL11C.GL_RGBA, EGlVersion.GL_11, false),
-	BGRA(GL12C.GL_BGRA, EGlVersion.GL_12, false),
-	RED_INTEGER(GL30C.GL_RED_INTEGER, EGlVersion.GL_30, true),
-	RG_INTEGER(GL30C.GL_RG_INTEGER, EGlVersion.GL_30, true),
-	RGB_INTEGER(GL30C.GL_RGB_INTEGER, EGlVersion.GL_30, true),
-	BGR_INTEGER(GL30C.GL_BGR_INTEGER, EGlVersion.GL_30, true),
-	RGBA_INTEGER(GL30C.GL_RGBA_INTEGER, EGlVersion.GL_30, true),
-	BGRA_INTEGER(GL30C.GL_BGRA_INTEGER, EGlVersion.GL_30, true);
+	RED(GL11.GL_RED, EGlVersion.GL_11, false),
+	RG(GL30.GL_RG, EGlVersion.GL_30, false),
+	RGB(GL11.GL_RGB, EGlVersion.GL_11, false),
+	BGR(GL12.GL_BGR, EGlVersion.GL_12, false),
+	RGBA(GL11.GL_RGBA, EGlVersion.GL_11, false),
+	BGRA(GL12.GL_BGRA, EGlVersion.GL_12, false),
+	RED_INTEGER(GL30.GL_RED_INTEGER, EGlVersion.GL_30, true),
+	RG_INTEGER(GL30.GL_RG_INTEGER, EGlVersion.GL_30, true),
+	RGB_INTEGER(GL30.GL_RGB_INTEGER, EGlVersion.GL_30, true),
+	BGR_INTEGER(GL30.GL_BGR_INTEGER, EGlVersion.GL_30, true),
+	RGBA_INTEGER(GL30.GL_RGBA_INTEGER, EGlVersion.GL_30, true),
+	BGRA_INTEGER(GL30.GL_BGRA_INTEGER, EGlVersion.GL_30, true);
 	
 	
 	

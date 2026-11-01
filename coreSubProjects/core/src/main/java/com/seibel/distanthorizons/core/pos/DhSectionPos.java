@@ -479,7 +479,7 @@ public class DhSectionPos
 	}
 	
 	/** Applies the given consumer to all children of the position at the given section detail level. */
-	public static void forEachChildDownToDetailLevel(long pos, byte minSectionDetailLevel, ICancelablePrimitiveLongConsumer callback) throws IllegalArgumentException, IllegalStateException
+	public static void forEachChildDownToDetailLevel(long pos, byte minSectionDetailLevel, IPrimitiveLongConsumer callback) throws IllegalArgumentException, IllegalStateException
 	{
 		boolean stop = callback.accept(pos);
 		if (stop || minSectionDetailLevel == getDetailLevel(pos))
@@ -544,9 +544,8 @@ public class DhSectionPos
 	
 	/** Used instead of {@link java.util.function.Function} to prevent unnecessary (un)wrapping. */
 	@FunctionalInterface
-	public interface ICancelablePrimitiveLongConsumer
+	public interface IPrimitiveLongConsumer
 	{
-		/** @return true if this method should cancel further consumers. */
 		boolean accept(long value);
 	}
 	

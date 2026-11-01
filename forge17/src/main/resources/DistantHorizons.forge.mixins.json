@@ -1,0 +1,28 @@
+{
+  "required": true,
+  "minVersion": "0.8",
+  "plugin": "com.seibel.distanthorizons.forge17.DistantHorizonsMixinConfigPlugin",
+  "package": "com.seibel.distanthorizons.forge17.mixin",
+  "compatibilityLevel": "JAVA_8",
+  "mixins": [
+    "MixinBiomeGenBase",
+    "MixinChunk",
+    "MixinThreadedFileIOBase"
+  ],
+  "server": [
+  ],
+  "client": [
+    "IMixinChunkCache_SideFacingUnloaded",
+    "MixinActiveRenderInfo",
+    "MixinBlock_SideFacingUnloadedChunk",
+    "MixinEntityRenderer",
+    "MixinFramebuffer",
+    "MixinMinecraft",
+    "MixinNetHandlerPlayClient",
+    "MixinOptionsScreen",
+    "MixinRenderGlobal",
+    "MixinTesselator",
+    "MixinTextureAtlasSprite",
+    "MixinTextureMap"
+  ]
+}

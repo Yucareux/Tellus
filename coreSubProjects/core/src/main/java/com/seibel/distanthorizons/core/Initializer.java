@@ -27,6 +27,7 @@ import com.seibel.distanthorizons.core.config.Config;
 import com.seibel.distanthorizons.core.config.eventHandlers.IgnoredDimensionCsvHandler;
 import com.seibel.distanthorizons.core.dependencyInjection.SingletonInjector;
 import com.seibel.distanthorizons.core.enums.MinecraftTextFormat;
+import com.seibel.distanthorizons.core.jar.EPlatform;
 import com.seibel.distanthorizons.core.logging.DhLoggerBuilder;
 import com.seibel.distanthorizons.core.sql.DatabaseUpdater;
 import com.seibel.distanthorizons.core.wrapperInterfaces.IWrapperFactory;
@@ -42,6 +43,7 @@ import com.seibel.distanthorizons.core.logging.DhLogger;
 import org.sqlite.SQLiteJDBCLoader;
 import org.tukaani.xz.XZOutputStream;
 
+import java.awt.*;
 import java.lang.management.GarbageCollectorMXBean;
 import java.lang.management.ManagementFactory;
 import java.lang.management.RuntimeMXBean;
@@ -65,20 +67,6 @@ public class Initializer
 		//region
 		
 		LOGGER.info("Running library validation...");
-		
-		// check the LWJGL version for UI/GL methods
-		if (!MC_SHARED.isDedicatedServer()) // the dedicated server doesn't care what LWJGL version we're running
-		{
-			try
-			{
-				// tinyfd (and a bunch of other stuff we need) isn't present in LWGJL 2, we need LWJGL 3
-				Class<?> tinyFd = org.lwjgl.util.tinyfd.TinyFileDialogs.class;
-			}
-			catch (Throwable e)
-			{
-				MC_CLIENT.crashMinecraft("Distant Horizons critical setup error: LWJGL 3 or newer required. Error: [" + e.getMessage() + "].", e);
-			}
-		}
 		
 		// confirm that all referenced libraries are available to use
 		try
@@ -148,21 +136,32 @@ public class Initializer
 		//===========================//
 		//region
 		
-		// This code has been disabled since it can cause Mac
-		// to lock up and refuse the load (there's a bug with Java.awt texture loading)
-		//if (MC_CLIENT != null)
-		//{
-		//	// attempt to set up Swing so we can display dialogs (popup windows)
-		//	System.setProperty("java.awt.headless", "false");
-		//	if (GraphicsEnvironment.isHeadless())
-		//	{
-		//		LOGGER.warn("Java.awt.headless is false. This means Distant Horizons can't display error and info dialog windows.");
-		//	}
-		//	else
-		//	{
-		//		LOGGER.info("Java.awt.headless set to true. Distant Horizons can correctly display error and info dialog windows.");
-		//	}
-		//}
+		// if the client is null then we are headless
+		if (MC_CLIENT != null)
+		{
+			// AWT headless is necessary for Java Swing dialogs
+			boolean setAwtHeadless = MC_CLIENT.dialogNeedsAwtHeadless();
+			
+			if (EPlatform.get() == EPlatform.MACOS)
+			{
+				// setting AWT headless to "true" on Mac causes a lock up
+				// due to a bug with Java.awt texture loading
+				setAwtHeadless = false;
+			}
+			
+			if (setAwtHeadless)
+			{
+				System.setProperty("java.awt.headless", "false");
+				if (GraphicsEnvironment.isHeadless())
+				{
+					LOGGER.warn("Java.awt.headless is false. This means Distant Horizons can't display error and info dialog windows.");
+				}
+				else
+				{
+					LOGGER.info("Java.awt.headless set to true. Distant Horizons can correctly display error and info dialog windows.");
+				}
+			}
+		}
 		
 		//endregion
 		
@@ -251,7 +250,7 @@ public class Initializer
 				
 				if (Config.Common.Logging.Warning.showGarbageCollectorWarning.get())
 				{
-					ClientApi.INSTANCE.showChatMessageNextFrame(
+					ClientApi.INSTANCE.queueSlowChatMessage(
 						MinecraftTextFormat.ORANGE + warningMessageHeader + MinecraftTextFormat.CLEAR_FORMATTING + "\n" +
 						warningMessageBody +
 						"");
@@ -308,7 +307,7 @@ public class Initializer
 				
 				if (Config.Common.Logging.Warning.showExplicitGcDisabledWarning.get())
 				{
-					ClientApi.INSTANCE.showChatMessageNextFrame(
+					ClientApi.INSTANCE.queueSlowChatMessage(
 						MinecraftTextFormat.ORANGE + warningMessageHeader + MinecraftTextFormat.CLEAR_FORMATTING + "\n" +
 						warningMessageBody +
 						"");

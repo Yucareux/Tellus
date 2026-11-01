@@ -22,7 +22,7 @@ package com.seibel.distanthorizons.core.level;
 import com.seibel.distanthorizons.api.interfaces.override.worldGenerator.IDhApiWorldGenerator;
 import com.seibel.distanthorizons.core.file.fullDatafile.GeneratedFullDataSourceProvider;
 import com.seibel.distanthorizons.core.file.structure.ISaveStructure;
-import com.seibel.distanthorizons.core.generation.BatchGenerator;
+import com.seibel.distanthorizons.core.generation.DhWorldGenerator;
 import com.seibel.distanthorizons.core.generation.queues.IFullDataSourceRetrievalQueue;
 import com.seibel.distanthorizons.core.generation.queues.WorldGenerationQueue;
 import com.seibel.distanthorizons.core.generation.queues.AbstractLodRequestState;
@@ -88,7 +88,7 @@ public class ServerLevelModule implements AutoCloseable
 			if (worldGenerator == null)
 			{
 				// no override generator is bound, use the Core world generator
-				worldGenerator = new BatchGenerator(level);
+				worldGenerator = new DhWorldGenerator(level);
 				// binding the core generator won't prevent other mods from binding their own generators
 				// since core world generator's should have the lowest override priority
 				WorldGeneratorInjector.INSTANCE.bind(level.getLevelWrapper(), worldGenerator);

@@ -19,7 +19,7 @@
 
 package com.seibel.distanthorizons.core.sql.dto;
 
-import com.google.common.base.MoreObjects;
+import com.seibel.distanthorizons.core.util.MoreObjects;
 import com.seibel.distanthorizons.api.enums.config.EDhApiDataCompressionMode;
 import com.seibel.distanthorizons.api.enums.config.EDhApiWorldCompressionMode;
 import com.seibel.distanthorizons.api.enums.worldGeneration.EDhApiWorldGenerationStep;
@@ -95,6 +95,9 @@ public class FullDataSourceV2DTO
 	/** Will be null if we don't want to update this value in the DB */
 	@Nullable
 	public Boolean applyToChildren;
+	/** Will be null if we don't want to update this value in the DB */
+	@Nullable
+	public Boolean regenerate;
 	
 	public long lastModifiedUnixDateTime;
 	public long createdUnixDateTime;
@@ -132,6 +135,7 @@ public class FullDataSourceV2DTO
 			dto.createdUnixDateTime = dataSource.createdUnixDateTime;
 			dto.applyToParent = dataSource.applyToParent;
 			dto.applyToChildren = dataSource.applyToChildren;
+			dto.regenerate = dataSource.regenerateLeaf;
 		}
 		
 		return dto;
@@ -300,6 +304,10 @@ public class FullDataSourceV2DTO
 		{
 			dataSource.applyToChildren = this.applyToChildren;
 		}
+		if (this.regenerate != null)
+		{
+			dataSource.regenerateLeaf = this.regenerate;
+		}
 		
 		return dataSource;
 	}
@@ -309,7 +317,7 @@ public class FullDataSourceV2DTO
 	//=================//
 	// (de)serializing //
 	//=================//
-
+	
 	public static void writeDataSourceDataArrayToBlobV1(
 			LongArrayList[] inputDataArray, ByteArrayList outputByteArray, 
 			EDhApiDataCompressionMode compressionModeEnum) throws IOException
@@ -328,9 +336,9 @@ public class FullDataSourceV2DTO
 				// short fits that with less wasted spaces vs an int (short has max value of 32,767 vs int's max of 2 billion)
 				compressedOut.writeShort(columnLength);
 				
-					// write column data (will be skipped if no data was present)
-					for (int y = 0; y < columnLength; y++)
-					{
+				// write column data (will be skipped if no data was present)
+				for (int y = 0; y < columnLength; y++)
+				{
 					try
 					{
 						compressedOut.writeLong(FullDataPointUtil.toLegacyDataPoint(dataColumn.getLong(y)));
@@ -339,9 +347,9 @@ public class FullDataSourceV2DTO
 					{
 						throw new IOException(e);
 					}
-					}
 				}
 			}
+		}
 	}
 	private static void readBlobToDataSourceDataArrayV1(
 			ByteArrayList inputCompressedDataByteArray, LongArrayList[] outputDataLongArray, 
@@ -364,13 +372,13 @@ public class FullDataSourceV2DTO
 				LongArrayList dataColumn = outputDataLongArray[xz];
 				ListUtil.clearAndSetSize(dataColumn, dataColumnLength);
 				
-					// read column data (will be skipped if no data was present)
-					for (int y = 0; y < dataColumnLength; y++)
-					{
+				// read column data (will be skipped if no data was present)
+				for (int y = 0; y < dataColumnLength; y++)
+				{
 					long dataPoint = FullDataPointUtil.fromLegacyDataPoint(compressedIn.readLong());
-						if (VALIDATE_INPUT_DATAPOINTS)
-						{
-							FullDataPointUtil.validateDatapoint(dataPoint);
+					if (VALIDATE_INPUT_DATAPOINTS)
+					{
+						FullDataPointUtil.validateDatapoint(dataPoint);
 					}
 					dataColumn.set(y, dataPoint);
 				}
@@ -774,6 +782,7 @@ public class FullDataSourceV2DTO
 		
 		out.writeBoolean(BoolUtil.falseIfNull(this.applyToParent));
 		out.writeBoolean(BoolUtil.falseIfNull(this.applyToChildren));
+		out.writeBoolean(BoolUtil.falseIfNull(this.regenerate));
 		
 		out.writeLong(this.lastModifiedUnixDateTime);
 		out.writeLong(this.createdUnixDateTime);
@@ -814,6 +823,7 @@ public class FullDataSourceV2DTO
 		
 		this.applyToParent = in.readBoolean();
 		this.applyToChildren = in.readBoolean();
+		this.regenerate = in.readBoolean();
 		
 		this.lastModifiedUnixDateTime = in.readLong();
 		this.createdUnixDateTime = in.readLong();
@@ -844,6 +854,7 @@ public class FullDataSourceV2DTO
 				.add("compressionModeValue", this.compressionModeValue)
 				.add("applyToParent", this.applyToParent)
 				.add("applyToChildren", this.applyToChildren)
+				.add("regenerate", this.regenerate)
 				.add("lastModifiedUnixDateTime", this.lastModifiedUnixDateTime)
 				.add("createdUnixDateTime", this.createdUnixDateTime)
 				.toString();

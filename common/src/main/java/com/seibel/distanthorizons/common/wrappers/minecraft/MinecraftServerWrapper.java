@@ -11,6 +11,9 @@ import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.level.Level;
 #else
 import net.minecraft.world.WorldServer;
+#if MC_VER <= MC_1_7_10
+import net.minecraftforge.common.DimensionManager;
+#endif
 #endif
 
 #if  MC_VER <= MC_1_12_2
@@ -61,7 +64,9 @@ public class MinecraftServerWrapper extends AbstractMinecraftSharedWrapper
 			throw new IllegalStateException("Trying to get Installation Direction before dedicated server completed initialization!");
 		}
 		
-		#if MC_VER <= MC_1_12_2
+		#if MC_VER <= MC_1_7_10
+		return new File("."); // equivalent to new MC's "server.getDataDirectory()"
+		#elif MC_VER <= MC_1_12_2
 		return this.dedicatedServer.getDataDirectory();
 		#elif MC_VER < MC_1_21_1
 		return this.dedicatedServer.getServerDirectory();
@@ -101,7 +106,16 @@ public class MinecraftServerWrapper extends AbstractMinecraftSharedWrapper
 		{
 			return null;
 		}
-		WorldServer mcLevel = dedicatedServer.getWorld(dimensionKey);
+		
+		WorldServer mcLevel;
+		{
+			#if MC_VER <= MC_1_7_10
+			mcLevel = DimensionManager.getWorld(dimensionKey);
+			#else
+			mcLevel = dedicatedServer.getWorld(dimensionKey);
+			#endif
+		}
+		
 		#else
 		ResourceKey<Level> dimensionKey = this.deserializeDimensionResourceKey(dimensionResourceLocation);
 		ServerLevel mcLevel = dedicatedServer.getLevel(dimensionKey);

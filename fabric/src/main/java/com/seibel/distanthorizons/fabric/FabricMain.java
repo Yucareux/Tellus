@@ -116,9 +116,11 @@ public class FabricMain extends AbstractModInitializer implements ClientModIniti
 		this.tryCreateModCompatAccessor("optifine", IOptifineAccessor.class, OptifineAccessor::new);
 		this.tryCreateModCompatAccessor("bclib", IBCLibAccessor.class, BCLibAccessor::new);
 		this.tryCreateModCompatAccessor("c2me", IC2meAccessor.class, C2meAccessor::new);
-		this.tryCreateModCompatAccessor(IImmersivePortalsAccessor.CORE_MOD_ID, IImmersivePortalsAccessor.class, ImmersivePortalsAccessorFabric::new);
-		#if MC_VER >= MC_1_19_4
-		// 1.19.4 is the lowest version Iris supports DH
+		this.tryCreateModCompatAccessor(IImmersivePortalsAccessor.MOD_ID_ARRAY, IImmersivePortalsAccessor.class, ImmersivePortalsAccessorFabric::new);
+		this.tryCreateModCompatAccessor("chunky", IChunkyAccessor.class, ChunkyAccessor::new);
+		
+		#if MC_VER >= MC_1_20_1
+		// 1.20.1 is the lowest version Iris supports DH
 		this.tryCreateModCompatAccessor("iris", IIrisAccessor.class, IrisAccessor::new);
 		#endif
 	}
@@ -127,7 +129,7 @@ public class FabricMain extends AbstractModInitializer implements ClientModIniti
 	protected void subscribeRegisterCommandsEvent(Consumer<CommandDispatcher<CommandSourceStack>> eventHandler)
 	{
 		CommandRegistrationCallback.EVENT.register(
-			(dispatcher, registryAccess #if MC_VER >= MC_1_19_2 , environment #endif ) -> 
+			(dispatcher, registryAccess #if MC_VER >= MC_1_19_2 , environment #endif ) ->
 			{
 				eventHandler.accept(dispatcher);
 			}
@@ -135,7 +137,7 @@ public class FabricMain extends AbstractModInitializer implements ClientModIniti
 	}
 	
 	@Override
-	protected void subscribeClientStartedEvent(Runnable eventHandler) 
+	protected void subscribeClientStartedEvent(Runnable eventHandler)
 	{ ClientLifecycleEvents.CLIENT_STARTED.register((mc) -> eventHandler.run()); }
 	
 	@Override
@@ -150,7 +152,8 @@ public class FabricMain extends AbstractModInitializer implements ClientModIniti
 	{
 		SingletonInjector.INSTANCE.runDelayedSetup();
 		
-		if (!Config.Client.Advanced.Graphics.Fog.enableVanillaFog.get() && SingletonInjector.INSTANCE.get(IModChecker.class).isModLoaded("bclib"))
+		if (!Config.Client.Advanced.Graphics.Fog.enableVanillaFog.get() 
+			&& SingletonInjector.INSTANCE.get(IModChecker.class).isModLoaded("bclib"))
 		{
 			ModAccessorInjector.INSTANCE.get(IBCLibAccessor.class).setRenderCustomFog(false); // Remove BCLib's fog
 		}

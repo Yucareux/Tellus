@@ -23,7 +23,7 @@ package com.seibel.distanthorizons.common.wrappers.worldGeneration.step;
 import java.util.ArrayList;
 
 import com.seibel.distanthorizons.common.wrappers.chunk.ChunkWrapper;
-import com.seibel.distanthorizons.common.wrappers.worldGeneration.BatchGenerationEnvironment;
+import com.seibel.distanthorizons.common.wrappers.worldGeneration.DhChunkGenerator;
 import com.seibel.distanthorizons.common.wrappers.worldGeneration.params.ThreadWorldGenParams;
 
 import com.seibel.distanthorizons.common.wrappers.worldGeneration.mimicObject.DhLitWorldGenRegion;
@@ -42,7 +42,7 @@ import net.minecraft.world.level.chunk.status.ChunkStatus;
 
 public final class StepBiomes extends AbstractWorldGenStep
 {
-	private final BatchGenerationEnvironment environment;
+	private final DhChunkGenerator dhChunkGen;
 	
 	public static final ChunkStatus STATUS = ChunkStatus.BIOMES;
 	
@@ -52,7 +52,7 @@ public final class StepBiomes extends AbstractWorldGenStep
 	// constructor //
 	//=============//
 	
-	public StepBiomes(BatchGenerationEnvironment batchGenerationEnvironment) { this.environment = batchGenerationEnvironment; }
+	public StepBiomes(DhChunkGenerator dhChunkGen) { this.dhChunkGen = dhChunkGen; }
 	
 	
 	
@@ -63,10 +63,10 @@ public final class StepBiomes extends AbstractWorldGenStep
 	@Override
 	public ChunkStatus getChunkStatus() { return STATUS; }
 	
-	@Override 
+	@Override
 	public void generateGroup(
-			ThreadWorldGenParams tParams, DhLitWorldGenRegion worldGenRegion, 
-			ArrayGridList<ChunkWrapper> chunkWrappers)
+		ThreadWorldGenParams tParams, DhLitWorldGenRegion worldGenRegion,
+		ArrayGridList<ChunkWrapper> chunkWrappers)
 	{
 		ArrayList<ChunkWrapper> chunksToGen = this.getChunkWrappersToGenerate(chunkWrappers);
 		for (ChunkWrapper chunkWrapper : chunksToGen)
@@ -75,38 +75,38 @@ public final class StepBiomes extends AbstractWorldGenStep
 			
 			
 			#if MC_VER < MC_1_18_2
-			this.environment.globalParams.generator.createBiomes(this.environment.globalParams.biomes, chunk);
+			this.dhChunkGen.globalParams.generator.createBiomes(this.dhChunkGen.globalParams.biomes, chunk);
 			#elif MC_VER < MC_1_19_2
-			chunk = this.environment.confirmFutureWasRunSynchronously(
-						this.environment.globalParams.generator.createBiomes(
-							this.environment.globalParams.biomes, 
+			chunk = this.dhChunkGen.confirmFutureWasRunSynchronously(
+						this.dhChunkGen.globalParams.generator.createBiomes(
+							this.dhChunkGen.globalParams.biomes, 
 							Runnable::run, 
 							Blender.of(worldGenRegion),
 							tParams.structFeatManager.forWorldGenRegion(worldGenRegion), 
 							chunk)
 					);
 			#elif MC_VER < MC_1_19_4
-			chunk = this.environment.confirmFutureWasRunSynchronously(
-						this.environment.globalParams.generator.createBiomes(
-							this.environment.globalParams.biomes, 
+			chunk = this.dhChunkGen.confirmFutureWasRunSynchronously(
+						this.dhChunkGen.globalParams.generator.createBiomes(
+							this.dhChunkGen.globalParams.biomes, 
 							Runnable::run, 
-							this.environment.globalParams.randomState, Blender.of(worldGenRegion),
+							this.dhChunkGen.globalParams.randomState, Blender.of(worldGenRegion),
 							tParams.structFeatManager.forWorldGenRegion(worldGenRegion), 
 							chunk)
 					);
 			#elif MC_VER < MC_1_21_1
-			chunk = this.environment.confirmFutureWasRunSynchronously(
-						this.environment.globalParams.generator.createBiomes(
+			chunk = this.dhChunkGen.confirmFutureWasRunSynchronously(
+						this.dhChunkGen.globalParams.generator.createBiomes(
 							Runnable::run, 
-							this.environment.globalParams.randomState, 
+							this.dhChunkGen.globalParams.randomState, 
 							Blender.of(worldGenRegion),
 							tParams.structFeatManager.forWorldGenRegion(worldGenRegion), 
 							chunk)
 					);
 			#else
-			chunk = this.environment.confirmFutureWasRunSynchronously(
-						this.environment.globalParams.generator.createBiomes(
-							this.environment.globalParams.randomState, 
+			chunk = this.dhChunkGen.confirmFutureWasRunSynchronously(
+						this.dhChunkGen.globalParams.generator.createBiomes(
+							this.dhChunkGen.globalParams.randomState, 
 							Blender.of(worldGenRegion),
 							tParams.structFeatManager.forWorldGenRegion(worldGenRegion), 
 							chunk)

@@ -4,13 +4,6 @@ package com.seibel.distanthorizons.common.render.blaze.wrappers;
 public class RenderPassWrapper {}
 #else
 
-import com.mojang.blaze3d.buffers.GpuBuffer;
-import com.mojang.blaze3d.pipeline.RenderPipeline;
-import com.mojang.blaze3d.systems.CommandEncoder;
-import com.mojang.blaze3d.systems.GpuDevice;
-import com.mojang.blaze3d.systems.RenderPass;
-import com.mojang.blaze3d.systems.RenderSystem;
-import com.mojang.blaze3d.vertex.VertexFormat;
 import com.seibel.distanthorizons.common.render.blaze.wrappers.texture.IDhBlazeTexture;
 import com.seibel.distanthorizons.common.render.blaze.wrappers.uniform.BlazeUniformBufferWrapper;
 import com.seibel.distanthorizons.core.logging.DhLogger;
@@ -21,9 +14,29 @@ import java.util.OptionalDouble;
 import java.util.OptionalInt;
 import java.util.function.Supplier;
 
-#if MC_VER <= MC_26_1_2
+#if MC_VER <= MC_26_2_0
+import com.mojang.blaze3d.buffers.GpuBuffer;
+import com.mojang.blaze3d.pipeline.RenderPipeline;
+import com.mojang.blaze3d.systems.CommandEncoder;
+import com.mojang.blaze3d.systems.GpuDevice;
+import com.mojang.blaze3d.systems.RenderPass;
+import com.mojang.blaze3d.systems.RenderSystem;
+import com.mojang.blaze3d.vertex.VertexFormat;
 #else
+import com.mojang.renderpearl.api.buffers.GpuBuffer;
+import com.mojang.renderpearl.api.pipeline.RenderPipeline;
+import com.mojang.renderpearl.api.commands.CommandEncoder;
+import com.mojang.renderpearl.api.device.GpuDevice;
+import com.mojang.renderpearl.api.commands.RenderPass;
+import com.mojang.blaze3d.systems.RenderSystem;
+import com.mojang.renderpearl.api.pipeline.IndexType;
+import com.mojang.renderpearl.api.pipeline.CompiledRenderPipeline;
+#endif
+
+#if MC_VER <= MC_26_1_2
+#elif MC_VER <= MC_26_2_0
 import com.mojang.blaze3d.IndexType;
+#else
 #endif
 
 public class RenderPassWrapper implements AutoCloseable
@@ -78,10 +91,17 @@ public class RenderPassWrapper implements AutoCloseable
 		final String name, 
 		final IDhBlazeTexture textureView) 
 	{
+		#if MC_VER <= MC_26_2_0
 		this.renderPass.bindTexture(
 			name,
 			textureView.getTextureView(),
 			textureView.getTextureSampler());
+		#else
+		this.renderPass.setUniform(
+			name,
+			textureView.getTextureView(),
+			textureView.getTextureSampler());
+		#endif
 	}
 	
 	public void setVertexBuffer(GpuBuffer buffer)
@@ -104,7 +124,15 @@ public class RenderPassWrapper implements AutoCloseable
 	
 	public void setUniform(String uniformName, BlazeUniformBufferWrapper uniformBuffer) { this.renderPass.setUniform(uniformName, uniformBuffer.getGpuBuffer()); }
 	
-	public void setPipeline(RenderPipeline pipeline) { this.renderPass.setPipeline(pipeline); }
+	public void setPipeline(RenderPipeline pipeline) 
+	{
+		#if MC_VER <= MC_26_2_0
+		this.renderPass.setPipeline(pipeline);
+		#else
+		CompiledRenderPipeline compiledPipeline = RenderSystem.getCompiledPipeline(pipeline);
+		this.renderPass.setPipeline(compiledPipeline);
+		#endif
+	}
 	
 	//endregion
 	

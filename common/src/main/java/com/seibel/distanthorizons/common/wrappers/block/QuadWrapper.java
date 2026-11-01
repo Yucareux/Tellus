@@ -1,5 +1,6 @@
 package com.seibel.distanthorizons.common.wrappers.block;
 
+#if MC_VER > MC_1_7_10
 import com.seibel.distanthorizons.common.wrappers.McObjectConverter;
 import com.seibel.distanthorizons.core.enums.EDhDirection;
 import net.minecraft.client.Minecraft;
@@ -152,3 +153,4 @@ public class QuadWrapper
 	
 	
 }
+#endif

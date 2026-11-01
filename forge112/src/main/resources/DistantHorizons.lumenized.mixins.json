@@ -1,0 +1,10 @@
+{
+    "package": "com.seibel.distanthorizons.forge112.mixins",
+    "required": true,
+    "target": "@env(MOD)",
+    "minVersion": "0.8.5",
+    "compatibilityLevel": "JAVA_8",
+    "client": [
+        "client.lumenized.MixinBloomEffectUtil"
+    ]
+}

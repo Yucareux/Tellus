@@ -441,6 +441,24 @@ public class DhLightingEngine
 	/** @author BuilderB0y */
 	public void bakeDataSourceSkyLight(FullDataSourceV2 dataSource, int maxSkyLight)
 	{
+		// Clear the old sky lighting so we can start fresh.
+		// If not done some lighting will be skipped/ignored,
+		// causing light level = 0
+		for (LongArrayList list : dataSource.dataPoints)
+		{
+			for (int i = 0; i < list.size(); i++)
+			{
+				long data = list.getLong(i);
+				if (data != FullDataPointUtil.EMPTY_DATA_POINT)
+				{
+					data = FullDataPointUtil.setSkyLight(data, 0);
+					list.set(i, data);
+				}
+			}
+		}
+		
+		
+		
 		// create a cache of all the IDs which are completely transparent.
 		// FullDataPointIdMap is thread-safe with locks, and is also a map lookup,
 		// and both of these things add a bit of overhead which is not necessary

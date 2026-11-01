@@ -1,8 +1,10 @@
-#version 330 core
+#version 330
+// needed for "layout(location = 0)" required as as of MC 26.3
+#extension GL_ARB_separate_shader_objects : require
 
-in vec2 TexCoord;
+layout(location = 0) in vec2 texCoord;
 
-out vec4 fragColor;
+layout(location = 0) out vec4 fragColor;
 
 layout (std140) uniform fragUniformBlock
 {
@@ -42,6 +44,7 @@ layout (std140) uniform fragUniformBlock
     mat4 uInvMvmProj;
 
     bool uIsReverseZDepth;
+    bool uDepthIsZeroToPositiveOne;
 };
 
 uniform sampler2D uDhDepthTexture;
@@ -75,12 +78,22 @@ float exponentialSquaredFog(float x, float fogStart, float fogLength, float fogM
  */
 void main()
 {
-    float fragmentDepth = texture(uDhDepthTexture, TexCoord).r;
+    float fragmentDepth = texture(uDhDepthTexture, texCoord).r;
     fragColor = vec4(uFogColor.rgb, 0.0);
 
-    // a fragment depth of "1" means the fragment wasn't drawn to,
-    // we only want to apply Fog to LODs, not to the sky outside the LODs
-    if (fragmentDepth < 1.0)
+    bool drawnTo;
+    if (uIsReverseZDepth)
+    {
+        drawnTo = (fragmentDepth > 0);
+    }
+    else
+    {
+        // a fragment depth of "1" means the fragment wasn't drawn to,
+        // we only want to apply Fog to LODs, not to the sky outside the LODs
+        drawnTo = (fragmentDepth < 1.0);
+    }
+
+    if (drawnTo)
     {
         int fogDebugMode = uFogDebugMode;
         if (fogDebugMode == 0)
@@ -121,7 +134,7 @@ void main()
             // a uniform we don't have to worry about GLSL optimizing away different
             // options when testing, causing a bunch of headaches if we just want to render the screen red.
 
-            float depthValue = textureLod(uDhDepthTexture, TexCoord, 0).r;
+            float depthValue = textureLod(uDhDepthTexture, texCoord, 0).r;
             fragColor.rgb = vec3(depthValue); // Convert depth value to grayscale color
             fragColor.a = 1.0;
         }
@@ -141,8 +154,8 @@ void main()
 vec3 calcViewPosition(float fragmentDepth, mat4 invMvmProj)
 {
     // normalized device coordinates
-    vec4 ndc = vec4(TexCoord.xy, fragmentDepth, 1.0);
-    if (uIsReverseZDepth)
+    vec4 ndc = vec4(texCoord.xy, fragmentDepth, 1.0);
+    if (uDepthIsZeroToPositiveOne)
     {
         // Z already in [0,1], don't remap
         ndc.xy = ndc.xy * 2.0 - 1.0;

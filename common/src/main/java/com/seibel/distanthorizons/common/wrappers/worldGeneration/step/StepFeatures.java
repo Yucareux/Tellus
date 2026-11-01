@@ -21,7 +21,7 @@ package com.seibel.distanthorizons.common.wrappers.worldGeneration.step;
 
 #if MC_VER > MC_1_12_2
 import com.seibel.distanthorizons.common.wrappers.chunk.ChunkWrapper;
-import com.seibel.distanthorizons.common.wrappers.worldGeneration.BatchGenerationEnvironment;
+import com.seibel.distanthorizons.common.wrappers.worldGeneration.DhChunkGenerator;
 import com.seibel.distanthorizons.common.wrappers.worldGeneration.params.ThreadWorldGenParams;
 import com.seibel.distanthorizons.common.wrappers.worldGeneration.mimicObject.DhLitWorldGenRegion;
 import com.seibel.distanthorizons.core.logging.DhLoggerBuilder;
@@ -50,7 +50,7 @@ public final class StepFeatures extends AbstractWorldGenStep
 	
 	public static final ChunkStatus STATUS = ChunkStatus.FEATURES;
 	
-	private final BatchGenerationEnvironment environment;
+	private final DhChunkGenerator dhChunkGen;
 	
 	public static final Set<String> LOGGED_ERRORS = Collections.newSetFromMap(new ConcurrentHashMap<String, Boolean>());
 	
@@ -60,7 +60,7 @@ public final class StepFeatures extends AbstractWorldGenStep
 	// constructor //
 	//=============//
 	
-	public StepFeatures(BatchGenerationEnvironment batchGenerationEnvironment) { this.environment = batchGenerationEnvironment; }
+	public StepFeatures(DhChunkGenerator dhChunkGen) { this.dhChunkGen = dhChunkGen; }
 	
 	
 	
@@ -73,8 +73,8 @@ public final class StepFeatures extends AbstractWorldGenStep
 	
 	@Override
 	public void generateGroup(
-			ThreadWorldGenParams tParams, DhLitWorldGenRegion worldGenRegion,
-			ArrayGridList<ChunkWrapper> chunkWrappers)
+		ThreadWorldGenParams tParams, DhLitWorldGenRegion worldGenRegion,
+		ArrayGridList<ChunkWrapper> chunkWrappers)
 	{
 		ArrayList<ChunkWrapper> chunksToGen = this.getChunkWrappersToGenerate(chunkWrappers);
 		for (ChunkWrapper chunkWrapper : chunksToGen)
@@ -86,11 +86,11 @@ public final class StepFeatures extends AbstractWorldGenStep
 			{
 				#if MC_VER < MC_1_18_2
 				worldGenRegion.setOverrideCenter(chunk.getPos());
-				environment.globalParams.generator.applyBiomeDecoration(worldGenRegion, tParams.structFeatManager);
+				this.dhChunkGen.globalParams.generator.applyBiomeDecoration(worldGenRegion, tParams.structFeatManager);
 				#else
 				if (worldGenRegion.hasChunk(chunkWrapper.getChunkPos().getX(), chunkWrapper.getChunkPos().getZ()))
 				{
-					this.environment.globalParams.generator.applyBiomeDecoration(worldGenRegion, chunk, tParams.structFeatManager.forWorldGenRegion(worldGenRegion));
+					this.dhChunkGen.globalParams.generator.applyBiomeDecoration(worldGenRegion, chunk, tParams.structFeatManager.forWorldGenRegion(worldGenRegion));
 				}
 				else
 				{

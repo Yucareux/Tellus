@@ -20,6 +20,7 @@
 package com.seibel.distanthorizons.core.dataObjects.transformers;
 
 import com.seibel.distanthorizons.api.enums.config.EDhApiBlocksToAvoid;
+import com.seibel.distanthorizons.api.enums.rendering.EDhApiBlockMaterial;
 import com.seibel.distanthorizons.core.config.Config;
 import com.seibel.distanthorizons.core.dataObjects.fullData.FullDataPointIdMap;
 import com.seibel.distanthorizons.core.dataObjects.fullData.sources.FullDataSourceV2;
@@ -130,7 +131,7 @@ public class FullDataToRenderDataTransformer
 		int baseZ = DhSectionPos.getMinCornerBlockZ(pos);
 		
 		try(ColumnRenderView columnArrayView = ColumnRenderView.getPooled();
-			PhantomArrayListCheckout phantomCheckout = ARRAY_LIST_POOL.checkoutLongArrays(1);
+			PhantomArrayListCheckout phantomCheckout = ARRAY_LIST_POOL.checkoutLongArrays(2);
 			ColumnRenderView tempExpandingColumnView = ColumnRenderView.getPooled();
 			RenderDataPointReducingList reducingList = new RenderDataPointReducingList())
 		{
@@ -159,14 +160,15 @@ public class FullDataToRenderDataTransformer
 	
 	/** Updates the given {@link ColumnRenderView} to match the incoming Full data {@link LongArrayList} */
 	private static void updateOrReplaceRenderDataViewColumnWithFullDataColumn(
-			IClientLevelWrapper levelWrapper,
-			FullDataSourceV2 fullDataSource, int blockX, int blockZ, 
-			ColumnRenderView columnArrayView, 
-			LongArrayList fullDataColumn,
-			// only needed if the render source stores texture ids, see applyTextureSetIds
-			@Nullable ColumnRenderSource columnSource, int sourceRelX, int sourceRelZ,
-			// pooled references
-			PhantomArrayListCheckout phantomCheckout, ColumnRenderView tempExpandingColumnView, RenderDataPointReducingList reducingList, DhBlockPosMutable mutableBlockPos)
+		IClientLevelWrapper levelWrapper,
+		FullDataSourceV2 fullDataSource, int blockX, int blockZ, 
+		ColumnRenderView columnArrayView, 
+		LongArrayList fullDataColumn,
+		// only needed if the render source stores texture ids, see applyTextureSetIds
+		@Nullable ColumnRenderSource columnSource, int sourceRelX, int sourceRelZ,
+		// pooled references
+		PhantomArrayListCheckout phantomCheckout, ColumnRenderView tempExpandingColumnView, 
+		RenderDataPointReducingList reducingList, DhBlockPosMutable mutableBlockPos)
 	{
 		// we can't do anything if the full data is missing or empty
 		if (fullDataColumn == null 
@@ -184,9 +186,12 @@ public class FullDataToRenderDataTransformer
 		else
 		{
 			LongArrayList dataArrayList = phantomCheckout.getLongArray(0, fullDataLength);
+			LongArrayList voidDataArrayList = phantomCheckout.getLongArray(1, fullDataLength);
 			
 			// expand the ColumnArrayView to fit the new larger max vertical size
-			tempExpandingColumnView.populate(dataArrayList, fullDataLength, 0, fullDataLength);
+			tempExpandingColumnView.populate(
+				dataArrayList, voidDataArrayList,
+				fullDataLength, 0, 0, fullDataLength);
 			setRenderColumnView(levelWrapper, fullDataSource, blockX, blockZ, tempExpandingColumnView, fullDataColumn, mutableBlockPos);
 			
 			columnArrayView.changeVerticalSizeFrom(tempExpandingColumnView, reducingList);
@@ -222,6 +227,7 @@ public class FullDataToRenderDataTransformer
 			}
 			
 			int topBlockY = RenderDataPointUtil.getYMax(renderData) - 1;
+			byte materialId = RenderDataPointUtil.getBlockMaterialId(renderData);
 			
 			// find the full data point containing the render data point's top block,
 			// the full data column is sorted top down
@@ -240,6 +246,28 @@ public class FullDataToRenderDataTransformer
 					try
 					{
 						IBlockStateWrapper block = fullDataSource.mapping.getBlockStateWrapper(FullDataPointUtil.getId(fullData));
+						
+						// If this render data is snow, but the block ID doesn't match,
+						// try getting the block above it.
+						// This is a hacky fix for snow on LOD borders rendering with the
+						// underlying grass/dirt block, instead of as snow.
+						if (materialId == EDhApiBlockMaterial.SNOW.index
+							&& block.getMaterialId() != materialId
+							&& fullIndex > 0)
+						{
+							// Note: this is a hack.
+							// Since the Render data and textures aren't in the same data array it's difficult to map
+							// them together, but this guess works well enough for now.
+							
+							fullData = fullDataColumn.getLong(fullIndex - 1);
+							IBlockStateWrapper newBlock = fullDataSource.mapping.getBlockStateWrapper(FullDataPointUtil.getId(fullData));
+							// don't use air since that'll remove the texture
+							if (!newBlock.isAir())
+							{
+								block = newBlock;
+							}
+						}
+						
 						textureId = BlockTextureRegistry.INSTANCE.getOrRegisterBlockStateSetId(block);
 					}
 					catch (IndexOutOfBoundsException ignore)
@@ -299,13 +327,17 @@ public class FullDataToRenderDataTransformer
 		
 		boolean isColumnVoid = true;
 		
-		int colorToApplyToNextBlock = -1;
 		int lastColor = 0;
 		int lastBottom = -10_000;
 		IBlockStateWrapper lastBlock = null;
 		
+		// there are several instances where we'll want
+		// to copy the top datapoint down and override the one below it
+		int colorToApplyToNextBlock = -1;
+		IBlockStateWrapper blockToApplyToNextBlock = null;
 		int skylightToApplyToNextBlock = -1;
 		int blocklightToApplyToNextBlock = -1;
+		
 		int renderDataIndex = 0;
 		
 		
@@ -355,6 +387,52 @@ public class FullDataToRenderDataTransformer
 				
 				// don't render broken data
 				continue;
+			}
+			
+			// can be un-commented for testing floating islands
+			// it's recommended to place a single netherrack block as a marker 
+			// and a glowstone block to trigger an LOD update
+			//if (DhSectionPos.encode((byte)6, -8, 2) == fullDataSource.getPos()
+			//	//&& block.getMaterialId() == EDhApiBlockMaterial.NETHER_STONE.index
+			//	&& block.getSerialString().contains("glowstone")
+			//)
+			//{
+			//	int k = 0;
+			//}
+			
+			
+			
+			//==================//
+			// special case:    // 
+			// air gap leak fix //
+			//==================//
+			
+			if (block.isAir())
+			{
+				// we don't want to apply the last block over an air gap,
+				// doing so can cause weird lighting behavior for cave berries
+				// when hanging above water
+				colorToApplyToNextBlock = -1;
+				blockToApplyToNextBlock = null;
+				skylightToApplyToNextBlock = -1;
+				blocklightToApplyToNextBlock = -1;
+			}
+			
+			
+			
+			//=================//
+			// special case:   //
+			// water under ice //
+			//=================//
+			
+			// is this block water and the one above it ice?
+			if (block.getMaterialId() == EDhApiBlockMaterial.WATER.index
+				&& lastBlock != null
+				&& lastBlock.isIceBlock())
+			{
+				// Replace the water with ice to prevent rendering water
+				// under the frozen lakes (which looks bad).
+				block = lastBlock;
 			}
 			
 			
@@ -408,7 +486,19 @@ public class FullDataToRenderDataTransformer
 				
 				if (ignoreBlock)
 				{
-					// this is a merged block and a cave block, so it should never be rendered
+					// if this is the bottom datapoint
+					// save it so lighting appears properly for floating
+					// islands over the void
+					if (fullDataIndex == fullColumnData.size() - 1)
+					{
+						setVoidAir(
+							renderColumnData, renderDataIndex,
+							bottomY, blockHeight,
+							skyLight, blockLight
+						);
+					}
+					
+					// this is a merged block and a cave block, so it shouldn't be rendered
 					continue;
 				}
 			}
@@ -459,6 +549,9 @@ public class FullDataToRenderDataTransformer
 						// below it, if not done grass will appear as gray
 						int snowColor = levelWrapper.getBlockColor(mutableBlockPos, biome, fullDataSource, block);
 						colorToApplyToNextBlock = ColorUtil.setAlpha(snowColor, 255);
+						
+						// the dirt/grass below the snow should be related with snow
+						blockToApplyToNextBlock = block;
 					}
 					else //if (isWaterSurfaceReplacement)
 					{
@@ -479,6 +572,8 @@ public class FullDataToRenderDataTransformer
 					if (ignoredAlpha != 0)
 					{
 						colorToApplyToNextBlock = ColorUtil.setAlpha(ignoredColor, 255);
+						// also copy over the material so shaders/textures render correctly
+						blockToApplyToNextBlock = block;
 					}
 				}
 				
@@ -495,12 +590,26 @@ public class FullDataToRenderDataTransformer
 					blocklightToApplyToNextBlock = blockLight;
 				}
 				
+				
+				// if this is the bottom datapoint
+				// save it so lighting appears properly for floating
+				// islands over the void
+				if (fullDataIndex == fullColumnData.size() - 1)
+				{
+					setVoidAir(
+						renderColumnData, renderDataIndex,
+						bottomY, blockHeight,
+						skyLight, blockLight
+					);
+				}
+				
 				// skip this non-colliding block
 				continue;
 			}
 			
 			
 			int color;
+			// use the override values if necessary
 			if (colorToApplyToNextBlock == -1)
 			{
 				// use this block's color
@@ -519,10 +628,17 @@ public class FullDataToRenderDataTransformer
 					blockLight = blocklightToApplyToNextBlock;
 					blocklightToApplyToNextBlock = -1;
 				}
+				
+				if (blockToApplyToNextBlock != null)
+				{
+					block = blockToApplyToNextBlock;
+					blockToApplyToNextBlock = null;
+				}
 			}
 			else
 			{
-				// use the previous block's color
+				// use the previous block's info as available
+				
 				color = colorToApplyToNextBlock;
 				colorToApplyToNextBlock = -1;
 				
@@ -535,6 +651,11 @@ public class FullDataToRenderDataTransformer
 				if (blocklightToApplyToNextBlock != -1)
 				{
 					blockLight = blocklightToApplyToNextBlock;
+				}
+				
+				if (blockToApplyToNextBlock != null)
+				{
+					block = blockToApplyToNextBlock;
 				}
 			}
 			
@@ -572,6 +693,39 @@ public class FullDataToRenderDataTransformer
 		{
 			renderColumnData.set(0, RenderDataPointUtil.EMPTY_DATA);
 		}
+	}
+	
+	/**
+	 * Necessary to handle adjacent sky/block lighting
+	 * over the void.
+	 */
+	private static void setVoidAir(
+		ColumnRenderView renderColumnData, int renderDataIndex,
+		int bottomY, int blockHeight,
+		int skyLight, int blockLight)
+	{
+		// get the last render point (if present)
+		long lastDatapoint = RenderDataPointUtil.EMPTY_DATA;
+		if (renderDataIndex > 0)
+		{
+			lastDatapoint = renderColumnData.get(renderDataIndex - 1);
+		}
+		
+		// Get the max y position from the previous render data point's bottom Y.
+		// This is necessary for lighting to appear correctly for adjacent air data points over the void.
+		int maxY = (bottomY + blockHeight);
+		if (lastDatapoint != RenderDataPointUtil.EMPTY_DATA)
+		{
+			maxY = RenderDataPointUtil.getYMin(lastDatapoint);
+		}
+		
+		long columnData = RenderDataPointUtil.createDataPoint(
+			maxY, 0, // min Y since this datapoint should go all the way down to the void
+			ColorUtil.INVISIBLE, skyLight, blockLight,
+			// use air's material since this datapoint shouldn't be rendered, 
+			// it's only present to handle sky/block lighting
+			EDhApiBlockMaterial.AIR.index);
+		renderColumnData.setVoid(columnData);
 	}
 	
 	//endregion

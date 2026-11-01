@@ -34,8 +34,12 @@ import com.seibel.distanthorizons.core.util.objects.Pair;
 import com.seibel.distanthorizons.core.util.objects.pooling.PhantomLoggingHelper;
 import com.seibel.distanthorizons.coreapi.ModInfo;
 import com.seibel.distanthorizons.coreapi.util.StringUtil;
+import org.lwjgl.opengl.GL15;
+import org.lwjgl.opengl.GL30;
+import org.lwjgl.opengl.GL31;
 import org.lwjgl.opengl.GL33;
-import org.lwjgl.opengl.GL44;
+
+import static com.seibel.distanthorizons.lwjgl.LWJGLServiceProvider.LWJGL;
 
 import java.lang.ref.PhantomReference;
 import java.lang.ref.Reference;
@@ -130,10 +134,10 @@ public class GLBuffer implements AutoCloseable
 	//region
 	
 	// Should be override by subclasses
-	public int getBufferBindingTarget() { return GL33.GL_COPY_READ_BUFFER; }
+	public int getBufferBindingTarget() { return GL31.GL_COPY_READ_BUFFER; }
 	
-	public void bind() { GL33.glBindBuffer(this.getBufferBindingTarget(), this.id); }
-	public void unbind() { GL33.glBindBuffer(this.getBufferBindingTarget(), 0); }
+	public void bind() { LWJGL.glBindBuffer(this.getBufferBindingTarget(), this.id); }
+	public void unbind() { LWJGL.glBindBuffer(this.getBufferBindingTarget(), 0); }
 	
 	//endregion
 	
@@ -154,7 +158,7 @@ public class GLBuffer implements AutoCloseable
 		
 		// lock to prevent the render thread from accessing the buffer's ID
 		// while we are removing it
-		long writeStamp = renderStampLock.writeLock();
+		long writeStamp = this.renderStampLock.writeLock();
 		try
 		{
 			final int oldId = this.id;
@@ -299,9 +303,9 @@ public class GLBuffer implements AutoCloseable
 		// re-binding the old buffers is necessary for old MC versions for the following reasons:
 		// for 16.5 and older the screen may be black when on the home menu
 		// and for 1.19.2 - 1.21.4 the inventory/UI will render without a background
-		int vao = GL33.glGetInteger(GL33.GL_VERTEX_ARRAY_BINDING);
-		int vbo = GL33.glGetInteger(GL33.GL_ARRAY_BUFFER_BINDING);
-		int ebo = GL33.glGetInteger(GL33.GL_ELEMENT_ARRAY_BUFFER_BINDING);
+		int vao = LWJGL.glGetInteger(GL30.GL_VERTEX_ARRAY_BINDING);
+		int vbo = LWJGL.glGetInteger(GL15.GL_ARRAY_BUFFER_BINDING);
+		int ebo = LWJGL.glGetInteger(GL15.GL_ELEMENT_ARRAY_BUFFER_BINDING);
 		
 		try
 		{
@@ -327,9 +331,9 @@ public class GLBuffer implements AutoCloseable
 		}
 		finally
 		{
-			GL33.glBindVertexArray(GL33.glIsVertexArray(vao) ? vao : 0);
-			GL33.glBindBuffer(GL33.GL_ARRAY_BUFFER, GL33.glIsBuffer(vbo) ? vbo : 0);
-			GL33.glBindBuffer(GL33.GL_ELEMENT_ARRAY_BUFFER, GL33.glIsBuffer(ebo) ? ebo: 0);
+			LWJGL.glBindVertexArray(GL30.glIsVertexArray(vao) ? vao : 0);
+			LWJGL.glBindBuffer(GL15.GL_ARRAY_BUFFER, GL15.glIsBuffer(vbo) ? vbo : 0);
+			LWJGL.glBindBuffer(GL15.GL_ELEMENT_ARRAY_BUFFER, GL15.glIsBuffer(ebo) ? ebo: 0);
 		}
 	}
 	/** Requires the buffer to be bound */
@@ -340,7 +344,7 @@ public class GLBuffer implements AutoCloseable
 		int bbSize = bb.limit() - bb.position();
 		this.destroyOldAndCreate(true);
 		this.bind();
-		GL44.glBufferStorage(this.getBufferBindingTarget(), bb, 0);
+		LWJGL.glBufferStorage(this.getBufferBindingTarget(), bb, 0);
 		this.size = bbSize;
 	}
 	/** Requires the buffer to be bound */
@@ -358,12 +362,12 @@ public class GLBuffer implements AutoCloseable
 			// glBufferData call:
 			//   1) allocate-only with the size overload (no memcpy)
 			//   2) fill the buffer through chunked glBufferSubData calls
-			GL33.glBufferData(target, (long) bbSize, bufferDataHint);
+			LWJGL.glBufferData(target, (long) bbSize, bufferDataHint);
 			subDataUploadInChunks(target, 0, bb, MAC_UPLOAD_CHUNK_BYTES);
 		}
 		else
 		{
-			GL33.glBufferData(target, bb, bufferDataHint);
+			LWJGL.glBufferData(target, bb, bufferDataHint);
 		}
 		this.size = bbSize;
 		
@@ -385,7 +389,7 @@ public class GLBuffer implements AutoCloseable
 			}
 			
 			// allocate-only — no memcpy, safe on macOS regardless of size
-			GL33.glBufferData(target, (long) newSize, bufferDataHint);
+			LWJGL.glBufferData(target, (long) newSize, bufferDataHint);
 			this.size = newSize;
 		}
 		
@@ -395,7 +399,7 @@ public class GLBuffer implements AutoCloseable
 		}
 		else
 		{
-			GL33.glBufferSubData(target, 0, bb);
+			LWJGL.glBufferSubData(target, 0, bb);
 		}
 		
 		this.updateAllocationStackTrace();
@@ -472,7 +476,7 @@ public class GLBuffer implements AutoCloseable
 	
 	/**
 	 * Uploads {@code bb} into the currently bound buffer at {@code baseOffset}
-	 * using a sequence of {@link GL33#glBufferSubData(int, long, ByteBuffer)}
+	 * using a sequence of {@link GL15#glBufferSubData(int, long, ByteBuffer)}
 	 * calls of at most {@code chunkBytes} each. The buffer's position/limit are
 	 * restored before returning.
 	 */
@@ -489,7 +493,7 @@ public class GLBuffer implements AutoCloseable
 				int chunk = Math.min(chunkBytes, total - uploaded);
 				bb.position(origPos + uploaded);
 				bb.limit(origPos + uploaded + chunk);
-				GL33.glBufferSubData(target, (long) (baseOffset + uploaded), bb);
+				LWJGL.glBufferSubData(target, (long) (baseOffset + uploaded), bb);
 				uploaded += chunk;
 				// Force the driver to drain its command queue between chunks
 				// so the OpenGL -> Metal bridge processes (and frees) each
@@ -497,7 +501,7 @@ public class GLBuffer implements AutoCloseable
 				// memmove on top of it.
 				if (uploaded < total)
 				{
-					GL33.glFlush();
+					LWJGL.glFlush();
 				}
 			}
 		}
@@ -609,7 +613,7 @@ public class GLBuffer implements AutoCloseable
 						// log stack traces if present
 						if (LOG_PHANTOM_ALLOCATION_STACKS)
 						{
-							PhantomLoggingHelper.LogAllocationStackTracePairCounts(LOGGER, allocationStackTraceCountPairList);
+							PhantomLoggingHelper.LogAllocationStackTracePairCounts(LOGGER, "", allocationStackTraceCountPairList);
 						}
 					}
 				}

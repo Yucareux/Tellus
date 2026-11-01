@@ -24,6 +24,9 @@ dependencies {
     
     // Oculus (Iris port)
     addMod("maven.modrinth:oculus:${rootProject.oculus_version}", rootProject.enable_oculus)
+
+    // Chunky
+    addMod("maven.modrinth:chunky:${rootProject.forge_chunky_version}", rootProject.forge_enable_chunky)
     
     // TODO: Check if this is still needed and if so ensure this code works for MC 26.1+
     // (potential) hack fix for MC 1.20.6 and later, force jopt-simple to be exactly 5.0.4 because Mojang ships that version, but some transitive dependencies request 6.0+

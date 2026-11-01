@@ -1,6 +1,9 @@
 package com.seibel.distanthorizons.common.wrappers.level;
 
 import com.seibel.distanthorizons.common.wrappers.world.ClientLevelWrapper;
+#if MC_VER <= MC_1_7_10
+import com.seibel.distanthorizons.common.wrappers.world.LegacyDimensionInfo;
+#endif
 import com.seibel.distanthorizons.core.level.IServerKeyedClientLevel;
 import com.seibel.distanthorizons.core.level.IKeyedClientLevelManager;
 import com.seibel.distanthorizons.core.wrapperInterfaces.world.IClientLevelWrapper;
@@ -92,8 +95,11 @@ public class KeyedClientLevelManager implements IKeyedClientLevelManager
 		
 		synchronized (this.keyedLevelsCache)
 		{
-			this.keyedLevelsCache.keySet().removeIf(level -> {
-	            #if MC_VER <= MC_1_12_2
+			this.keyedLevelsCache.keySet().removeIf(level -> 
+			{
+	            #if MC_VER <= MC_1_7_10
+				String levelDim = LegacyDimensionInfo.fullName(level.provider.dimensionId);
+	            #elif MC_VER <= MC_1_12_2
 	            String levelDim = level.provider.getDimensionType().getName() + ":" + level.provider.getDimension();
 	            #elif MC_VER <= MC_1_21_10
 				String levelDim = level.dimension().location().toString();

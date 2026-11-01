@@ -185,6 +185,11 @@ public interface INetworkObject
 						);
 					}
 			));
+			
+			this.put(Enum.class, new Codec(
+				(obj, outByteBuff) -> outByteBuff.writeByte(((Enum<?>) obj).ordinal()),
+				(obj, inByteBuff) -> ((Enum<?>) obj).getClass().getEnumConstants()[inByteBuff.readByte()]
+			));
 		}};
 		
 		

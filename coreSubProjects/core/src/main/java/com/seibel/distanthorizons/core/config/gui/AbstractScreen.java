@@ -30,7 +30,6 @@ import java.util.List;
  */
 public abstract class AbstractScreen
 {
-	public long minecraftWindow;
 	public int width;
 	public int height;
 	public int scaledWidth;

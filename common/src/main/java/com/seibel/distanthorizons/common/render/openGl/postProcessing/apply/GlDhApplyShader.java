@@ -19,18 +19,26 @@
 
 package com.seibel.distanthorizons.common.render.openGl.postProcessing.apply;
 
+import com.seibel.distanthorizons.api.enums.config.EDhApiDepthDirection;
 import com.seibel.distanthorizons.common.render.openGl.GlDhMetaRenderer;
 import com.seibel.distanthorizons.common.render.openGl.glObject.GLState;
 import com.seibel.distanthorizons.common.render.openGl.glObject.shader.GlShaderProgram;
 import com.seibel.distanthorizons.common.render.openGl.postProcessing.GlScreenQuad;
 import com.seibel.distanthorizons.common.wrappers.minecraft.MinecraftGLWrapper;
+import com.seibel.distanthorizons.core.dependencyInjection.SingletonInjector;
 import com.seibel.distanthorizons.core.logging.DhLoggerBuilder;
 import com.seibel.distanthorizons.common.render.openGl.util.GlAbstractShaderRenderer;
 import com.seibel.distanthorizons.core.logging.DhLogger;
-import org.lwjgl.opengl.GL33;
+import com.seibel.distanthorizons.core.wrapperInterfaces.render.AbstractDhRenderApiDefinition;
+import org.lwjgl.opengl.GL13;
+import org.lwjgl.opengl.GL30;
+
+import static com.seibel.distanthorizons.lwjgl.LWJGLServiceProvider.LWJGL;
 
 /**
- * Copies {@link com.seibel.distanthorizons.core.render.renderer.LodRenderer}'s currently active color and depth texture to Minecraft's framebuffer. 
+ * Applies {@link com.seibel.distanthorizons.core.render.renderer.LodRenderer}'s 
+ * currently active color texture to Minecraft's framebuffer,
+ * ignoring any depth that wasn't drawn. 
  */
 public class GlDhApplyShader extends GlAbstractShaderRenderer
 {
@@ -38,11 +46,13 @@ public class GlDhApplyShader extends GlAbstractShaderRenderer
 	
 	private static final DhLogger LOGGER = new DhLoggerBuilder().build();
 	private static final MinecraftGLWrapper GLMC = MinecraftGLWrapper.INSTANCE;
+	private static final AbstractDhRenderApiDefinition RENDER_DEF = SingletonInjector.INSTANCE.get(AbstractDhRenderApiDefinition.class);
 	
 	
 	// uniforms
-	public int gDhColorTextureUniform;
-	public int gDepthMapUniform;
+	public int uSourceColorTexture;
+	public int uSourceDepthTexture;
+	public int uIsReverseZDepth;
 	
 	
 	
@@ -58,13 +68,14 @@ public class GlDhApplyShader extends GlAbstractShaderRenderer
 	{
 		this.shader = new GlShaderProgram(
 			"assets/distanthorizons/shaders/shared/gl/quad_apply.vert",
-			"assets/distanthorizons/shaders/shared/gl/apply.frag",
+			"assets/distanthorizons/shaders/apply/gl/apply.frag",
 			"vPosition"
 		);
 		
 		// uniform setup
-		this.gDhColorTextureUniform = this.shader.getUniformLocation("gDhColorTexture");
-		this.gDepthMapUniform = this.shader.getUniformLocation("gDhDepthTexture");
+		this.uSourceColorTexture = this.shader.getUniformLocation("uSourceColorTexture");
+		this.uSourceDepthTexture = this.shader.getUniformLocation("uSourceDepthTexture");
+		this.uIsReverseZDepth = this.shader.getUniformLocation("uIsReverseZDepth");
 		
 	}
 	
@@ -113,21 +124,23 @@ public class GlDhApplyShader extends GlAbstractShaderRenderer
 			//GL33.glBlendEquation(GL33.GL_FUNC_ADD);
 			//GLMC.glBlendFunc(GL33.GL_ONE, GL33.GL_ONE_MINUS_SRC_ALPHA);
 			
-			GLMC.glActiveTexture(GL33.GL_TEXTURE0);
+			GLMC.glActiveTexture(GL13.GL_TEXTURE0);
 			GLMC.glBindTexture(GlDhMetaRenderer.INSTANCE.getActiveColorTextureId());
-			GL33.glUniform1i(this.gDhColorTextureUniform, 0);
+			LWJGL.glUniform1i(this.uSourceColorTexture, 0);
 			
-			GLMC.glActiveTexture(GL33.GL_TEXTURE1);
+			GLMC.glActiveTexture(GL13.GL_TEXTURE1);
 			GLMC.glBindTexture(GlDhMetaRenderer.INSTANCE.getActiveDepthTextureId());
-			GL33.glUniform1i(this.gDepthMapUniform, 1);
+			LWJGL.glUniform1i(this.uSourceDepthTexture, 1);
+			
+			LWJGL.glUniform1i(this.uIsReverseZDepth, (RENDER_DEF.getDepthDirection() == EDhApiDepthDirection.REVERSE_Z) ? 1 : 0);
 			
 			// Copy to MC's framebuffer
-			GLMC.glBindFramebuffer(GL33.GL_FRAMEBUFFER, targetFrameBuffer);
+			GLMC.glBindFramebuffer(GL30.GL_FRAMEBUFFER, targetFrameBuffer);
 			
 			GlScreenQuad.INSTANCE.render();
 		}
 		// everything's been restored, except at this point the MC framebuffer should now be used instead
-		GLMC.glBindFramebuffer(GL33.GL_FRAMEBUFFER, targetFrameBuffer);
+		GLMC.glBindFramebuffer(GL30.GL_FRAMEBUFFER, targetFrameBuffer);
 		
 	}
 	private void renderToMcTexture()
@@ -161,25 +174,27 @@ public class GlDhApplyShader extends GlAbstractShaderRenderer
 			// but it also resolves some other issues, so it's likely not an issue
 			GLMC.disableBlend();
 			
-			GLMC.glActiveTexture(GL33.GL_TEXTURE0);
+			GLMC.glActiveTexture(GL13.GL_TEXTURE0);
 			GLMC.glBindTexture(GlDhMetaRenderer.INSTANCE.getActiveColorTextureId());
-			GL33.glUniform1i(this.gDhColorTextureUniform, 0);
+			LWJGL.glUniform1i(this.uSourceColorTexture, 0);
 			
-			GLMC.glActiveTexture(GL33.GL_TEXTURE1);
+			GLMC.glActiveTexture(GL13.GL_TEXTURE1);
 			GLMC.glBindTexture(GlDhMetaRenderer.INSTANCE.getActiveDepthTextureId());
-			GL33.glUniform1i(this.gDepthMapUniform, 1);
+			LWJGL.glUniform1i(this.uSourceDepthTexture, 1);
+			
+			LWJGL.glUniform1i(this.uIsReverseZDepth, (RENDER_DEF.getDepthDirection() == EDhApiDepthDirection.REVERSE_Z) ? 1 : 0);
 			
 			
 			
-			GL33.glFramebufferTexture(GL33.GL_DRAW_FRAMEBUFFER, GL33.GL_COLOR_ATTACHMENT0, targetColorTextureId, 0);
+			LWJGL.glFramebufferTexture(GL30.GL_DRAW_FRAMEBUFFER, GL30.GL_COLOR_ATTACHMENT0, targetColorTextureId, 0);
 			
 			// Copy to MC's texture via MC's framebuffer
-			GLMC.glBindFramebuffer(GL33.GL_FRAMEBUFFER, dhFrameBufferId);
+			GLMC.glBindFramebuffer(GL30.GL_FRAMEBUFFER, dhFrameBufferId);
 			
 			GlScreenQuad.INSTANCE.render();
 		}
 		// everything's been restored, except at this point the MC framebuffer should now be used instead
-		GLMC.glBindFramebuffer(GL33.GL_FRAMEBUFFER, mcFrameBufferId);
+		GLMC.glBindFramebuffer(GL30.GL_FRAMEBUFFER, mcFrameBufferId);
 		
 	}
 	

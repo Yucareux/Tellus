@@ -37,6 +37,8 @@ public class PhantomArrayListCheckout implements AutoCloseable
 	/** Will be null if the parent pool doesn't want leak stack tracing */
 	@Nullable
 	public String allocationStackTrace = null;
+	@Nullable
+	public String lastSeenStackTrace = null;
 	
 	private final ArrayList<ByteArrayList> byteArrayLists = new ArrayList<>();
 	private final ArrayList<ShortArrayList> shortArrayLists = new ArrayList<>();
@@ -55,16 +57,6 @@ public class PhantomArrayListCheckout implements AutoCloseable
 	{
 		this.owningPool = owningPool;
 		this.ownerSoftReference = new SoftReference<>(this);
-	}
-	
-	public void onCheckout()
-	{
-		if (this.owningPool.logGarbageCollectedStacks)
-		{
-			StackTraceElement[] stackTraceElements = Thread.currentThread().getStackTrace();
-			StackTraceElement[] trimmedElements = Arrays.copyOfRange(stackTraceElements, 4, stackTraceElements.length);
-			this.allocationStackTrace = StringUtil.join("\n", trimmedElements).intern();
-		}
 	}
 	
 	//endregion
@@ -155,6 +147,51 @@ public class PhantomArrayListCheckout implements AutoCloseable
 	public ArrayList<LongArrayList> getAllLongArrays() { return this.longArrayLists; }
 	public ArrayList<CharArrayList> getAllCharArrays() { return this.charArrayLists; }
 	public ArrayList<ByteBufferCheckoutWrapper> getAllByteBufferWrappers() { return this.byteBufferWrapperList; }
+	
+	//endregion
+	
+	
+	
+	//===============//
+	// leak tracking //
+	//===============//
+	//region
+	
+	public void onCheckout()
+	{
+		if (this.owningPool.logGarbageCollectedStacks)
+		{
+			this.allocationStackTrace = getStackTraceString();
+		}
+		
+		this.recordLastSeen();
+	}
+	
+	/** 
+	 * Can be added to different methods to track
+	 * how far an object gets through a given system. <br><br>
+	 * 
+	 * For example with DH's world gen Full data sources
+	 * cross several different Future boundaries,
+	 * which means we can easily lose track of
+	 * where the objects end up or should be.
+	 * By adding these record calls we can see where
+	 * the data source was last seen before being garbage collected.
+	 */
+	public void recordLastSeen()
+	{
+		if (this.owningPool.logGarbageCollectedStacks)
+		{
+			this.lastSeenStackTrace = getStackTraceString();
+		}
+	}
+	
+	private static String getStackTraceString()
+	{
+		StackTraceElement[] stackTraceElements = Thread.currentThread().getStackTrace();
+		StackTraceElement[] trimmedElements = Arrays.copyOfRange(stackTraceElements, 4, stackTraceElements.length);
+		return StringUtil.join("\n", trimmedElements).intern();
+	}
 	
 	//endregion
 	

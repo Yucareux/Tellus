@@ -32,6 +32,7 @@ import org.jetbrains.annotations.Nullable;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.function.Consumer;
+import java.util.function.Function;
 
 /**
  * This config type allows for entering text, number, or enum values.
@@ -45,6 +46,8 @@ public class ConfigEntry<T> extends AbstractConfigBase<T>
 	private T max;
 	private final ArrayList<IConfigListener> listenerList;
 	private final String chatCommandName;
+	@Nullable
+	private final IShowEnumOptionFunc showEnumOptionFunc;
 	
 	/**
 	 * If true this config can be controlled by the API <br>
@@ -54,6 +57,14 @@ public class ConfigEntry<T> extends AbstractConfigBase<T>
 	/** Will be null if un-set */
 	@Nullable
 	private T apiValue;
+	@Nullable
+	private String apiUser;
+	/** 
+	 * When this option was last modified by the API.
+	 * This is present to prevent aliasing if the option is
+	 * rapidly set/cleared.
+	 */
+	private long apiValueLastSetMs = 0L;
 	
 	/** 
 	 * Will be null if un-set. <br> <br>
@@ -73,11 +84,12 @@ public class ConfigEntry<T> extends AbstractConfigBase<T>
 	//region
 	
 	private ConfigEntry(
-			EConfigEntryAppearance appearance, 
-			String comment, String chatCommandName, 
-			T value, T min, T max,
-			boolean allowApiOverride, 
-			ArrayList<IConfigListener> listenerList)
+		EConfigEntryAppearance appearance, 
+		String comment, String chatCommandName, 
+		@Nullable IShowEnumOptionFunc showEnumOptionFunc,
+		T value, T min, T max,
+		boolean allowApiOverride, 
+		ArrayList<IConfigListener> listenerList)
 	{
 		super(appearance, value);
 		
@@ -85,6 +97,7 @@ public class ConfigEntry<T> extends AbstractConfigBase<T>
 		this.min = min;
 		this.max = max;
 		this.chatCommandName = chatCommandName;
+		this.showEnumOptionFunc = showEnumOptionFunc;
 		this.allowApiOverride = allowApiOverride;
 		this.listenerList = listenerList;
 	}
@@ -102,6 +115,9 @@ public class ConfigEntry<T> extends AbstractConfigBase<T>
 	public String getChatCommandName() { return this.chatCommandName; }
 	
 	public String getComment() { return this.comment; }
+	
+	@Nullable
+	public IShowEnumOptionFunc getShowEnumOptionFunc() { return this.showEnumOptionFunc; }
 	
 	/**
 	 * If true this config can be controlled by the API <br>
@@ -122,10 +138,30 @@ public class ConfigEntry<T> extends AbstractConfigBase<T>
 	// value setters //
 	//===============//
 	//region
-	
-	public void setApiValue(T newApiValue)
+
+	/**
+	 * Pre 3.3.2 signature, kept for mods that call it reflectively
+	 * (Tellus 0.8.3 builds made for the 3.3.1 fork).
+	 */
+	public void setApiValue(T newApiValue) { this.setApiValue(newApiValue, null); }
+	public void setApiValue(T newApiValue, String apiUser)
 	{
 		this.apiValue = newApiValue;
+		if (apiUser != null)
+		{
+			// don't ever pass in a null value so we can see who the last set API user was
+			this.apiUser = apiUser;
+		}
+		
+		if (newApiValue != null)
+		{
+			// only update the last set time if we're changing to a new value,
+			// otherwise constant null sets 
+			// (which may occur if the API isn't being used)
+			// incorrectly causes the UI to think the API was used recently 
+			this.apiValueLastSetMs = System.currentTimeMillis();
+		}
+		
 		synchronized (this.listenerList)
 		{
 			this.listenerList.forEach(IConfigListener::onConfigValueSet);
@@ -134,8 +170,33 @@ public class ConfigEntry<T> extends AbstractConfigBase<T>
 	
 	public boolean apiIsOverriding() 
 	{ 
-		return this.allowApiOverride 
-				&& this.apiValue != null; 
+		if (!this.allowApiOverride)
+		{
+			// this config can't be controlled via the API
+			return false;
+		}
+		
+		if (this.apiValue != null)
+		{
+			// an API value is currently present
+			return true;
+		}
+		
+		long timeSinceLastApiSet = (System.currentTimeMillis() - this.apiValueLastSetMs);
+		if (timeSinceLastApiSet < 500L)
+		{
+			// an API value was present very recently
+			
+			// This check is necessary to fix an issue where rendering mods may change
+			// an API option on a per-frame basis then disable it after the frame
+			// is over.
+			// Causing the UI to appear like the option can be changed,
+			// when it can't.
+			return true;
+		}
+		
+		// this option can be controlled like normal
+		return false;
 	}
 	
 	/** setting to null will allow the config to be used normally */
@@ -221,6 +282,8 @@ public class ConfigEntry<T> extends AbstractConfigBase<T>
 	
 	@Nullable
 	public T getApiValue() { return this.apiValue; }
+	@Nullable
+	public String getApiUser() { return this.apiUser; }
 	
 	//endregion
 	
@@ -381,6 +444,7 @@ public class ConfigEntry<T> extends AbstractConfigBase<T>
 		private T tmpMin = null;
 		private T tmpMax = null;
 		protected String tmpChatCommandName = null;
+		protected IShowEnumOptionFunc tmpShowEnumOptionFunc = null;
 		private boolean tmpUseApiOverwrite = true;
 		protected ArrayList<IConfigListener> tmpIConfigListener = new ArrayList<>();
 		
@@ -425,6 +489,12 @@ public class ConfigEntry<T> extends AbstractConfigBase<T>
 			return this;
 		}
 		
+		public Builder<T> setShowEnumOptionFunc(IShowEnumOptionFunc func)
+		{
+			this.tmpShowEnumOptionFunc = func;
+			return this;
+		}
+		
 		public Builder<T> setUseApiOverwrite(boolean newUseApiOverwrite)
 		{
 			this.tmpUseApiOverwrite = newUseApiOverwrite;
@@ -464,16 +534,31 @@ public class ConfigEntry<T> extends AbstractConfigBase<T>
 		public ConfigEntry<T> build()
 		{
 			return new ConfigEntry<>(
-					this.tmpAppearance,
-					this.tmpComment, this.tmpChatCommandName, this.tmpValue, this.tmpMin, this.tmpMax,
-					this.tmpUseApiOverwrite, 
-					this.tmpIConfigListener);
+				this.tmpAppearance,
+				this.tmpComment, this.tmpChatCommandName, 
+				this.tmpShowEnumOptionFunc,
+				this.tmpValue, this.tmpMin, this.tmpMax,
+				this.tmpUseApiOverwrite, 
+				this.tmpIConfigListener);
 		}
 		
 	}
 	
 	//endregion
 	
+	
+	//================//
+	// helper classes //
+	//================//
+	//region
+	
+	@FunctionalInterface
+	public interface IShowEnumOptionFunc
+	{
+		boolean shouldShowEnum(Enum<?> enumValue);
+	}
+	
+	//endregion
 	
 	
 }

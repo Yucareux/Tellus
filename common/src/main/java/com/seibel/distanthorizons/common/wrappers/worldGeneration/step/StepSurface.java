@@ -19,11 +19,13 @@
 
 package com.seibel.distanthorizons.common.wrappers.worldGeneration.step;
 
-#if MC_VER > MC_1_12_2
+#if MC_VER <= MC_1_12_2
+
+#elif MC_VER <= MC_26_2_0 // replaced by StepTerrain
 import java.util.ArrayList;
 
 import com.seibel.distanthorizons.common.wrappers.chunk.ChunkWrapper;
-import com.seibel.distanthorizons.common.wrappers.worldGeneration.BatchGenerationEnvironment;
+import com.seibel.distanthorizons.common.wrappers.worldGeneration.DhChunkGenerator;
 import com.seibel.distanthorizons.common.wrappers.worldGeneration.params.ThreadWorldGenParams;
 
 import com.seibel.distanthorizons.common.wrappers.worldGeneration.mimicObject.DhLitWorldGenRegion;
@@ -41,7 +43,7 @@ public final class StepSurface extends AbstractWorldGenStep
 {
 	private static final ChunkStatus STATUS = ChunkStatus.SURFACE;
 	
-	private final BatchGenerationEnvironment environment;
+	private final DhChunkGenerator dhChunkGen;
 	
 	
 	
@@ -49,7 +51,7 @@ public final class StepSurface extends AbstractWorldGenStep
 	// constructor //
 	//=============//
 	
-	public StepSurface(BatchGenerationEnvironment batchGenerationEnvironment) { this.environment = batchGenerationEnvironment; }
+	public StepSurface(DhChunkGenerator dhChunkGen) { this.dhChunkGen = dhChunkGen; }
 	
 	
 	
@@ -62,8 +64,8 @@ public final class StepSurface extends AbstractWorldGenStep
 	
 	@Override
 	public void generateGroup(
-			ThreadWorldGenParams tParams, DhLitWorldGenRegion worldGenRegion,
-			ArrayGridList<ChunkWrapper> chunkWrappers)
+		ThreadWorldGenParams tParams, DhLitWorldGenRegion worldGenRegion,
+		ArrayGridList<ChunkWrapper> chunkWrappers)
 	{
 		ArrayList<ChunkWrapper> chunksToGen = this.getChunkWrappersToGenerate(chunkWrappers);
 		for (ChunkWrapper chunkWrapper : chunksToGen)
@@ -71,11 +73,11 @@ public final class StepSurface extends AbstractWorldGenStep
 			ChunkAccess chunk = chunkWrapper.getChunk();
 			
 			#if MC_VER < MC_1_18_2
-			this.environment.globalParams.generator.buildSurfaceAndBedrock(worldGenRegion, chunk);
+			this.dhChunkGen.globalParams.generator.buildSurfaceAndBedrock(worldGenRegion, chunk);
 			#elif MC_VER < MC_1_19_2
-			this.environment.globalParams.generator.buildSurface(worldGenRegion, tParams.structFeatManager.forWorldGenRegion(worldGenRegion), chunk);
+			this.dhChunkGen.globalParams.generator.buildSurface(worldGenRegion, tParams.structFeatManager.forWorldGenRegion(worldGenRegion), chunk);
 			#else
-			this.environment.globalParams.generator.buildSurface(worldGenRegion, tParams.structFeatManager.forWorldGenRegion(worldGenRegion), this.environment.globalParams.randomState, chunk);
+			this.dhChunkGen.globalParams.generator.buildSurface(worldGenRegion, tParams.structFeatManager.forWorldGenRegion(worldGenRegion), this.dhChunkGen.globalParams.randomState, chunk);
 			#endif
 		}
 	}

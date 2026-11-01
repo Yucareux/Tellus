@@ -25,8 +25,11 @@ import com.seibel.distanthorizons.core.dependencyInjection.SingletonInjector;
 import com.seibel.distanthorizons.core.render.RenderParams;
 import com.seibel.distanthorizons.core.wrapperInterfaces.minecraft.IMinecraftRenderWrapper;
 import com.seibel.distanthorizons.core.wrapperInterfaces.render.renderPass.IDhSsaoRenderer;
-import org.lwjgl.opengl.GL33;
-import org.lwjgl.opengl.GL43C;
+import org.lwjgl.opengl.GL11;
+import org.lwjgl.opengl.GL12;
+import org.lwjgl.opengl.GL30;
+
+import static com.seibel.distanthorizons.lwjgl.LWJGLServiceProvider.LWJGL;
 
 import java.nio.ByteBuffer;
 
@@ -73,7 +76,7 @@ public class GlDhSSAORenderer implements IDhSsaoRenderer
 	{
 		if (this.ssaoFramebuffer != -1)
 		{
-			GL33.glDeleteFramebuffers(this.ssaoFramebuffer);
+			LWJGL.glDeleteFramebuffers(this.ssaoFramebuffer);
 			this.ssaoFramebuffer = -1;
 		}
 		
@@ -83,22 +86,22 @@ public class GlDhSSAORenderer implements IDhSsaoRenderer
 			this.ssaoTexture = -1;
 		}
 		
-		this.ssaoFramebuffer = GL33.glGenFramebuffers();
-		GLMC.glBindFramebuffer(GL33.GL_FRAMEBUFFER, this.ssaoFramebuffer);
+		this.ssaoFramebuffer = LWJGL.glGenFramebuffers();
+		GLMC.glBindFramebuffer(GL30.GL_FRAMEBUFFER, this.ssaoFramebuffer);
 		
 		this.ssaoTexture = GLMC.glGenTextures();
 		{
 			GLMC.glBindTexture(this.ssaoTexture);
-			GL33.glTexImage2D(GL33.GL_TEXTURE_2D, 0, GL33.GL_R16F, width, height, 0, GL33.GL_RED, GL33.GL_HALF_FLOAT, (ByteBuffer) null);
-			GL33.glTexParameteri(GL33.GL_TEXTURE_2D, GL33.GL_TEXTURE_MIN_FILTER, GL33.GL_LINEAR);
-			GL33.glTexParameteri(GL33.GL_TEXTURE_2D, GL33.GL_TEXTURE_MAG_FILTER, GL33.GL_LINEAR);
+			LWJGL.glTexImage2D(GL11.GL_TEXTURE_2D, 0, GL30.GL_R16F, width, height, 0, GL11.GL_RED, GL30.GL_HALF_FLOAT, (ByteBuffer) null);
+			LWJGL.glTexParameteri(GL11.GL_TEXTURE_2D, GL11.GL_TEXTURE_MIN_FILTER, GL11.GL_LINEAR);
+			LWJGL.glTexParameteri(GL11.GL_TEXTURE_2D, GL11.GL_TEXTURE_MAG_FILTER, GL11.GL_LINEAR);
 			
 			// disable mip-mapping since DH is just going to draw straight to the screen
-			GL43C.glTexParameteri(GL43C.GL_TEXTURE_2D, GL43C.GL_TEXTURE_BASE_LEVEL, 0);
-			GL43C.glTexParameteri(GL43C.GL_TEXTURE_2D, GL43C.GL_TEXTURE_MAX_LEVEL, 0);
+			LWJGL.glTexParameteri(GL11.GL_TEXTURE_2D, GL12.GL_TEXTURE_BASE_LEVEL, 0);
+			LWJGL.glTexParameteri(GL11.GL_TEXTURE_2D, GL12.GL_TEXTURE_MAX_LEVEL, 0);
 		}
 		
-		GL33.glFramebufferTexture2D(GL33.GL_FRAMEBUFFER, GL33.GL_COLOR_ATTACHMENT0, GL33.GL_TEXTURE_2D, this.ssaoTexture, 0);
+		LWJGL.glFramebufferTexture2D(GL30.GL_FRAMEBUFFER, GL30.GL_COLOR_ATTACHMENT0, GL11.GL_TEXTURE_2D, this.ssaoTexture, 0);
 	}
 	
 	

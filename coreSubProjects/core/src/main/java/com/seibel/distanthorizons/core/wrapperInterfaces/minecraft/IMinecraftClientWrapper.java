@@ -129,7 +129,7 @@ public interface IMinecraftClientWrapper extends IBindable
 	void executeOnRenderThread(Runnable runnable);
 	
 	void showDialog(String title, String message, String dialogType, String iconType);
-	
+	boolean dialogNeedsAwtHeadless();
 	
 	
 	//=============//

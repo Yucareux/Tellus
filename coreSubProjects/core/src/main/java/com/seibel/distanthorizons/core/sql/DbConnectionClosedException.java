@@ -16,8 +16,13 @@ public class DbConnectionClosedException extends SQLException
 	
 	// helper methods //
 	
-	public static boolean isClosedException(SQLException e) 
+	public static boolean isClosedException(Throwable e) 
 	{
+		if (!(e instanceof SQLException))
+		{
+			return false;
+		}
+		
 		String message = e.getMessage().toLowerCase();
 		return message.contains("connection closed")
 				|| message.contains("pointer is closed")

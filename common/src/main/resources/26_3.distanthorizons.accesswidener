@@ -1,0 +1,57 @@
+accessWidener v1 official
+
+# used when determining where to save files to
+accessible field net/minecraft/world/level/storage/SavedDataStorage dataFolder Ljava/nio/file/Path;
+# used to help determine what folder a clientLevel is
+accessible field net/minecraft/world/level/biome/BiomeManager biomeZoomSeed J
+
+# used when rendering
+accessible method net/minecraft/client/renderer/GameRenderer getFov (Lnet/minecraft/client/Camera;FZ)F
+accessible field net/minecraft/client/Minecraft deltaTracker Lnet/minecraft/client/DeltaTracker$Timer;
+accessible field net/minecraft/client/renderer/LevelRenderer level Lnet/minecraft/client/multiplayer/ClientLevel;
+
+
+# used for grabbing vanilla rendered chunks
+accessible field net/minecraft/client/renderer/LevelRenderer visibleSections Lit/unimi/dsi/fastutil/objects/ObjectArrayList;
+
+# world generation
+accessible field net/minecraft/world/level/chunk/LevelChunk loaded Z
+accessible field net/minecraft/world/level/lighting/LightEngine storage Lnet/minecraft/world/level/lighting/LayerLightSectionStorage;
+accessible method net/minecraft/world/level/lighting/LayerLightSectionStorage lightOnInSection (J)Z
+accessible field net/minecraft/server/level/ServerChunkCache distanceManager Lnet/minecraft/server/level/DistanceManager;
+accessible method net/minecraft/server/level/ChunkMap getUpdatingChunkIfPresent (J)Lnet/minecraft/server/level/ChunkHolder;
+accessible method net/minecraft/server/level/ChunkMap tick (Ljava/util/function/BooleanSupplier;)V
+accessible field net/minecraft/server/level/ServerLevel entityManager Lnet/minecraft/world/level/entity/PersistentEntitySectionManager;
+accessible field net/minecraft/server/level/ChunkMap mainThreadExecutor Lnet/minecraft/util/thread/BlockableEventLoop;
+accessible field net/minecraft/world/level/levelgen/RandomState router Lnet/minecraft/world/level/levelgen/NoiseRouter;
+
+# getting existing chunks outside the main thread
+accessible method net/minecraft/server/level/ChunkMap getVisibleChunkIfPresent (J)Lnet/minecraft/server/level/ChunkHolder;
+
+# lod generation from save file
+accessible field net/minecraft/world/level/chunk/storage/SimpleRegionStorage worker Lnet/minecraft/world/level/chunk/storage/IOWorker;
+accessible field net/minecraft/world/level/chunk/storage/IOWorker storage Lnet/minecraft/world/level/chunk/storage/RegionFileStorage;
+accessible field net/minecraft/world/level/chunk/storage/RegionFileStorage regionCache Lit/unimi/dsi/fastutil/longs/Long2ObjectLinkedOpenHashMap;
+accessible field net/minecraft/world/level/chunk/storage/RegionFileStorage folder Ljava/nio/file/Path;
+
+# grabbing textures
+accessible class net/minecraft/client/renderer/texture/SpriteContents$AnimatedTexture
+accessible method net/minecraft/client/renderer/texture/SpriteContents$AnimatedTexture getFrameX (I)I
+accessible method net/minecraft/client/renderer/texture/SpriteContents$AnimatedTexture getFrameY (I)I
+accessible field net/minecraft/client/renderer/texture/SpriteContents animatedTexture Lnet/minecraft/client/renderer/texture/SpriteContents$AnimatedTexture;
+accessible field net/minecraft/client/renderer/texture/SpriteContents originalImage Lcom/mojang/blaze3d/platform/NativeImage;
+
+# UI stuff
+accessible field net/minecraft/client/gui/components/AbstractButton SPRITES Lnet/minecraft/client/gui/components/WidgetSprites;
+# Handles inserting the config button
+accessible field net/minecraft/client/gui/layouts/HeaderAndFooterLayout headerFrame Lnet/minecraft/client/gui/layouts/FrameLayout;
+accessible field net/minecraft/client/gui/layouts/FrameLayout children Ljava/util/List;
+accessible class net/minecraft/client/gui/layouts/FrameLayout$ChildContainer
+accessible field net/minecraft/client/gui/layouts/LinearLayout wrapped Lnet/minecraft/client/gui/layouts/GridLayout;
+accessible method net/minecraft/client/gui/components/debug/DebugScreenEntries register (Ljava/lang/String;Lnet/minecraft/client/gui/components/debug/DebugScreenEntry;)Lnet/minecraft/resources/Identifier;
+
+# hacky stuff
+accessible field net/minecraft/util/ThreadingDetector lock Ljava/util/concurrent/Semaphore;
+mutable field net/minecraft/util/ThreadingDetector lock Ljava/util/concurrent/Semaphore;
+
+

@@ -24,7 +24,7 @@ dependencies {
     }
 
     // Mod Menu
-    addMod("com.terraformersmc:modmenu:${rootProject.modmenu_version}", rootProject.enable_mod_menu)
+    addMod("maven.modrinth:modmenu:${rootProject.modmenu_version}", rootProject.enable_mod_menu)
 
     // Starlight
     addMod("curse.maven:starlight-521783:${rootProject.starlight_version_fabric}", rootProject.enable_starlight)
@@ -47,6 +47,9 @@ dependencies {
     
     // Canvas
     addMod("io.vram:canvas-fabric-${project.canvas_version}", rootProject.enable_canvas)
+    
+    // Chunky
+    addMod("maven.modrinth:chunky:${project.chunky_version}", rootProject.enable_chunky)
 }
 
 

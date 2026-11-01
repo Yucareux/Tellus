@@ -33,7 +33,9 @@ import com.seibel.distanthorizons.core.render.RenderParams;
 import com.seibel.distanthorizons.core.wrapperInterfaces.minecraft.IMinecraftRenderWrapper;
 
 import com.seibel.distanthorizons.core.wrapperInterfaces.render.renderPass.IDhTestTriangleRenderer;
-import org.lwjgl.opengl.GL33;
+import org.lwjgl.opengl.GL11;
+
+import static com.seibel.distanthorizons.lwjgl.LWJGLServiceProvider.LWJGL;
 
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
@@ -134,7 +136,7 @@ public class GlTestTriangleRenderer implements IDhTestTriangleRenderer
 		this.vbo.bind();
 		this.va.bindBufferToAllBindingPoints(this.vbo.getId());
 		
-		GL33.glDrawArrays(GL33.GL_TRIANGLES, 0, 3);
+		LWJGL.glDrawArrays(GL11.GL_TRIANGLES, 0, 3);
 		
 		GlDhApplyShader.INSTANCE.render(renderParams);
 	}

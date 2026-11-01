@@ -19,6 +19,8 @@
 
 package com.seibel.distanthorizons.common.render.openGl.postProcessing.fade;
 
+import com.seibel.distanthorizons.api.enums.config.EDhApiDepthDirection;
+import com.seibel.distanthorizons.api.enums.config.EDhApiDepthRange;
 import com.seibel.distanthorizons.api.objects.math.DhApiMat4f;
 import com.seibel.distanthorizons.common.render.openGl.GlDhMetaRenderer;
 import com.seibel.distanthorizons.common.render.openGl.glObject.shader.GlShaderProgram;
@@ -30,7 +32,11 @@ import com.seibel.distanthorizons.common.render.openGl.util.GlAbstractShaderRend
 import com.seibel.distanthorizons.core.render.RenderParams;
 import com.seibel.distanthorizons.core.util.RenderUtil;
 import com.seibel.distanthorizons.core.wrapperInterfaces.minecraft.IMinecraftRenderWrapper;
-import org.lwjgl.opengl.GL33;
+import com.seibel.distanthorizons.core.wrapperInterfaces.render.AbstractDhRenderApiDefinition;
+import org.lwjgl.opengl.GL13;
+import org.lwjgl.opengl.GL30;
+
+import static com.seibel.distanthorizons.lwjgl.LWJGLServiceProvider.LWJGL;
 
 public class GlDhVanillaFadeShader extends GlAbstractShaderRenderer 
 {
@@ -38,6 +44,7 @@ public class GlDhVanillaFadeShader extends GlAbstractShaderRenderer
 	
 	private static final IMinecraftRenderWrapper MC_RENDER = SingletonInjector.INSTANCE.get(IMinecraftRenderWrapper.class);
 	private static final MinecraftGLWrapper GLMC = MinecraftGLWrapper.INSTANCE;
+	private static final AbstractDhRenderApiDefinition RENDER_DEF = SingletonInjector.INSTANCE.get(AbstractDhRenderApiDefinition.class);
 	
 	
 	public int frameBuffer = -1;
@@ -62,6 +69,8 @@ public class GlDhVanillaFadeShader extends GlAbstractShaderRenderer
 	public int uMaxLevelHeight = -1;
 	
 	public int uOnlyRenderLods = -1;
+	public int uIsMcReverseZDepth = -1;
+	public int uDepthIsZeroToPositiveOne = -1;
 	
 	
 	
@@ -98,6 +107,8 @@ public class GlDhVanillaFadeShader extends GlAbstractShaderRenderer
 		this.uMaxLevelHeight = this.shader.tryGetUniformLocation("uMaxLevelHeight");
 		
 		this.uOnlyRenderLods = this.shader.tryGetUniformLocation("uOnlyRenderLods");
+		this.uIsMcReverseZDepth = this.shader.tryGetUniformLocation("uIsMcReverseZDepth");
+		this.uDepthIsZeroToPositiveOne = this.shader.tryGetUniformLocation("uDepthIsZeroToPositiveOne");
 		
 	}
 	
@@ -133,6 +144,8 @@ public class GlDhVanillaFadeShader extends GlAbstractShaderRenderer
 		this.shader.setUniform(this.uMaxLevelHeight, this.levelMaxHeight);
 		
 		this.shader.setUniform(this.uOnlyRenderLods, Config.Client.Advanced.Debugging.lodOnlyMode.get());
+		this.shader.setUniform(this.uIsMcReverseZDepth, (MC_RENDER.getMcDepthDirection() == EDhApiDepthDirection.REVERSE_Z) ? 1 : 0);
+		this.shader.setUniform(this.uDepthIsZeroToPositiveOne, (RENDER_DEF.getDepthRange() == EDhApiDepthRange.ZERO_TO_POS_ONE) ? 1 : 0);
 	}
 	
 	public void setProjectionMatrix(RenderParams renderParams)
@@ -167,26 +180,26 @@ public class GlDhVanillaFadeShader extends GlAbstractShaderRenderer
 		
 		
 		
-		GLMC.glBindFramebuffer(GL33.GL_FRAMEBUFFER, this.frameBuffer);
+		GLMC.glBindFramebuffer(GL30.GL_FRAMEBUFFER, this.frameBuffer);
 		GLMC.disableScissorTest();
 		GLMC.disableDepthTest();
 		GLMC.disableBlend();
 		
-		GLMC.glActiveTexture(GL33.GL_TEXTURE0);
+		GLMC.glActiveTexture(GL13.GL_TEXTURE0);
 		GLMC.glBindTexture(MC_RENDER.getGlDepthTextureId());
-		GL33.glUniform1i(this.uMcDepthTexture, 0);
+		LWJGL.glUniform1i(this.uMcDepthTexture, 0);
 		
-		GLMC.glActiveTexture(GL33.GL_TEXTURE1);
+		GLMC.glActiveTexture(GL13.GL_TEXTURE1);
 		GLMC.glBindTexture(depthTextureId);
-		GL33.glUniform1i(this.uDhDepthTexture, 1);
+		LWJGL.glUniform1i(this.uDhDepthTexture, 1);
 		
-		GLMC.glActiveTexture(GL33.GL_TEXTURE2);
+		GLMC.glActiveTexture(GL13.GL_TEXTURE2);
 		GLMC.glBindTexture(MC_RENDER.getGlColorTextureId());
-		GL33.glUniform1i(this.uCombinedMcDhColorTexture, 2);
+		LWJGL.glUniform1i(this.uCombinedMcDhColorTexture, 2);
 		
-		GLMC.glActiveTexture(GL33.GL_TEXTURE3);
+		GLMC.glActiveTexture(GL13.GL_TEXTURE3);
 		GLMC.glBindTexture(colorTextureId);
-		GL33.glUniform1i(this.uDhColorTexture, 3);
+		LWJGL.glUniform1i(this.uDhColorTexture, 3);
 		
 		
 		GlScreenQuad.INSTANCE.render();

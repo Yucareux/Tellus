@@ -5,14 +5,19 @@ public class NeoforgeTextureUnwrapper
 { /* not needed for older MC versions */ }
 #else
 
+#if MC_VER < MC_1_21_9
+#elif MC_VER <= MC_26_2_0
 import com.mojang.blaze3d.opengl.GlTexture;
 import com.mojang.blaze3d.textures.GpuTexture;
+#else
+import com.mojang.renderpearl.api.textures.GpuTexture;
+import com.mojang.renderpearl.backend.opengl.GlTexture;
+#endif
 
 #if MC_VER <= MC_1_21_11
 import net.neoforged.neoforge.client.blaze3d.validation.ValidationGpuTexture;
 #else
 #endif
- 
 
 public class NeoforgeTextureUnwrapper
 {

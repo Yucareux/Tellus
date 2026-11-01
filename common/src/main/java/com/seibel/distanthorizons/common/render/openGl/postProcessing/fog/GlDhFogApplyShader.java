@@ -19,13 +19,22 @@
 
 package com.seibel.distanthorizons.common.render.openGl.postProcessing.fog;
 
+import com.seibel.distanthorizons.api.enums.config.EDhApiDepthDirection;
 import com.seibel.distanthorizons.common.render.openGl.GlDhMetaRenderer;
 import com.seibel.distanthorizons.common.render.openGl.glObject.shader.GlShaderProgram;
 import com.seibel.distanthorizons.common.render.openGl.postProcessing.GlScreenQuad;
 import com.seibel.distanthorizons.common.wrappers.minecraft.MinecraftGLWrapper;
 import com.seibel.distanthorizons.common.render.openGl.util.GlAbstractShaderRenderer;
+import com.seibel.distanthorizons.core.dependencyInjection.SingletonInjector;
 import com.seibel.distanthorizons.core.render.RenderParams;
-import org.lwjgl.opengl.GL33;
+import com.seibel.distanthorizons.core.wrapperInterfaces.render.AbstractDhRenderApiDefinition;
+
+import org.lwjgl.opengl.GL11;
+import org.lwjgl.opengl.GL13;
+import org.lwjgl.opengl.GL14;
+import org.lwjgl.opengl.GL30;
+
+import static com.seibel.distanthorizons.lwjgl.LWJGLServiceProvider.LWJGL;
 
 /**
  * Draws the Fog texture onto DH's FrameBuffer. <br><br>
@@ -39,6 +48,7 @@ public class GlDhFogApplyShader extends GlAbstractShaderRenderer
 	public static GlDhFogApplyShader INSTANCE = new GlDhFogApplyShader();
 	
 	private static final MinecraftGLWrapper GLMC = MinecraftGLWrapper.INSTANCE;
+	private static final AbstractDhRenderApiDefinition RENDER_DEF = SingletonInjector.INSTANCE.get(AbstractDhRenderApiDefinition.class);
 	
 	
 	public int fogTexture;
@@ -46,6 +56,7 @@ public class GlDhFogApplyShader extends GlAbstractShaderRenderer
 	// uniforms
 	public int colorTextureUniform;
 	public int depthTextureUniform;
+	public int uIsReverseZDepth;
 	
 	
 	
@@ -65,6 +76,7 @@ public class GlDhFogApplyShader extends GlAbstractShaderRenderer
 		// uniform setup
 		this.colorTextureUniform = this.shader.getUniformLocation("uColorTexture");
 		this.depthTextureUniform = this.shader.getUniformLocation("uDepthTexture");
+		this.uIsReverseZDepth = this.shader.getUniformLocation("uIsReverseZDepth");
 		
 	}
 	
@@ -77,14 +89,15 @@ public class GlDhFogApplyShader extends GlAbstractShaderRenderer
 	@Override
 	protected void onApplyUniforms(RenderParams renderParams)
 	{
-		GLMC.glActiveTexture(GL33.GL_TEXTURE0);
+		GLMC.glActiveTexture(GL13.GL_TEXTURE0);
 		GLMC.glBindTexture(this.fogTexture);
-		GL33.glUniform1i(this.colorTextureUniform, 0);
+		LWJGL.glUniform1i(this.colorTextureUniform, 0);
 		
-		GLMC.glActiveTexture(GL33.GL_TEXTURE1);
+		GLMC.glActiveTexture(GL13.GL_TEXTURE1);
 		GLMC.glBindTexture(GlDhMetaRenderer.INSTANCE.getActiveDepthTextureId());
-		GL33.glUniform1i(this.depthTextureUniform, 1);
+		LWJGL.glUniform1i(this.depthTextureUniform, 1);
 		
+		LWJGL.glUniform1i(this.uIsReverseZDepth, (RENDER_DEF.getDepthDirection() == EDhApiDepthDirection.REVERSE_Z) ? 1 : 0);
 	}
 	
 	
@@ -97,8 +110,8 @@ public class GlDhFogApplyShader extends GlAbstractShaderRenderer
 	protected void onRender()
 	{
 		GLMC.enableBlend();
-		GL33.glBlendEquation(GL33.GL_FUNC_ADD);
-		GLMC.glBlendFuncSeparate(GL33.GL_SRC_ALPHA, GL33.GL_ONE_MINUS_SRC_ALPHA, GL33.GL_ONE, GL33.GL_ONE_MINUS_SRC_ALPHA);
+		LWJGL.glBlendEquation(GL14.GL_FUNC_ADD);
+		GLMC.glBlendFuncSeparate(GL11.GL_SRC_ALPHA, GL11.GL_ONE_MINUS_SRC_ALPHA, GL11.GL_ONE, GL11.GL_ONE_MINUS_SRC_ALPHA);
 		
 		// Depth testing must be disabled otherwise this application shader won't apply anything.
 		// setting this isn't necessary in vanilla, but some mods may change this, requiring it to be set manually, 
@@ -107,12 +120,12 @@ public class GlDhFogApplyShader extends GlAbstractShaderRenderer
 		
 		
 		// apply the rendered Fog to DH's framebuffer
-		GLMC.glBindFramebuffer(GL33.GL_READ_FRAMEBUFFER, GlDhFogShader.INSTANCE.frameBuffer);
-		GLMC.glBindFramebuffer(GL33.GL_DRAW_FRAMEBUFFER, GlDhMetaRenderer.INSTANCE.getActiveFramebufferId());
+		GLMC.glBindFramebuffer(GL30.GL_READ_FRAMEBUFFER, GlDhFogShader.INSTANCE.frameBuffer);
+		GLMC.glBindFramebuffer(GL30.GL_DRAW_FRAMEBUFFER, GlDhMetaRenderer.INSTANCE.getActiveFramebufferId());
 		
 		GlScreenQuad.INSTANCE.render();
 		
-		GLMC.glBindFramebuffer(GL33.GL_READ_FRAMEBUFFER, 0);
+		GLMC.glBindFramebuffer(GL30.GL_READ_FRAMEBUFFER, 0);
 	}
 	
 }

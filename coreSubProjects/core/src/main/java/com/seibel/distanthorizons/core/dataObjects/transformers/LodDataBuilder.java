@@ -460,7 +460,7 @@ public class LodDataBuilder
 			
 			if (dataPoint.detailLevel != 0)
 			{
-				throw new IllegalArgumentException("Datapoint: ["+i+"] has the wrong detail level ["+dataPoint.detailLevel+"], all data points must be block sized; IE their detail level must be [0].");
+				throw new IllegalArgumentException("Datapoint: ["+i+"]-["+dataPoint+"] has the wrong detail level ["+dataPoint.detailLevel+"], all data points must be block sized; IE their detail level must be [0].");
 			}
 			
 			
@@ -472,24 +472,24 @@ public class LodDataBuilder
 			// is the datapoint right side up?
 			if (bottomYPos > topYPos)
 			{
-				throw new IllegalArgumentException("Datapoint: ["+i+"] is upside down. Top Pos: ["+topYPos+"], bottom pos: ["+bottomYPos+"].");
+				throw new IllegalArgumentException("Datapoint: ["+i+"]-["+dataPoint+"] is upside down. Top Pos: ["+topYPos+"], bottom pos: ["+bottomYPos+"].");
 			}
 			// valid height?
 			if (height <= 0 || height >= RenderDataPointUtil.MAX_WORLD_Y_SIZE)
 			{
-				throw new IllegalArgumentException("Datapoint: ["+i+"] has invalid height. Height must be in the range [1 - "+RenderDataPointUtil.MAX_WORLD_Y_SIZE+"] (inclusive).");
+				throw new IllegalArgumentException("Datapoint: ["+i+"]-["+dataPoint+"] has an invalid height ["+height+"]. Height must be in the range [1 - "+RenderDataPointUtil.MAX_WORLD_Y_SIZE+"] (inclusive).");
 			}
 			
 			// is this datapoint overlapping the last one?
 			if (lastBottomYPos > topYPos)
 			{
-				throw new IllegalArgumentException("DhApiTerrainDataPoint ["+i+"] is overlapping with the last datapoint, this top Y: ["+topYPos+"], lastBottomYPos: ["+lastBottomYPos+"].");
+				throw new IllegalArgumentException("DhApiTerrainDataPoint ["+i+"]-["+dataPoint+"] is overlapping with the last datapoint, this top Y: ["+topYPos+"], lastBottomYPos: ["+lastBottomYPos+"].");
 			}
 			// is there a gap between the last datapoint?
 			if (topYPos != lastBottomYPos
 					&& lastBottomYPos != Integer.MIN_VALUE)
 			{
-				throw new IllegalArgumentException("DhApiTerrainDataPoint ["+i+"] has a gap between it and index ["+(i-1)+"]. Empty spaces should be filled by air, otherwise DH's downsampling won't calculate lighting correctly.");
+				throw new IllegalArgumentException("DhApiTerrainDataPoint ["+i+"]-["+dataPoint+"] has a gap between it and index ["+(i-1)+"]. Empty spaces should be filled by air, otherwise DH's downsampling won't calculate lighting correctly.");
 			}
 			
 			

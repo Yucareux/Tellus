@@ -27,8 +27,17 @@ import org.jetbrains.annotations.Nullable;
 
 public interface IImmersivePortalsAccessor extends IModAccessor
 {
-	String CORE_MOD_ID = "imm_ptl_core";
-	String MOD_ID = "immersive_portals";
+	/** 
+	 * immersive portals has a bunch of different potential mod IDs
+	 * so we need to check for all of them.
+	 */
+	String[] MOD_ID_ARRAY =
+		new String[]
+		{
+			"imm_ptl_core",
+			"immersive_portals",
+			"immersive_portals_core",	
+		};
 	
 	String INJECTION_CLASS_1_16 = "com.qouteall.immersive_portals.render.context_management.RenderStates";
 	String INJECTION_CLASS = "qouteall.imm_ptl.core.render.context_management.RenderStates";
@@ -77,6 +86,8 @@ public interface IImmersivePortalsAccessor extends IModAccessor
 	 */
 	@Nullable
 	DhVec3d getActualCameraPos();
+	
+	void logWarningIfMixinNotRunRecently();
 	
 	
 	

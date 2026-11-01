@@ -8,6 +8,8 @@ import java.util.function.Function
 import java.util.function.Predicate
 import groovy.json.JsonSlurper
 
+import com.seibel.distanthorizons.GenerateLWJGLAbstraction
+
 // Convention plugin for all MC-facing subprojects (common + loaders).
 // Common uses this directly; loaders use it via unimined-fabric/forge/neoforge.
 // IMPORTANT: unimined MUST be applied before shadow
@@ -15,10 +17,12 @@ import groovy.json.JsonSlurper
 
 plugins {
     id 'java'
+    id 'java-library'
     id 'maven-publish'
     id 'xyz.wagyourtail.unimined'
     id 'com.gradleup.shadow'
     id 'xyz.wagyourtail.manifold'
+    id 'xyz.wagyourtail.jvmdowngrader'
 }
 
 def isNotCommonProject = project.name != "common"
@@ -33,6 +37,9 @@ project.gradle.ext.getProperties().each { prop ->
     rootProject.ext.set(prop.key, prop.value)
 }
 
+project.ext.lwjgl2Version = rootProject.hasProperty("lwjgl2_version") ? rootProject.lwjgl2_version : "2.9.3"
+project.ext.lwjgl3Version = rootProject.hasProperty("lwjgl3_version") ? rootProject.lwjgl3_version : "3.3.1"
+project.ext.needsDowngrade = (rootProject.minecraft_version == "1.12.2") // 1.12's Iris stand-in needs JDK 17, so we need to downgrade it with the JVMDowngrader
 manifold {
     version = rootProject.manifold_version
 }
@@ -44,9 +51,15 @@ repositories {
     maven { url "https://libraries.minecraft.net/" }
     mavenCentral()
     maven { url "https://repo.enonic.com/public/" }
-    maven { url "https://maven.parchmentmc.org" }
     maven { url "https://maven.architectury.dev" }
-    maven { url "https://jitpack.io" }
+    maven {
+        url "https://jitpack.io"
+
+        content {
+            excludeGroup "com.github.GTNewHorizons" // resolve GTNH mods with GTNH Maven
+            excludeGroup "io.github.legacymoddingmc" // resolve UniMixins with GTNH Maven
+        }
+    }
     maven { url "https://oss.sonatype.org/content/repositories/snapshots/" }
     maven {
         name = "Modrinth"
@@ -59,11 +72,10 @@ repositories {
     }
     maven {
         url "https://repo.spongepowered.org/maven/"
-		// exclusion is needed since sponge has a deprecated version of fabric
-		// that gradle would prefer to get over the up-to-date version modrinth provides
+        // exclusion is needed since sponge has a deprecated version of fabric
+        // that gradle would prefer to get over the up-to-date version modrinth provides
         content { excludeGroupByRegex "net\\.fabricmc(\\..*)?" }
     }
-    maven { url "https://maven.terraformersmc.com/" }
     maven { url "https://maven.neoforged.net/releases/" }
     flatDir {
         dirs "${rootDir}/mods/fabric"
@@ -83,16 +95,52 @@ repositories {
 // ==================== Java Config ====================
 
 tasks.withType(JavaCompile).configureEach {
-    options.release = rootProject.java_version as Integer
+    
+    if (project.ext.needsDowngrade)
+    {
+        // 1.12's Iris stand-in needs JDK 17, so we need to downgrade it with the JVMDowngrader
+        options.release = 17
+    }
+    else
+    {
+        // Used instead of "release" so we can have the LWJGL libs access "sun.misc.Unsafe"
+        // and to prevent ByteBuffer NoSuchMethod errors.
+        // ByteBuffer issue reason: https://www.morling.dev/blog/bytebuffer-and-the-dreaded-nosuchmethoderror/
+        javaCompiler = javaToolchains.compilerFor {
+            languageVersion = JavaLanguageVersion.of(rootProject.java_version as Integer)
+        }
+    }
+    
     options.encoding = "UTF-8"
+    
+    // silence the "java 8 is deprecated" javac compiler warnings
+    options.compilerArgs << '-Xlint:-options'
 }
 
 java {
-    sourceCompatibility = JavaVersion.toVersion(gradle.ext.java_version as Integer)
-    targetCompatibility = JavaVersion.toVersion(gradle.ext.java_version as Integer)
+    sourceCompatibility = rootProject.java_version as Integer
+    targetCompatibility = rootProject.java_version as Integer
     withSourcesJar()
 }
 
+// ==================== Configurations ====================
+
+evaluationDependsOn(":core")
+
+configurations {
+    shadowMe
+    coreProjects
+    shadowMe.extendsFrom(coreProjects)
+    implementation.extendsFrom(shadowMe)
+
+    common
+    implementation.extendsFrom(common)
+
+    modCompileOnly
+    compileOnly.extendsFrom(modCompileOnly)
+    modRuntimeOnly
+    runtimeOnly.extendsFrom(modRuntimeOnly)
+}
 
 // ==================== Loader-Only Config ====================
 
@@ -124,12 +172,21 @@ if (isNotCommonProject) {
                 'Multi-Release': true,
                 'Main-Class': 'com.seibel.distanthorizons.core.jar.JarMain',
             )
-            if (project.name == "cleanroom") {
+            if (project.name == "forge112") {
                 attributes(
-                    'MixinConfigs': "${mod_id}.default.mixin.json,${mod_id}.mod.mixin.json",
-                    'FMLCorePlugin': 'com.seibel.distanthorizons.cleanroom.DistantHorizonsLoadingPlugin',
+                    'MixinConnector': 'com.seibel.distanthorizons.forge112.DistantHorizonsMixinConnector',
+                    'FMLCorePlugin': 'com.seibel.distanthorizons.forge112.DistantHorizonsLoadingPlugin',
                     'FMLCorePluginContainsFMLMod': true,
-                    'FMLAT': "${gradle.ext.accessWidenerVersion}.distanthorizons_at.cfg"
+                    'FMLAT': "${gradle.ext.accessWidenerVersion}.distanthorizons_at.cfg",
+                    'ForceLoadAsMod': true
+                )
+            } else if (project.name == "forge17") {
+                attributes(
+                    'FMLCorePlugin': 'com.seibel.distanthorizons.DistantHorizonsTweaker',
+                    'FMLCorePluginContainsFMLMod': true,
+                    'FMLAT': "${gradle.ext.accessWidenerVersion}.distanthorizons_at.cfg",
+                    'ForceLoadAsMod': true,
+                    "Lwjgl3ify-Aware": true
                 )
             }
         }
@@ -144,17 +201,27 @@ unimined.minecraft(sourceSets.main, true) {
 
     if (gradle.ext.minecraft_version.startsWith("1.")) { // 26.1+ doesn't use obfuscation
         mappings {
-            if(gradle.ext.minecraft_version.startsWith("1.12.2")){
-                mcp("stable", "39-1.12")
+            if (gradle.ext.minecraft_version == "1.7.10")
+            {
+                mcp("stable", "12-1.7.10")
+                devNamespace "mcp"
             }
-            else{
+            else if (gradle.ext.minecraft_version == "1.12.2")
+            {
+                mcp("stable", "39-1.12")
+                devNamespace "mcp"
+            }
+            else
+            {
                 mojmap()
                 devNamespace "mojmap"
             }
-
+            
         }
     }
 }
+
+boolean isLegacyLwjgl = ["1.7.10", "1.12.2"].contains(gradle.ext.minecraft_version)
 
 if (isNotCommonProject) {
     // Mixin remapping and common project wiring
@@ -170,23 +237,40 @@ if (isNotCommonProject) {
         }
     }
 
+    String lwjglVersion = isLegacyLwjgl ? "lwjgl2" : "lwjgl3"
+
+    tasks.withType(JavaCompile).configureEach {
+        source(project(":common").sourceSets.main.allSource)
+        source(project(":common").sourceSets.lwjglCommon.allSource)
+        source(project(":common").sourceSets."${lwjglVersion}".allSource)
+    }
+    
     dependencies {
         implementation(project(":common"))
     }
 
+    if (isLegacyLwjgl) {
+        def lwjgl3Classes = files(project(":common").sourceSets.lwjgl3.output.classesDirs)
+        lwjgl3Classes.builtBy(project(":common").tasks.named("compileLwjgl3Java"))
+
+        dependencies {
+            shadowMe lwjgl3Classes
+        }
+    }
+    
     processResources {
         from project(":common").sourceSets.main.resources
     }
 
-    tasks.withType(JavaCompile).configureEach {
-        source(project(":common").sourceSets.main.allSource)
+    tasks.named(compileJava.name).configure {
+        dependsOn(project(":common").tasks.named("generateAbstractionLayer"))
     }
 } else {
     unimined.minecraft {
-        if (gradle.ext.minecraft_version.equals("1.12.2")) {
-            cleanroom {
-                loader gradle.ext.cleanroom_loader_version
-                accessTransformer  project.file("src/main/resources/${gradle.ext.accessWidenerVersion}.distanthorizons_at.cfg")
+        if (isLegacyLwjgl) {
+            minecraftForge {
+                loader gradle.ext.forge_version
+                accessTransformer project.file("src/main/resources/${gradle.ext.accessWidenerVersion}.distanthorizons_at.cfg")
             }
         } else {
             fabric {
@@ -199,18 +283,89 @@ if (isNotCommonProject) {
     }
 }
 
-// ==================== Configurations ====================
+// ==================== LWJGL 2/3 Abstraction (common only) ====================
+// LWJGL is only resolved in :common via unimined; :core never touches it directly.
+// So the abstraction sourceSets/generation task live here, then gets exposed to
+// loader subprojects through common's outgoing variants (they already consume
+// `common(project(":common"))` further down in this file).
 
-evaluationDependsOn(":core")
 
-configurations {
-    shadowMe
-    coreProjects
-    shadowMe.extendsFrom(coreProjects)
-    implementation.extendsFrom(shadowMe)
+if (!isNotCommonProject) {
+    def generatedSourcesDir = layout.buildDirectory.dir("generated/sources/lwjgl-abstraction/java")
+
+    sourceSets {
+        lwjglCommon {
+            java.srcDir(generatedSourcesDir.map { it.dir("main") })
+        }
+        lwjgl2 {
+            java.srcDir(generatedSourcesDir.map { it.dir("lwjgl2") })
+            compileClasspath += main.compileClasspath
+            compileClasspath += lwjglCommon.output
+        }
+        lwjgl3 {
+            java.srcDir(generatedSourcesDir.map { it.dir("lwjgl3") })
+            compileClasspath += main.compileClasspath
+            compileClasspath += lwjglCommon.output
+        }
+        main {
+            compileClasspath += lwjglCommon.output
+        }
+    }
+
+    def generateAbstractionLayer = tasks.register("generateAbstractionLayer", GenerateLWJGLAbstraction.class) {
+        lwjgl2Classpath.from(configurations.named("lwjgl2CompileClasspath"))
+        lwjgl3Classpath.from(configurations.named("lwjgl3CompileClasspath"))
+        outputDirectory.set(generatedSourcesDir)
+    }
+
+    tasks.named("compileLwjglCommonJava").configure {
+        dependsOn(generateAbstractionLayer)
+    }
+
+	// remove manifold compiling for LWJGL
+    tasks.matching { it.name in ["compileLwjglCommonJava", "compileLwjgl2Java", "compileLwjgl3Java"] }.configureEach {
+        doFirst {
+            options.compilerArgs.removeAll { it.toString().contains('-Xplugin:Manifold') }
+        }
+    }
     
-    common
-    implementation.extendsFrom(common)
+    dependencies {
+        lwjgl3CompileOnly(platform("org.lwjgl:lwjgl-bom:${lwjgl3Version}"))
+        lwjgl3CompileOnly "org.lwjgl:lwjgl"
+        lwjgl3CompileOnly "org.lwjgl:lwjgl-opengl"
+        
+        lwjgl2CompileOnly("org.lwjgl.lwjgl:lwjgl:${lwjgl2Version}")
+    }
+
+    jar {
+        from(rootProject.file("COPYING"))
+        from(rootProject.file("COPYING.LESSER"))
+        from(sourceSets.lwjglCommon.output)
+        from(sourceSets.lwjgl2.output)
+        from(sourceSets.lwjgl3.output)
+        manifest {
+            attributes([
+                "Lwjgl3ify-Aware": "true"
+            ])
+        }
+    }
+    
+    def extraSourceSets = [sourceSets.lwjglCommon, sourceSets.lwjgl2]
+
+    configurations {
+        apiElements
+        runtimeElements
+    }
+
+    extraSourceSets.each { srcSet ->
+        ["apiElements", "runtimeElements"].each { conf ->
+            configurations.getByName(conf).outgoing.variants.named("classes") {
+                artifact(srcSet.java.destinationDirectory) {
+                    builtBy tasks.named(srcSet.compileJavaTaskName)
+                }
+            }
+        }
+    }
 }
 
 
@@ -236,6 +391,10 @@ dependencies {
     // JOML: shadow for old MC versions that don't bundle it (core has it compileOnly already)
     if (project.hasProperty("embed_joml") && embed_joml == "true")
         shadowMe("org.joml:joml:${rootProject.joml_version}")
+
+    // fastutil: shadow for old MC versions that don't bundle it (core has it compileOnly already)
+    if (project.hasProperty("embed_fastutil") && embed_fastutil == "true")
+        shadowMe("it.unimi.dsi:fastutil:${rootProject.fastutil_version}")
 
     // Common project dependency
     if (isNotCommonProject)
@@ -315,7 +474,11 @@ if (isNotCommonProject) {
         configurations = [project.configurations.shadowMe]
         def librariesLocation = "DistantHorizons.libraries"
 
-        // LZ4
+        // Keep bundled FastUtil separate from versions supplied by other mods.
+        if (project.hasProperty("embed_fastutil") && embed_fastutil == "true")
+            relocate "it.unimi.dsi.fastutil", "${librariesLocation}.unimi.dsi.fastutil"
+
+        // LZ4 compression
         relocate "net.jpountz", "${librariesLocation}.jpountz"
 
         // SLF4J
@@ -333,10 +496,13 @@ if (isNotCommonProject) {
             relocateNative "org_sqlite", "dh_1sqlite"
         }
 
-        // ZStd
+        // ZStd compression
         relocate "com.github.luben", "dhcomgithubluben"
         relocate "libzstd-jni", "libzstd-jni_dh"
         relocate "zstd-jni", "zstd-jni_dh"
+
+        // XZ compression
+        relocate "org.tukaani", "${librariesLocation}.tukaani"
 
         transform(NativeTransformer) {
             rootDir = project.rootDir
@@ -355,6 +521,7 @@ if (isNotCommonProject) {
 
         mergeServiceFiles()
     }
+    
     afterEvaluate {
         tasks.named("remapJar").configure {
             dependsOn(shadowJar)
@@ -367,8 +534,16 @@ if (isNotCommonProject) {
         def shadowedPaths = configurations.shadowMe.resolve().collect { it.path }.toSet()
         def loaderPaths = configurations.minecraftLibraries.resolve().collect { it.path }.toSet()
         tasks.withType(JavaExec).configureEach { runTask ->
+            runTask.javaLauncher.set(
+                javaToolchains.launcherFor {
+                    languageVersion = JavaLanguageVersion.of(rootProject.java_version)
+                }
+            )
+
             dependsOn(shadowJar)
-            if (project.name != "cleanroom") {
+            if (project.name != "forge112"
+                && project.name != "forge17") 
+            {
                 classpath = files(shadowJar.archiveFile) + classpath.filter { file ->
                     file != shadowJar.archiveFile.get().asFile &&
                         !file.path.contains(project.buildDir.path) &&
@@ -378,7 +553,7 @@ if (isNotCommonProject) {
                         !(shadowedPaths.contains(file.path) && !loaderPaths.contains(file.path))
                 }
             } else {
-                // For cleanroom, don't put shadow jar on app classpath.
+				// For 1.7/1.12, don't put shadow jar on app classpath.
                 // crl.dev.extrapath loads it via LaunchClassLoader instead.
                 classpath = classpath.filter { file ->
                     !file.path.contains(project.buildDir.path) &&
@@ -389,55 +564,78 @@ if (isNotCommonProject) {
                 }
             }
 
+            if (project.ext.needsDowngrade)
+            {
+                dependsOn(tasks.named("shadeDowngradedApi"))
+            }
+            
+            
             // Shared run directory so all loaders use the same worlds
-            def isClient = runTask.name.toLowerCase().contains("client")
+            boolean isClient = runTask.name.toLowerCase().contains("client")
             runTask.workingDir = rootProject.file("run/${isClient ? 'client' : 'server'}")
 
-            // Minecraft automatically has G1GC args present,
-            // remove them so we can use ZGC instead
-            def filteredArgs = runTask.jvmArgs.findAll { arg ->
-                !arg.startsWith("-XX:+UseG1GC") &&
-                !arg.startsWith("-XX:G1") &&
-                !arg.startsWith("-XX:MaxGCPauseMillis")
-            }
-            runTask.jvmArgs = filteredArgs
-
-            if(project.name == "forge" 
-                || project.name == "neoforge" 
-                || project.name == "cleanroom") 
+            boolean useZgc = (gradle.ext.java_version as Integer) >= 21;
+            
+            if (useZgc) 
             {
-                // fix (Neo)forge, Cleanroom debug running
+                // Minecraft automatically has G1GC args present,
+                // remove them so we can use ZGC instead
+                List<String> filteredArgs = runTask.jvmArgs.findAll { arg ->
+                    !arg.startsWith("-XX:+UseG1GC") &&
+                        !arg.startsWith("-XX:G1") &&
+                        !arg.startsWith("-XX:MaxGCPauseMillis")
+                }
+                runTask.jvmArgs = filteredArgs
+            }
+
+            if (project.name == "forge"
+                || project.name == "neoforge"
+                || project.name == "forge112"
+                || project.name == "forge17") 
+            {
+                // fix (Neo)forge, debug running
                 doFirst {
                     def modsDir = rootProject.file("run/${isClient ? 'client' : 'server'}/mods")
                     modsDir.mkdirs()
-                
+
                     // Remove any stale DH jars before copying the fresh one
                     modsDir.listFiles()?.each({ file ->
-                        if (file.name.startsWith(rootProject.mod_name))
+                        if (file.name.startsWith(rootProject.mod_name)) 
                         {
                             file.delete()
                         }
                     });
-                
+
+
+                    def jarSource = project.ext.needsDowngrade ? tasks.named("shadeDowngradedApi").get().archiveFile : shadowJar.archiveFile
+
                     // Copy shadow jar into mods folder so (Neo)Forge discovers it properly
                     copy {
-                        from shadowJar.archiveFile
+                        from jarSource
                         into modsDir
                     }
                 }
             }
-            
+
             // JVM args
             runTask.jvmArgs(
                 "-Dio.netty.leakDetection.level=advanced",
-                // TODO only use for modern java versions
-                "-XX:+UseZGC",
-                // TODO don't use for even more modern-er java versions
-                //"-XX:+ZGenerational",
                 rootProject.minecraftMemoryJavaArg,
+
+                // can be un-commented to confirm mixins are being applied
+                // https://github.com/SpongePowered/Mixin/wiki/Mixin-Java-System-Properties
+                //"-Dmixin.debug.export=true",
+                //"-Dmixin.debug.verbose=true",
             )
-            if (isClient) 
+
+            if (useZgc)
             {
+                runTask.jvmArgs(
+                    "-XX:+UseZGC"
+                )
+            }
+            
+            if (isClient) {
                 runTask.jvmArgs(
                     "-Dminecraft.api.auth.host=https://nope.invalid",
                     "-Dminecraft.api.account.host=https://nope.invalid",
@@ -449,19 +647,19 @@ if (isNotCommonProject) {
                     "--username", "Dev",
                     // "--renderDebugLabels" is a Mojang command to show render names in RenderDoc
                     "--renderDebugLabels"
-                    )
-                
+                )
+
                 // enabling tracy causes constant memory growth so it isn't always desired
-                if (rootProject.minecraftEnableTracy == "true")
+                if (rootProject.minecraftEnableTracy == "true") 
                 {
                     // "--tracy" is a Mojang command to allow individual frames to be debugged using Tracy https://github.com/wolfpld/tracy/releases/tag/v0.13.1
                     runTask.args("--tracy")
                 }
-                
-                
+
+
             }
         }
-        
+
         tasks.jar.finalizedBy(tasks.named("remapJar"))
     }
 }
@@ -489,7 +687,6 @@ if (isNotCommonProject) {
         // Quilt contributors
         def quilt_contributors = []
         def mod_author_list = rootProject.mod_authors.replaceAll("\"", "").replace("[", "").replace("]", "").split(",")
-        def cleanroom_author_list = rootProject.mod_authors.replace('[', '').replace(']', '').split(',').collect({ it.trim().replace('"', '') }).join('", "')
         for (dev in mod_author_list) {
             quilt_contributors.push("\"${dev.strip()}\": \"Developer\"")
         }
@@ -511,7 +708,6 @@ if (isNotCommonProject) {
             mod_name                     : rootProject.mod_readable_name,
             group                        : rootProject.maven_group,
             authors                      : rootProject.mod_authors,
-            cleanroom_authors            : cleanroom_author_list,
             description                  : rootProject.mod_description,
             homepage                     : rootProject.mod_homepage,
             source                       : rootProject.mod_source,
@@ -523,13 +719,19 @@ if (isNotCommonProject) {
             compatible_forgemc_versions  : compatible_forgemc_versions,
             java_version                 : rootProject.java_version,
             quilt_contributors           : "{" + quilt_contributors.join(", ") + "}",
-            info_git_commit              : rootProject.infoGitBranch,
-            info_git_branch              : rootProject.infoGitCommit,
+
+            info_git_commit              : rootProject.infoGitCommit,
+            info_git_branch              : rootProject.infoGitBranch,
             info_build_source            : rootProject.infoBuildSource,
+            
             fabric_incompatibility_list  : rootProject.fabric_incompatibility_list,
             fabric_recommend_list        : rootProject.fabric_recommend_list,
+            fabric_loader_version        : rootProject.fabric_loader_version,
+            
             neoforge_version_range       : rootProject.neoforge_version_range,
-            logo_path                    : "assets/distanthorizons/icon.png"
+            neoforge_dependencies        : rootProject.neoforge_dependencies,
+            
+            logo_path                    : "assets/distanthorizons/icon.png",
         ]
 
         inputs.properties replaceProperties
@@ -538,9 +740,12 @@ if (isNotCommonProject) {
             expand replaceProperties
         }
 
-        // Remove unused access wideners
+        // Remove unused access wideners/transformers
         exclude { file ->
             if ((file.name.contains(".distanthorizons.accesswidener") && file.name != "${rootProject.accessWidenerVersion}.distanthorizons.accesswidener")) {
+                return true
+            }
+            if (file.name.contains(".distanthorizons_at.cfg") && file.name != "${rootProject.accessWidenerVersion}.distanthorizons_at.cfg") {
                 return true
             }
             return false
@@ -560,26 +765,71 @@ if (isNotCommonProject) {
         from fileTree(project(":core").file("src/main/resources"))
         into project.file("build/resources/main")
     }
-    
+
     tasks.register("convertJsonToLang") {
         dependsOn(copyCoreResources)
-        
-        File input = project.file("build/resources/main/assets/distanthorizons/lang/en_us.json")
-        File output = project.file("build/resources/main/assets/distanthorizons/lang/en_us.lang")
-        inputs.file(input)
-        outputs.file(output)
+
+        File inputDirectory = project.file("build/resources/main/assets/distanthorizons/lang")
+        File outputDirectory = project.file("build/generated/legacyLang")
+        inputs.dir(project(":core").file("src/main/resources/assets/distanthorizons/lang"))
+        inputs.property("minecraftVersion", gradle.ext.minecraft_version)
+        outputs.dir(outputDirectory)
         doLast {
-            output.withWriter("UTF-8") { writer ->
-                writer.writeLine("#PARSE_ESCAPES")
-                new JsonSlurper()
-                    .parse(input)
-                    .each { key, value ->
-                        def text = value.toString().replaceAll(/%(?!((\d+)\$)?s|%)/, "%%").replace("\n", "\\n")
-                        writer.writeLine("${key}=${text}")
-                    }
+            project.delete(outputDirectory)
+            outputDirectory.mkdirs()
+            fileTree(inputDirectory).matching { include "*.json" }.each { input ->
+                String locale = input.name.substring(0, input.name.length() - ".json".length())
+                if (gradle.ext.minecraft_version == "1.7.10") {
+                    // Legacy Minecraft resolves locale names with an uppercase region (for example, en_US).
+                    locale = locale.replaceFirst(/^([a-z]{2,3})_([a-z]{2})$/, { match, language, region ->
+                        "${language}_${region.toUpperCase(java.util.Locale.ROOT)}"
+                    })
+                }
+                File output = new File(outputDirectory, "${locale}.lang")
+                output.withWriter("UTF-8") { writer ->
+                    writer.writeLine("#PARSE_ESCAPES")
+                    new JsonSlurper()
+                        .parse(input)
+                        .each { key, value ->
+                            def text = value.toString().replaceAll(/%(?!((\d+)\$)?s|%)/, "%%").replace("\n", "\\n")
+                            writer.writeLine("${key}=${text}")
+                        }
+                }
             }
         }
     }
 
+    // ==================== JVMDowngrader ====================
 
+    jvmdg.downgradeTo = JavaVersion.toVersion(rootProject.java_version)
+    downgradeJar.archiveClassifier.set(null)
+    shadeDowngradedApi.archiveClassifier.set(null)
+    shadeDowngradedApi.doLast {
+        // JVMDowngrader can flatten versioned classes but retain the flag that crashes Forge 1.20.1.
+        java.nio.file.FileSystems.newFileSystem(archiveFile.get().asFile.toPath(), [:]).withCloseable { zip ->
+            if (!java.nio.file.Files.exists(zip.getPath('/META-INF/versions'))) {
+                def manifestPath = zip.getPath('/META-INF/MANIFEST.MF')
+                def jarManifest = java.nio.file.Files.newInputStream(manifestPath).withCloseable {
+                    new java.util.jar.Manifest(it)
+                }
+                if (jarManifest.mainAttributes.remove(java.util.jar.Attributes.Name.MULTI_RELEASE) != null) {
+                    java.nio.file.Files.newOutputStream(manifestPath).withCloseable { jarManifest.write(it) }
+                }
+            }
+        }
+    }
+
+    if (project.ext.needsDowngrade) {
+        gradle.taskGraph.whenReady { graph ->
+			// Only the top level projects need to be re-mapped (those that can be run).
+			// James isn't sure why, but things break otherwise.
+            if (graph.hasTask("${project.path}:runClient")
+                || graph.hasTask("${project.path}:runServer"))
+            {
+                downgradeJar.inputFile.set(shadowJar.archiveFile)
+                downgradeJar.archiveClassifier.set("dev")
+                shadeDowngradedApi.archiveClassifier.set("dev")
+            }
+        }
+    }
 }

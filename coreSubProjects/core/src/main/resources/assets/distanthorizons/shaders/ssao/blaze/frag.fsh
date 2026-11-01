@@ -1,12 +1,14 @@
-#version 330 core
+#version 330
+// needed for "layout(location = 0)" required as as of MC 26.3
+#extension GL_ARB_separate_shader_objects : require
 
 #define SAMPLE_MAX 64
 
 #define saturate(x) (clamp((x), 0.0, 1.0))
 
-in vec2 TexCoord;
+layout(location = 0) in vec2 texCoord;
 
-out vec4 fragColor;
+layout(location = 0) out vec4 fragColor;
 
 
 layout (std140) uniform fragUniformBlock
@@ -23,6 +25,7 @@ layout (std140) uniform fragUniformBlock
     mat4 uProj;
 
     bool uIsReverseZDepth;
+    bool uDepthIsZeroToPositiveOne;
 };
 
 uniform sampler2D uDhDepthTexture;
@@ -46,11 +49,11 @@ float InterleavedGradientNoise(const in vec2 pixel)
  * this method is shared across several shaders,
  * if updated, make sure to update the other versions as well.
  */
-vec3 calcViewPosition(float fragmentDepth, mat4 invMvmProj)
+vec3 calcViewPosition(float fragmentDepth, mat4 invProj)
 {
     // normalized device coordinates
-    vec4 ndc = vec4(TexCoord.xy, fragmentDepth, 1.0);
-    if (uIsReverseZDepth)
+    vec4 ndc = vec4(texCoord.xy, fragmentDepth, 1.0);
+    if (uDepthIsZeroToPositiveOne)
     {
         // Z already in [0,1], don't remap
         ndc.xy = ndc.xy * 2.0 - 1.0;
@@ -61,7 +64,7 @@ vec3 calcViewPosition(float fragmentDepth, mat4 invMvmProj)
         ndc.xyz = ndc.xyz * 2.0 - 1.0;
     }
 
-    vec4 eyeCoord = invMvmProj * ndc;
+    vec4 eyeCoord = invProj * ndc;
     return eyeCoord.xyz / eyeCoord.w;
 }
 
@@ -97,7 +100,7 @@ float GetSpiralOcclusion(const in vec2 uv, const in vec3 viewPos, const in vec3 
             continue;   
         }
 
-        if (uIsReverseZDepth)
+        if (uDepthIsZeroToPositiveOne)
         {
             vec4 ndc = vec4(
                 sampleClipPos.x * 2.0 - 1.0, // UV [0,1] -> NDC [-1,+1]
@@ -132,7 +135,7 @@ float GetSpiralOcclusion(const in vec2 uv, const in vec3 viewPos, const in vec3 
 
 void main() 
 {
-    float fragmentDepth = textureLod(uDhDepthTexture, TexCoord, 0).r;
+    float fragmentDepth = textureLod(uDhDepthTexture, texCoord, 0).r;
     float occlusion = 0.0;
     
     bool isGround;
@@ -158,7 +161,7 @@ void main()
         {
             vec3 viewNormal = cross(dFdx(viewPos.xyz), dFdy(viewPos.xyz));
             viewNormal = normalize(viewNormal);
-            occlusion = GetSpiralOcclusion(TexCoord, viewPos, viewNormal);
+            occlusion = GetSpiralOcclusion(texCoord, viewPos, viewNormal);
             
             // linearly fade with distance
             occlusion *= (fadeDistance - distanceFromCamera) / fadeDistance;

@@ -76,6 +76,8 @@ public abstract class DhApiBlockColorOverrideEvent implements IDhApiEvent<DhApiB
 		private IDhApiBlockStateWrapper blockStateWrapper = null;
 		private IDhApiBiomeWrapper biomeWrapper = null;
 		private int colorAsInt = -1;
+		private int tintColorAsInt = -1;
+		private int baseColorAsInt = -1;
 		private int blockPosX = 0, blockPosY = 0, blockPosZ = 0;
 		
 		
@@ -93,13 +95,18 @@ public abstract class DhApiBlockColorOverrideEvent implements IDhApiEvent<DhApiB
 			IDhApiBlockStateWrapper blockStateWrapper,
 			IDhApiBiomeWrapper biomeWrapper,
 			int colorAsInt,
+			int tintColorAsInt,
+			int baseColorAsInt,
 			int blockPosX, int blockPosY, int blockPosZ)
 		{
 			this.levelWrapper = levelWrapper;
 			this.dataSource = dataSource;
 			this.blockStateWrapper = blockStateWrapper;
 			this.biomeWrapper = biomeWrapper;
+			
 			this.colorAsInt = colorAsInt;
+			this.tintColorAsInt = tintColorAsInt;
+			this.baseColorAsInt = baseColorAsInt;
 			
 			this.blockPosX = blockPosX;
 			this.blockPosY = blockPosY;
@@ -148,6 +155,12 @@ public abstract class DhApiBlockColorOverrideEvent implements IDhApiEvent<DhApiB
 			
 			this.colorAsInt = ColorUtil.argbToInt(alpha, red, green, blue);
 		}
+		
+		/** @since API 7.1.0 */
+		public int getTintColorAsInt() { return this.tintColorAsInt; }
+		
+		/** @since API 7.1.0 */
+		public int getBaseColorAsInt() { return this.baseColorAsInt; }
 		
 		/** @return the block's X value in the world */
 		public int getBlockPosX() { return blockPosX; }

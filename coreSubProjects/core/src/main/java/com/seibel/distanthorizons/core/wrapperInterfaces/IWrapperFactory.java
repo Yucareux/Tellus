@@ -29,9 +29,11 @@ import com.seibel.distanthorizons.core.wrapperInterfaces.render.renderPass.IDhGe
 import com.seibel.distanthorizons.core.wrapperInterfaces.render.objects.IVertexBufferWrapper;
 import com.seibel.distanthorizons.core.wrapperInterfaces.world.IBiomeWrapper;
 import com.seibel.distanthorizons.core.wrapperInterfaces.world.ILevelWrapper;
-import com.seibel.distanthorizons.core.wrapperInterfaces.worldGeneration.IBatchGeneratorEnvironmentWrapper;
+import com.seibel.distanthorizons.core.wrapperInterfaces.worldGeneration.IChunkGenerator;
+import com.seibel.distanthorizons.core.wrapperInterfaces.worldGeneration.IRoughGenerator;
 import com.seibel.distanthorizons.coreapi.interfaces.dependencyInjection.IBindable;
 import it.unimi.dsi.fastutil.objects.ObjectOpenHashSet;
+import org.jetbrains.annotations.Nullable;
 
 import java.io.IOException;
 
@@ -43,7 +45,10 @@ import java.io.IOException;
  */
 public interface IWrapperFactory extends IDhApiWrapperFactory, IBindable
 {
-	IBatchGeneratorEnvironmentWrapper createBatchGenerator(IDhLevel targetLevel);
+	IChunkGenerator createChunkGenerator(IDhLevel targetLevel);
+	/** Returns null for MC versions that don't support rough surface generation */
+	@Nullable
+	IRoughGenerator createRoughGenerator(IDhLevel targetLevel, IChunkGenerator batchChunkGenerator);
 	
 	IBiomeWrapper deserializeBiomeWrapper(String str, ILevelWrapper levelWrapper) throws IOException;
 	IBiomeWrapper getPlainsBiomeWrapper(ILevelWrapper levelWrapper); 
@@ -66,6 +71,7 @@ public interface IWrapperFactory extends IDhApiWrapperFactory, IBindable
 	IBlockStateWrapper deserializeBlockStateWrapper(String str, ILevelWrapper levelWrapper) throws IOException;
 	IBlockStateWrapper getAirBlockStateWrapper();
 	IBlockStateWrapper getWaterBlockStateWrapper(ILevelWrapper levelWrapper);
+	/** Returns AIR if the deserialization fails */
 	default IBlockStateWrapper deserializeBlockStateWrapperOrGetDefault(String str, ILevelWrapper levelWrapper)
 	{
 		IBlockStateWrapper blockState;

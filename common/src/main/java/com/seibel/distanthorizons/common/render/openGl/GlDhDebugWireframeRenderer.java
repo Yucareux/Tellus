@@ -31,7 +31,10 @@ import com.seibel.distanthorizons.core.logging.DhLoggerBuilder;
 import com.seibel.distanthorizons.core.render.RenderParams;
 import com.seibel.distanthorizons.core.render.renderer.AbstractDebugWireframeRenderer;
 import com.seibel.distanthorizons.core.util.math.DhMat4f;
-import org.lwjgl.opengl.GL33;
+import org.lwjgl.opengl.GL11;
+import org.lwjgl.opengl.GL15;
+
+import static com.seibel.distanthorizons.lwjgl.LWJGLServiceProvider.LWJGL;
 
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
@@ -141,7 +144,7 @@ public class GlDhDebugWireframeRenderer extends AbstractDebugWireframeRenderer
 		boxOutlineBuffer.asIntBuffer().put(BOX_OUTLINE_INDICES);
 		boxOutlineBuffer.rewind();
 		this.indexBuffer = new GLIndexBuffer(false);
-		this.indexBuffer.uploadBuffer(boxOutlineBuffer, EDhApiGpuUploadMethod.DATA, BOX_OUTLINE_INDICES.length * Integer.BYTES, GL33.GL_STATIC_DRAW);
+		this.indexBuffer.uploadBuffer(boxOutlineBuffer, EDhApiGpuUploadMethod.DATA, BOX_OUTLINE_INDICES.length * Integer.BYTES, GL15.GL_STATIC_DRAW);
 		
 	}
 	
@@ -160,7 +163,7 @@ public class GlDhDebugWireframeRenderer extends AbstractDebugWireframeRenderer
 	{
 		this.init();
 		
-		GL33.glPolygonMode(GL33.GL_FRONT_AND_BACK, GL33.GL_LINE);
+		LWJGL.glPolygonMode(GL11.GL_FRONT_AND_BACK, GL11.GL_LINE);
 		GLMC.enableDepthTest();
 		
 		this.basicShader.bind();
@@ -172,7 +175,7 @@ public class GlDhDebugWireframeRenderer extends AbstractDebugWireframeRenderer
 		super.render(renderParams);
 		
 		// revert to prevent issues with the following passes
-		GL33.glPolygonMode(GL33.GL_FRONT_AND_BACK, GL33.GL_FILL);
+		LWJGL.glPolygonMode(GL11.GL_FRONT_AND_BACK, GL11.GL_FILL);
 	}
 	
 	@Override
@@ -187,7 +190,7 @@ public class GlDhDebugWireframeRenderer extends AbstractDebugWireframeRenderer
 
 		this.basicShader.setUniform(this.basicShader.getUniformLocation("uColor"), box.color);
 
-		GL33.glDrawElements(GL33.GL_LINES, BOX_OUTLINE_INDICES.length, GL33.GL_UNSIGNED_INT, 0);
+		LWJGL.glDrawElements(GL11.GL_LINES, BOX_OUTLINE_INDICES.length, GL11.GL_UNSIGNED_INT, 0);
 	}
 	
 	//endregion

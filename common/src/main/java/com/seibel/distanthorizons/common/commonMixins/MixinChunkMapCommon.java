@@ -13,8 +13,8 @@ import net.minecraft.world.chunk.Chunk;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.level.chunk.ChunkAccess;
 import net.minecraft.world.level.chunk.ProtoChunk;
-#endif
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
+#endif
 
 public class MixinChunkMapCommon
 {
@@ -28,7 +28,10 @@ public class MixinChunkMapCommon
 		
 		int chunkPosX;
 		int chunkPosZ;
-		#if MC_VER <= MC_1_21_11
+		#if MC_VER <= MC_1_7_10
+		chunkPosX = chunk.xPosition;
+		chunkPosZ = chunk.zPosition;
+		#elif MC_VER <= MC_1_21_11
 		chunkPosX = chunk.getPos().x;
 		chunkPosZ = chunk.getPos().z;
 		#else
@@ -58,7 +61,12 @@ public class MixinChunkMapCommon
 		
 		// MC has a tendency to try saving incomplete or corrupted chunks (which show up as empty or black chunks)
 		// this logic should prevent that from happening
-		#if MC_VER <= MC_1_12_2
+		#if MC_VER <= MC_1_7_10
+		if (!ChunkWrapper.canSaveChunk(chunk))
+		{
+			return;
+		}
+		#elif MC_VER <= MC_1_12_2
 		if (!chunk.isTerrainPopulated() || !chunk.isLightPopulated())
 		{
 			return;
@@ -80,8 +88,12 @@ public class MixinChunkMapCommon
 		// biome validation //
 		
 		// some chunks may be missing their biomes, which cause issues when attempting to save them
-		#if MC_VER <= MC_1_12_2
-		if (chunk. getBiomeArray() == null)
+		#if MC_VER <= MC_1_7_10
+		// (no check on 1.7.10: the biome array is always allocated by the Chunk constructor, and
+		//  ChunkWrapper reads biomes via World.getBiomeGenForCoords instead of the array anyway.
+		//  Touching it would also crash under EndlessIDs, which replaces it with a short array.)
+		#elif MC_VER <= MC_1_12_2
+		if (chunk.getBiomeArray() == null)
 		{
 			return;
 		}
@@ -110,5 +122,4 @@ public class MixinChunkMapCommon
 			levelWrapper
 		);
 	}
-	
 }

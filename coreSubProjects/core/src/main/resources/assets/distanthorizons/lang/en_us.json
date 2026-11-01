@@ -27,7 +27,7 @@
   "distanthorizons.general.apiOverride":
     "API LOCK",
   "distanthorizons.general.disabledByApi.@tooltip":
-    "This option is controlled by another mod via DH's API \nso it cannot be changed via the UI or config file.",
+    "This option is controlled by another mod via DH's API \nso it cannot be changed via the UI or config file. \nCurrently controlled by:\n",
   "distanthorizons.general.unsupportedMcVersion":
     "VER LOCK",
   "distanthorizons.general.unsupportedMcVersion.@tooltip":
@@ -184,6 +184,13 @@
     "Enable Ambient Occlusion",
   "distanthorizons.config.client.advanced.graphics.enableSsao.@tooltip":
     "Ambient Occlusion adds depth to the lighting of blocks.",
+
+
+
+  "distanthorizons.config.client.advanced.graphics.enableAntiAliasing":
+    "Enable Anti-Aliasing",
+  "distanthorizons.config.client.advanced.graphics.enableAntiAliasing.@tooltip":
+    "Enabling Anti-Aliasing smooths edges and reduces flickering when moving.",
 
 
 
@@ -657,10 +664,18 @@
     "Enable Distant Generation",
   "distanthorizons.config.common.worldGenerator.enableDistantGeneration.@tooltip":
     "§6True:§r in single player LODs will be created outside the vanilla render distance.\nDepending on the Generator Mode pre-existing chunks will be important and/o\nmissing chunks will be generated.\nNote: this can use a large amount of CPU.\n\n§6False:§r LODs will only generate within the vanilla render distance.",
-  "distanthorizons.config.common.worldGenerator.distantGeneratorMode":
-    "Distance Generator Mode",
-  "distanthorizons.config.common.worldGenerator.distantGeneratorMode.@tooltip":
+  "distanthorizons.config.common.worldGenerator.generatorPlan":
+    "Distant Generator Plan",
+  "distanthorizons.config.common.worldGenerator.generatorPlan.@tooltip":
+   "Defines how LODs will be generated \noutside the vanilla render distance \nin singleplayer. \n\nSome options may be unavailable depending on MC version. \n\n§6SURFACE_THEN_CHUNKS§r \nRecommended for modded or vanilla worlds. \n\n§6SURFACE_ONLY§r \nRecommended for computers that don't have \nenough CPU power or RAM space to handle \nchunk generation. \n\n§6CHUNKS_ONLY§r \nRecommended for custom worlds \nwhere the surface generator would \ngenerate incorrect terrain. \n\n§6DISABLED§r\nRecommended if you experience lag.",
+  "distanthorizons.config.common.worldGenerator.chunkGeneratorMode":
+    "Chunk Generator Mode",
+  "distanthorizons.config.common.worldGenerator.chunkGeneratorMode.@tooltip":
     "How complicated the generation should be when generating LODs outside the vanilla render distance.",
+  "distanthorizons.config.common.worldGenerator.enableFastSurfaceGenerator":
+    "Enable Fast Surface Gen",
+  "distanthorizons.config.common.worldGenerator.enableFastSurfaceGenerator.@tooltip":
+    "Requires a world restart to change. \n\nIf enabled Distant Horizons will very quickly generate a \nrough estimate of the terrain surface to \nfill out the render distance. \n\nAfter the surface has been generated Distant Horizons \nwill then generate the individual chunks as defined \nby your \"distantGeneratorMode\" config to get \ntrees and structures. \n\nIt is recommended to disable this option \nif you have a completely custom world, \nto prevent seeing normal terrain.",
   "distanthorizons.config.common.worldGenerator.showGenerationProgress":
     "Show Generation Progress",
   "distanthorizons.config.common.worldGenerator.showGenerationProgress.@tooltip":
@@ -677,6 +692,18 @@
     "Show Generation Speed in Chunks/Second",
   "distanthorizons.config.common.worldGenerator.generationProgressIncludeChunksPerSecond.@tooltip":
     "When logging generation progress also include the rate at which chunks \nare being generated. \nThis can be useful for troubleshooting performance.",
+  "distanthorizons.config.common.worldGenerator.limitIfServerUnhealthy":
+    "Limit if Server Unhealthy",
+  "distanthorizons.config.common.worldGenerator.limitIfServerUnhealthy.@tooltip":
+    "If the Minecraft server thread is taking too long \nDistant Horizons will pause world gen to reduce server stuttering/lag.",
+  "distanthorizons.config.common.worldGenerator.pauseIfMovingQuickly":
+    "Pause If Moving Quickly",
+  "distanthorizons.config.common.worldGenerator.pauseIfMovingQuickly.@tooltip":
+    "If the player/camera are moving quickly \nDistant Horizons will pause world gen to improve loading speed \nand reduce lag.",
+  "distanthorizons.config.common.worldGenerator.surfaceRegenMaxDistancePercent":
+    "Surface Regen Max Distance Percent",
+  "distanthorizons.config.common.worldGenerator.surfaceRegenMaxDistancePercent.@tooltip":
+    "The percentage of the full LOD render distance\nthat the second pass of the fast surface generator will\nfill with chunks generated as defined by your\n\"distantGeneratorMode\".",
 
 
   "distanthorizons.config.common.lodBuilding":
@@ -694,7 +721,11 @@
     "Lossy World Compression",
   "distanthorizons.config.common.lodBuilding.worldCompression.@tooltip":
     "How should block data be compressed when creating LOD data? \nThis setting will only affect new or updated LOD data, \nany data already generated when this setting is changed will be \nunaffected until it is modified or re-loaded. \n\nMost Accurate: Merge Same Blocks \nHighest Compression: Visually Equal",
-
+  "distanthorizons.config.common.lodBuilding.databaseSyncMode":
+    "Database Sync Mode",
+  "distanthorizons.config.common.lodBuilding.databaseSyncMode.@tooltip":
+    "Requires a level restart to apply. \n\nSetting this to a less strict mode increases DB read/write \nspeed at the cost of potential data loss/corruption if \nthe computer looses power \n(unexpected program shutdown should be safe for all options). \n\n§6FULL§r \nACID - data will never be lost or corrupted \nSlow \n\n§6NORMAL§r \nSome data may be lost on power loss, but database shouldn't be corrupted. \nFast \n\n§6OFF§r \nDatabase may be corrupted during power loss \nFaster",
+    
   
   "distanthorizons.config.common.lodBuilding.experimental":
     "Experimental",
@@ -720,6 +751,10 @@
     "Thread Priority",
   "distanthorizons.config.common.multiThreading.threadPriority.@tooltip":
     "What Java thread priority should DH's primary thread pools run with?\n\nYou probably don't need to change this unless you are also \nrunning C2ME and are seeing thread starvation in either C2ME or DH.",
+  "distanthorizons.config.common.multiThreading.useC2meThreadCount":
+    "Use C2ME Thread Count",
+  "distanthorizons.config.common.multiThreading.useC2meThreadCount.@tooltip":
+    "If C2ME is present, set DH's thread count to match C2ME. \n\nThis is necessary to prevent thread starvation issues when C2ME is present.",
 
 
 
@@ -795,11 +830,6 @@
   "distanthorizons.config.server.levelKeyPrefix.@tooltip":
     "Prefix of the level keys sent to the clients.\nIf the mod is running behind a proxy, each backend should use a unique value.\nIf this value is empty, level key will be based on the server's seed hash.",
 
-  "distanthorizons.config.server.enableServerGeneration":
-    "Enable Server Generation",
-  "distanthorizons.config.server.enableServerGeneration.@tooltip":
-    "When enabled, Distant Horizons will attempt to download missing LODs from the server.\n\nNote: the server must have Distant Generation enabled for it to work.",
-    
   "distanthorizons.config.server.generationRequestRateLimit":
     "Rate Limit for Generation Requests",
   "distanthorizons.config.server.generationRequestRateLimit.@tooltip":
@@ -847,17 +877,6 @@
     "Enable Adaptive Transfer Speed",
   "distanthorizons.config.server.enableAdaptiveTransferSpeed.@tooltip":
     "Enables adaptive transfer speed based on client performance.\nIf true, DH will automatically adjust transfer rate to minimize connection lag.\nIf false, transfer speed will remain fixed.",
-
-
-  "distanthorizons.config.server.experimental":
-    "Experimental",
-
-  "distanthorizons.config.server.experimental.enableNSizedGeneration":
-    "Enable N-sized generation",
-  "distanthorizons.config.server.experimental.enableNSizedGeneration.@tooltip":
-    "When enabled on the client, this allows loading lower detail levels as needed to speed up terrain generation.\nThis must also be enabled on the server; otherwise, it will have no effect.\nFor better performance when switching LOD detail levels, enabling [upsampleLowerDetailLodsToFillHoles] is recommended.",
-
-
   
   
     
@@ -990,19 +1009,28 @@
     "Above And Below Set Height",
     
   "distanthorizons.config.enum.EDhApiDistantGeneratorMode.NONE":
-    "1. Existing Only",
+    "Existing Only",
   "distanthorizons.config.enum.EDhApiDistantGeneratorMode.PRE_EXISTING_ONLY":
-    "2. Pre-Existing Chunks only",
+    "Pre-Existing Chunks only",
   "distanthorizons.config.enum.EDhApiDistantGeneratorMode.BIOME_ONLY":
-    "3. Biome only",
+    "Biome only",
   "distanthorizons.config.enum.EDhApiDistantGeneratorMode.BIOME_ONLY_SIMULATE_HEIGHT":
-    "4. Biome only simulate height",
+    "Biome only simulate height",
   "distanthorizons.config.enum.EDhApiDistantGeneratorMode.SURFACE":
-    "5. Surface",
+    "Surface",
   "distanthorizons.config.enum.EDhApiDistantGeneratorMode.FEATURES":
-    "6. Features",
+    "Features",
   "distanthorizons.config.enum.EDhApiDistantGeneratorMode.INTERNAL_SERVER":
-    "7. Full - Save Chunks",
+    "Full - Save Chunks",
+    
+  "distanthorizons.config.enum.EDhApiGeneratorPlan.SURFACE_THEN_CHUNKS":
+    "§aSurface Then Chunks§r",
+  "distanthorizons.config.enum.EDhApiGeneratorPlan.SURFACE_ONLY":
+    "§aSurface Only§r",
+  "distanthorizons.config.enum.EDhApiGeneratorPlan.CHUNKS_ONLY":
+    "§aChunks Only§r",
+  "distanthorizons.config.enum.EDhApiGeneratorPlan.DISABLED":
+    "§cDisabled§r",
   
   "distanthorizons.config.enum.EDhApiDistantGeneratorProgressDisplayLocation.OVERLAY":
     "Overlay",
@@ -1033,6 +1061,13 @@
     "None",
   "distanthorizons.config.enum.EDhApiBlocksToAvoid.NON_COLLIDING":
     "Non-Colliding",
+    
+  "distanthorizons.config.enum.EDhApiDatabaseSyncMode.FULL":
+    "Full",
+  "distanthorizons.config.enum.EDhApiDatabaseSyncMode.NORMAL":
+    "Normal",
+  "distanthorizons.config.enum.EDhApiDatabaseSyncMode.OFF":
+    "Off",
     
   "distanthorizons.config.enum.EDhApiServerFolderNameMode.NAME_ONLY":
     "Name Only",

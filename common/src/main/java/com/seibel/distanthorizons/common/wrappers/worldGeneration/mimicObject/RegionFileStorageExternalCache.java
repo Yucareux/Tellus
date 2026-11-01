@@ -22,6 +22,11 @@ import java.util.concurrent.locks.ReentrantLock;
 import net.minecraft.world.level.chunk.storage.RegionStorageInfo;
 #endif
 
+#if MC_VER <= MC_26_2_0
+#else
+import java.util.Optional;
+#endif
+
 /** 
  * Shouldn't be used when the C2ME mod is present,
  * otherwise there may be potential file corruption.
@@ -102,8 +107,11 @@ public class RegionFileStorageExternalCache implements AutoCloseable
 						removedFile.close();
 					}
 				}
+				#elif MC_VER <= MC_26_2_0
+				regionFile = this.storage.regionCache.getOrDefault(chunkPosLong, null);
 				#else
-				regionFile = this.storage.regionCache.getOrDefault(chunkPosLong, null);	
+				Optional<RegionFile> optionalRegionFile = this.storage.regionCache.get(chunkPosLong);
+				regionFile = optionalRegionFile.orElse(null);
 				#endif
 				
 				break;

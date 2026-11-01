@@ -25,14 +25,22 @@ import com.seibel.distanthorizons.common.wrappers.WrapperFactory;
 import com.seibel.distanthorizons.core.config.Config;
 import com.seibel.distanthorizons.core.config.types.ConfigEntry;
 import com.seibel.distanthorizons.core.logging.DhLoggerBuilder;
+import com.seibel.distanthorizons.coreapi.DependencyInjection.ApiEventInjector;
 import com.seibel.distanthorizons.coreapi.util.ColorUtil;
 import com.seibel.distanthorizons.core.util.LodUtil;
 import com.seibel.distanthorizons.core.wrapperInterfaces.block.IBlockStateWrapper;
 
 import com.seibel.distanthorizons.core.wrapperInterfaces.world.ILevelWrapper;
-import com.seibel.distanthorizons.coreapi.DependencyInjection.ApiEventInjector;
 import it.unimi.dsi.fastutil.objects.ObjectOpenHashSet;
-#if MC_VER <= MC_1_12_2
+#if MC_VER <= MC_1_7_10
+import net.minecraft.block.*;
+import net.minecraft.init.Blocks;
+import net.minecraft.item.ItemDye;
+import cpw.mods.fml.common.registry.GameData;
+import com.seibel.distanthorizons.common.backports.IBlockState;
+import net.minecraftforge.fluids.IFluidBlock;
+import com.seibel.distanthorizons.common.backports.FakeBlockState;
+#elif MC_VER <= MC_1_12_2
 import net.minecraft.block.*;
 import net.minecraft.init.Blocks;
 import net.minecraft.block.state.IBlockState;
@@ -51,9 +59,9 @@ import com.seibel.distanthorizons.core.logging.DhLogger;
 import java.awt.*;
 import java.io.IOException;
 import java.util.*;
+import java.util.stream.Stream;
 import java.util.List;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.stream.Stream;
 
 import org.jetbrains.annotations.Nullable;
 
@@ -78,7 +86,8 @@ import net.minecraft.world.level.EmptyBlockGetter;
 import net.minecraft.core.Holder;
 #endif
 
-#if MC_VER <= MC_1_12_2
+#if MC_VER <= MC_1_7_10
+#elif MC_VER <= MC_1_12_2
 import net.minecraft.util.ResourceLocation; 
 #elif MC_VER <= MC_1_21_10
 import net.minecraft.resources.ResourceLocation;
@@ -98,35 +107,61 @@ public class BlockStateWrapper implements IBlockStateWrapper
 	// must be defined before AIR, otherwise a null pointer will be thrown
 	private static final DhLogger LOGGER = new DhLoggerBuilder().build();
 	
-	#if MC_VER <= MC_1_12_2
+	#if MC_VER <= MC_1_7_10
+	public static final ConcurrentHashMap<Integer, BlockStateWrapper> WRAPPER_BY_BLOCK_ID_AND_META = new ConcurrentHashMap<>();
+	#elif MC_VER <= MC_1_12_2
 	public static final ConcurrentHashMap<IBlockState, BlockStateWrapper> WRAPPER_BY_BLOCK_STATE = new ConcurrentHashMap<>();
 	#else
     public static final ConcurrentHashMap<BlockState, BlockStateWrapper> WRAPPER_BY_BLOCK_STATE = new ConcurrentHashMap<>();
 	#endif
     public static final ConcurrentHashMap<String, BlockStateWrapper> WRAPPER_BY_RESOURCE_LOCATION = new ConcurrentHashMap<>();
 	
-	public static final String AIR_STRING = "AIR";
-	public static final BlockStateWrapper AIR = new BlockStateWrapper(null, null, null);
-	
-	public static final String DIRT_RESOURCE_LOCATION_STRING = "minecraft:dirt";
-	public static final String WATER_RESOURCE_LOCATION_STRING = "minecraft:water";
-	
-	public static ObjectOpenHashSet<IBlockStateWrapper> rendererIgnoredBlocks = null;
-	public static ObjectOpenHashSet<IBlockStateWrapper> rendererIgnoredCaveBlocks = null;
-	public static ObjectOpenHashSet<IBlockStateWrapper> waterSubsurfaceReplacementBlocks = null;
-	public static ObjectOpenHashSet<IBlockStateWrapper> waterSurfaceReplacementBlocks = null;
-	public static IBlockStateWrapper waterBlock = null;
 	
 	/** keep track of broken blocks so we don't log every time */
-	#if MC_VER <= MC_1_21_10
+	#if MC_VER <= MC_1_7_10
+	private static final HashSet<String> BROKEN_RESOURCE_LOCATIONS = new HashSet<>();
+	#elif MC_VER <= MC_1_21_10
 	private static final HashSet<ResourceLocation> BROKEN_RESOURCE_LOCATIONS = new HashSet<>();
 	#else
 	private static final HashSet<Identifier> BROKEN_RESOURCE_LOCATIONS = new HashSet<>();
 	#endif
 	
 	
+	// static blocks //
+	//region
+	
+	public static final String AIR_STRING = "AIR";
+	public static final BlockStateWrapper AIR = new BlockStateWrapper(null, null, null);
+	
+	private static final String WATER_RESOURCE_LOCATION_STRING = "minecraft:water";
+	private static BlockStateWrapper waterBlock = null;
+	
+	private static final String DIRT_RESOURCE_LOCATION_STRING = "minecraft:dirt";
+	private static BlockStateWrapper dirtBlock = null;
+	
+	private static final String ICE_RESOURCE_LOCATION_STRING = "minecraft:ice";
+	private static BlockStateWrapper iceBlock = null;
+	
+	private static final String SNOW_RESOURCE_LOCATION_STRING = "minecraft:snow";
+	private static BlockStateWrapper snowBlock = null;
+	
+	//endregion
+	
+	
+	private static ObjectOpenHashSet<IBlockStateWrapper> rendererIgnoredBlocks = null;
+	private static ObjectOpenHashSet<IBlockStateWrapper> rendererIgnoredCaveBlocks = null;
+	private static ObjectOpenHashSet<IBlockStateWrapper> waterSubsurfaceReplacementBlocks = null;
+	private static ObjectOpenHashSet<IBlockStateWrapper> waterSurfaceReplacementBlocks = null;
+	
+	
 	
 	// properties //
+	
+	#if MC_VER <= MC_1_7_10
+	// TODO why aren't we just storing the block/meta?
+	/** cache this to prevent re-allocating the array each time the wrapped objects are needed */
+	private final Object[] wrappedMcObject;
+	#endif
 	
 	@Nullable
 	#if MC_VER <= MC_1_12_2
@@ -144,6 +179,7 @@ public class BlockStateWrapper implements IBlockStateWrapper
 	
 	private final boolean isBeaconBlock; 
 	private final boolean isBeaconBaseBlock;
+	private final boolean isIceBlock;
 	private final boolean allowsBeaconBeamPassage;
 	private final boolean renderTexture;
 	private final boolean useBottomTextureForSides;
@@ -151,6 +187,7 @@ public class BlockStateWrapper implements IBlockStateWrapper
 	private final boolean isSolid;
 	private final boolean isLiquid;
 	private final boolean allowApiColorOverride;
+	private final boolean allowApiTextureOverride;
 	/** null if this block can't tint beacons */
 	private final Color beaconTintColor; 
 	private final Color mapColor;
@@ -161,11 +198,21 @@ public class BlockStateWrapper implements IBlockStateWrapper
 	// constructors //
 	//==============//
 	//region
+	
+	
+	#if MC_VER <= MC_1_7_10
+	public static BlockStateWrapper fromBlockState(IBlockState blockState, ILevelWrapper levelWrapper)
+	{ return fromBlockState(blockState.getBlock(), blockState.getMeta(), levelWrapper); }
+	#endif
+	
 	/**
 	 * Can be faster than BlockStateWrapper#fromBlockState(BlockState, ILevelWrapper)
 	 * in cases where the same block state is expected to be referenced multiple times.
 	 */
-	#if MC_VER <= MC_1_12_2
+	#if MC_VER <= MC_1_7_10
+	// For 1.7.10 more accurate name is fromBlockAndMeta
+	public static BlockStateWrapper fromBlockState(Block block, int meta, ILevelWrapper levelWrapper, IBlockStateWrapper guess)
+	#elif MC_VER <= MC_1_12_2
 	public static BlockStateWrapper fromBlockState(IBlockState blockState, ILevelWrapper levelWrapper, IBlockStateWrapper guess)
 	#else
 	public static BlockStateWrapper fromBlockState(BlockState blockState, ILevelWrapper levelWrapper, IBlockStateWrapper guess)
@@ -173,7 +220,11 @@ public class BlockStateWrapper implements IBlockStateWrapper
 	{
 		if (guess == null)
 		{
+			#if MC_VER <= MC_1_7_10
+			return fromBlockState(block, meta, levelWrapper);
+			#else
 			return fromBlockState(blockState, levelWrapper);
+			#endif
 		}
 		
 		
@@ -190,7 +241,14 @@ public class BlockStateWrapper implements IBlockStateWrapper
 		}
 		else
 		{
-			#if MC_VER <= MC_1_12_2
+			// TODO can we just grab the block/meta directly instead of casting?
+			#if MC_VER <= MC_1_7_10
+			Object[] wrappedObject = (Object[]) guess.getWrappedMcObject();
+			guessBlockState = new FakeBlockState(
+				(Block) wrappedObject[0],
+				(Integer) wrappedObject[1]
+			);
+			#elif MC_VER <= MC_1_12_2
 			guessBlockState = (IBlockState) guess.getWrappedMcObject();
 			#else 
 			guessBlockState = (BlockState) guess.getWrappedMcObject();
@@ -203,6 +261,11 @@ public class BlockStateWrapper implements IBlockStateWrapper
 		#else
 		BlockState inputBlockState;
 		#endif
+		
+		#if MC_VER <= MC_1_7_10
+		FakeBlockState blockState = new FakeBlockState(block, meta);
+		#endif
+
 		if (isAir(blockState))
 		{
 			inputBlockState = null;
@@ -213,29 +276,51 @@ public class BlockStateWrapper implements IBlockStateWrapper
 		}
 		
 		
-		if (guessBlockState == inputBlockState)
+		if (Objects.equals(guessBlockState, inputBlockState))
 		{
 			return (BlockStateWrapper) guess;
 		}
 		
+		#if MC_VER <= MC_1_7_10
+		return fromBlockState(block, meta, levelWrapper);
+	    #else 
 		return fromBlockState(blockState, levelWrapper);
+		#endif
 	}
 
-	#if MC_VER <= MC_1_12_2
+	#if MC_VER <= MC_1_7_10
+	// For 1.7.10 more accurate name is fromBlockAndMeta
+	public static BlockStateWrapper fromBlockState(Block block, int meta, ILevelWrapper levelWrapper)
+	#elif MC_VER <= MC_1_12_2
 	public static BlockStateWrapper fromBlockState(@Nullable IBlockState blockState, ILevelWrapper levelWrapper)
 	#else
 	public static BlockStateWrapper fromBlockState(@Nullable BlockState blockState, ILevelWrapper levelWrapper)
 	#endif
 	{
 		// air is a special case
+		#if MC_VER <= MC_1_7_10
+		if (block == null
+			|| block == Blocks.air)
+		#else
 		if (isAir(blockState))
+		#endif
 		{
 			return AIR;
 		}
 		
+		#if MC_VER <= MC_1_7_10
+		FakeBlockState blockState = new FakeBlockState(block, meta);
+		#endif
+		
 		// pooling wrappers significantly improves chunk->LOD processing speed
 		// and also reduces GC pressure
+		#if MC_VER <= MC_1_7_10
+		final int blockId = Block.getIdFromBlock(block);
+		final Integer packedIdMeta = FakeBlockState.packIdAndMeta(blockId, meta);
+		BlockStateWrapper existingWrapper = WRAPPER_BY_BLOCK_ID_AND_META.get(packedIdMeta);
+		#else
 		BlockStateWrapper existingWrapper = WRAPPER_BY_BLOCK_STATE.get(blockState);
+		#endif
 		if (existingWrapper != null)
 		{
 			return existingWrapper;
@@ -244,10 +329,18 @@ public class BlockStateWrapper implements IBlockStateWrapper
 		
 		
 		// synchronized so the API event only fires once per block
+		#if MC_VER <= MC_1_7_10
+		synchronized (WRAPPER_BY_BLOCK_ID_AND_META)
+		#else
 		synchronized (WRAPPER_BY_BLOCK_STATE)
+		#endif
 		{
 			// if another thread already finished this block, use that wrapper
+			#if MC_VER <= MC_1_7_10
+			existingWrapper = WRAPPER_BY_BLOCK_ID_AND_META.get(packedIdMeta);
+			#else
 			existingWrapper = WRAPPER_BY_BLOCK_STATE.get(blockState);
+			#endif
 			if (existingWrapper != null)
 			{
 				return existingWrapper;
@@ -262,26 +355,46 @@ public class BlockStateWrapper implements IBlockStateWrapper
 			if (!eventParam.getOverridesSet())
 			{
 				// no API changes needed, use the existing object
+				#if MC_VER <= MC_1_7_10
+				WRAPPER_BY_BLOCK_ID_AND_META.putIfAbsent(packedIdMeta, apiWrapper);
+				#else
 				WRAPPER_BY_BLOCK_STATE.putIfAbsent(blockState, apiWrapper);
+				#endif
 				return apiWrapper;
 			}
 			else
 			{
 				// create a new wrapper using whatever overrides the API user set
 				BlockStateWrapper returnWrapper = new BlockStateWrapper(blockState, levelWrapper, eventParam);
+				#if MC_VER <= MC_1_7_10
+				WRAPPER_BY_BLOCK_ID_AND_META.putIfAbsent(packedIdMeta, returnWrapper);
+				#else
 				WRAPPER_BY_BLOCK_STATE.putIfAbsent(blockState, returnWrapper);
+				#endif
 				return returnWrapper;
 			}
 		}
 	}
-	
+
 	#if MC_VER <= MC_1_12_2
 	private BlockStateWrapper(@Nullable IBlockState blockState, ILevelWrapper levelWrapper, @Nullable DhApiBlockStateWrapperCreatedEvent.EventParam overrideEventParam)
 	#else
 	private BlockStateWrapper(@Nullable BlockState blockState, ILevelWrapper levelWrapper, @Nullable DhApiBlockStateWrapperCreatedEvent.EventParam overrideEventParam)
 	#endif	
 	{
+		
 		this.blockState = blockState;
+		#if MC_VER <= MC_1_7_10
+		// TODO store block/meta separately
+		if (blockState != null && !isAir()) {
+			this.wrappedMcObject = new Object[] {
+				blockState.getBlock(),
+				blockState.getMeta()
+			};
+		} else {
+			this.wrappedMcObject = null;
+		}
+		#endif
 		this.serialString = serialize(blockState, levelWrapper);
 		this.hashCode = Objects.hash(this.serialString);
 		String lowerCaseSerial = this.serialString.toLowerCase();
@@ -342,6 +455,17 @@ public class BlockStateWrapper implements IBlockStateWrapper
 			{
 				this.allowApiColorOverride = false;
 			}
+			
+			// allow overriding if present 
+			if (overrideEventParam != null
+				&& overrideEventParam.getAllowApiTextureOverride() != null)
+			{
+				this.allowApiTextureOverride = overrideEventParam.getAllowApiTextureOverride();
+			}
+			else
+			{
+				this.allowApiTextureOverride = false;
+			}
 		}
 		
 		
@@ -393,9 +517,17 @@ public class BlockStateWrapper implements IBlockStateWrapper
 				// beacon blocks also show up here, but since they block the beacon beam we don't want their color		
 				&& !this.isBeaconBlock)
 			{
-				Block block = this.blockState.getBlock();
 				int colorInt;
-				#if MC_VER <= MC_1_12_2
+				#if MC_VER <= MC_1_7_10
+				Block block = this.blockState.getBlock();
+				if (block instanceof BlockStainedGlass 
+					|| block instanceof BlockStainedGlassPane)
+				{
+					colorInt = ItemDye.dyeColors[BlockColored.func_150032_b(this.blockState.getMeta())];
+					beaconTintColor = ColorUtil.toColorObjRGB(colorInt);
+				}
+				#elif MC_VER <= MC_1_12_2
+				Block block = this.blockState.getBlock();
 				if (block instanceof BlockStainedGlass)
 				{
 					float[] c = blockState.getValue(BlockStainedGlass.COLOR).getColorComponentValues();
@@ -407,6 +539,7 @@ public class BlockStateWrapper implements IBlockStateWrapper
 					beaconTintColor = new Color(c[0], c[1], c[2]);
 				}
 				#else
+				Block block = this.blockState.getBlock();
 				if (block instanceof BeaconBeamBlock)
 				{
 					#if MC_VER <= MC_1_19_4
@@ -532,8 +665,15 @@ public class BlockStateWrapper implements IBlockStateWrapper
 		}
 		
 		
+		// ice //
+		{
+			// ice block
+			this.isIceBlock = lowerCaseSerial.contains("minecraft:ice");
+			
+		}
+		
 	}
-	
+
 	// static constructor helpers //
 	//region
 	
@@ -556,7 +696,9 @@ public class BlockStateWrapper implements IBlockStateWrapper
 		//region
 		
 		boolean isLeafBlock;
-		#if MC_VER <= MC_1_12_2
+		#if MC_VER <= MC_1_7_10
+		isLeafBlock = blockState.getBlock() instanceof BlockLeavesBase;
+		#elif MC_VER <= MC_1_12_2
 		isLeafBlock = blockState.getBlock() instanceof BlockLeaves;
 		#else 
 		isLeafBlock = blockState.is(BlockTags.LEAVES);
@@ -581,8 +723,12 @@ public class BlockStateWrapper implements IBlockStateWrapper
 		//region
 		
 		boolean isLavaBlock;
-		#if MC_VER <= MC_1_12_2
-		isLavaBlock = blockState.getBlock() == Blocks.LAVA || blockState.getBlock() == Blocks.FLOWING_LAVA;
+		#if MC_VER <= MC_1_7_10
+		isLavaBlock = blockState.getBlock() == Blocks.lava 
+			|| blockState.getBlock() == Blocks.flowing_lava;
+		#elif MC_VER <= MC_1_12_2
+		isLavaBlock = blockState.getBlock() == Blocks.LAVA 
+			|| blockState.getBlock() == Blocks.FLOWING_LAVA;
 		#else
 		isLavaBlock = blockState.is(Blocks.LAVA);
 		#endif
@@ -601,8 +747,12 @@ public class BlockStateWrapper implements IBlockStateWrapper
 		//region
 		
 		boolean isWaterBlock;
-	    #if MC_VER <= MC_1_12_2
-		isWaterBlock = blockState.getBlock() == Blocks.WATER || blockState.getBlock() == Blocks.FLOWING_WATER;
+	    #if MC_VER <= MC_1_7_10
+		isWaterBlock = blockState.getBlock() == Blocks.water 
+			|| blockState.getBlock() == Blocks.flowing_water;
+	    #elif MC_VER <= MC_1_12_2
+		isWaterBlock = blockState.getBlock() == Blocks.WATER 
+			|| blockState.getBlock() == Blocks.FLOWING_WATER;
 		#else
 		isWaterBlock = blockState.is(Blocks.WATER);
 		#endif
@@ -622,7 +772,9 @@ public class BlockStateWrapper implements IBlockStateWrapper
 		//region
 		
 		boolean isWoodSoundingBlock;
-		#if MC_VER <= MC_1_12_2
+		#if MC_VER <= MC_1_7_10
+		isWoodSoundingBlock = blockState.getBlock().stepSound == Block.soundTypeWood;
+		#elif MC_VER <= MC_1_12_2
 		isWoodSoundingBlock = blockState.getBlock().getSoundType() == SoundType.WOOD;
 		#else 
 		isWoodSoundingBlock = blockState.getSoundType() == SoundType.WOOD;
@@ -653,7 +805,9 @@ public class BlockStateWrapper implements IBlockStateWrapper
 		//region
 		
 		boolean isMetalSoundingBlock;
-		#if MC_VER <= MC_1_12_2
+		#if MC_VER <= MC_1_7_10
+		isMetalSoundingBlock = blockState.getBlock().stepSound == Block.soundTypeMetal;
+		#elif MC_VER <= MC_1_12_2
 		isMetalSoundingBlock = blockState.getBlock().getSoundType() == SoundType.METAL;
 		#else
 		isMetalSoundingBlock = blockState.getSoundType() == SoundType.METAL;
@@ -686,7 +840,14 @@ public class BlockStateWrapper implements IBlockStateWrapper
 		//=======//
 		//region
 		
-		if (lowercaseSerialString.contains("grass_block")
+		boolean isGrassBlock;
+		#if MC_VER <= MC_1_7_10
+		isGrassBlock = blockState.getBlock() instanceof BlockGrass;
+		#else
+		isGrassBlock = lowercaseSerialString.contains("grass_block");
+		#endif
+		
+		if (isGrassBlock
 			|| lowercaseSerialString.contains("grass_slab")
 			)
 		{
@@ -743,7 +904,10 @@ public class BlockStateWrapper implements IBlockStateWrapper
 		//region
 		
 		boolean isNetherRack;
-		#if MC_VER <= MC_1_12_2
+		#if MC_VER <= MC_1_7_10
+		isNetherRack = blockState.getBlock() == Blocks.netherrack 
+			|| blockState.getBlock() == Blocks.nether_brick;
+		#elif MC_VER <= MC_1_12_2
 		isNetherRack = blockState.getBlock() == Blocks.NETHERRACK;
 		#else
 		isNetherRack = blockState.is(BlockTags.BASE_STONE_NETHER);
@@ -870,7 +1034,9 @@ public class BlockStateWrapper implements IBlockStateWrapper
 		boolean propagatesSkyLightDown = true;
 		if (blockState != null)
 		{
-			#if MC_VER <= MC_1_12_2
+			#if MC_VER <= MC_1_7_10
+			propagatesSkyLightDown = blockState.getBlock().getLightOpacity() == 0;
+			#elif MC_VER <= MC_1_12_2
 			propagatesSkyLightDown = blockState.getBlock().getLightOpacity(blockState) == 0;
 			#elif MC_VER < MC_1_21_3
 			propagatesSkyLightDown = blockState.propagatesSkylightDown(EmptyBlockGetter.INSTANCE, BlockPos.ZERO);
@@ -945,6 +1111,11 @@ public class BlockStateWrapper implements IBlockStateWrapper
 		for (int i = 0; i < blockNameList.size(); i++)
 		{
 			String baseBlockName = blockNameList.get(i);
+			if (baseBlockName.trim().isEmpty())
+			{
+				continue;
+			}
+			
 			if (lowerCaseSerial.contains(baseBlockName))
 			{
 				blockMatches = true;
@@ -1007,7 +1178,7 @@ public class BlockStateWrapper implements IBlockStateWrapper
 		
 		ObjectOpenHashSet<String> baseIgnoredBlockResourceSet = new ObjectOpenHashSet<>();
 		waterSurfaceReplacementBlocks = getAllBlockWrappers(Config.Client.Advanced.Graphics.Culling.waterSurfaceBlockReplacementCsv, baseIgnoredBlockResourceSet, levelWrapper);
-		waterSubsurfaceReplacementBlocks.remove(AIR);
+		waterSurfaceReplacementBlocks.remove(AIR);
 		
 		return waterSurfaceReplacementBlocks;
 	}
@@ -1027,7 +1198,17 @@ public class BlockStateWrapper implements IBlockStateWrapper
 		
 		return waterSubsurfaceReplacementBlocks;
 	}
-	public static IBlockStateWrapper getWaterBlockStateWrapper(ILevelWrapper levelWrapper)
+	
+	//endregion
+	
+	
+	
+	//======================//
+	// static block getters //
+	//======================//
+	//region
+	
+	public static BlockStateWrapper getWaterBlockStateWrapper(ILevelWrapper levelWrapper)
 	{
 		// use the cached version if possible
 		if (waterBlock != null)
@@ -1035,8 +1216,64 @@ public class BlockStateWrapper implements IBlockStateWrapper
 			return waterBlock;
 		}
 		
-		waterBlock = WrapperFactory.INSTANCE.deserializeBlockStateWrapperOrGetDefault("minecraft:water", levelWrapper);
+		waterBlock = BlockStateWrapper.deserializeOrDefault(WATER_RESOURCE_LOCATION_STRING, levelWrapper);
+		if (waterBlock.equals(AIR))
+		{
+			LOGGER.warn("Failed to deserialize ["+WATER_RESOURCE_LOCATION_STRING+"], issues may occur.");
+		}
+		
 		return waterBlock;
+	}
+	
+	public static BlockStateWrapper getDirtBlockStateWrapper(ILevelWrapper levelWrapper)
+	{
+		// use the cached version if possible
+		if (dirtBlock != null)
+		{
+			return dirtBlock;
+		}
+		
+		dirtBlock = BlockStateWrapper.deserializeOrDefault(DIRT_RESOURCE_LOCATION_STRING, levelWrapper);
+		if (dirtBlock.equals(AIR))
+		{
+			LOGGER.warn("Failed to deserialize ["+DIRT_RESOURCE_LOCATION_STRING+"], issues may occur.");
+		}
+		
+		return dirtBlock;
+	}
+	
+	public static BlockStateWrapper getIceBlockStateWrapper(ILevelWrapper levelWrapper)
+	{
+		// use the cached version if possible
+		if (iceBlock != null)
+		{
+			return iceBlock;
+		}
+		
+		iceBlock = BlockStateWrapper.deserializeOrDefault(ICE_RESOURCE_LOCATION_STRING, levelWrapper);
+		if (iceBlock.equals(AIR))
+		{
+			LOGGER.warn("Failed to deserialize ["+ICE_RESOURCE_LOCATION_STRING+"], issues may occur.");
+		}
+		
+		return iceBlock;
+	}
+	
+	public static BlockStateWrapper getSnowBlockStateWrapper(ILevelWrapper levelWrapper)
+	{
+		// use the cached version if possible
+		if (snowBlock != null)
+		{
+			return snowBlock;
+		}
+		
+		snowBlock = BlockStateWrapper.deserializeOrDefault(SNOW_RESOURCE_LOCATION_STRING, levelWrapper);
+		if (snowBlock.equals(AIR))
+		{
+			LOGGER.warn("Failed to deserialize ["+SNOW_RESOURCE_LOCATION_STRING+"], issues may occur.");
+		}
+		
+		return snowBlock;
 	}
 	
 	//endregion
@@ -1091,6 +1328,10 @@ public class BlockStateWrapper implements IBlockStateWrapper
 				
 				if (defaultBlockStateToIgnore != AIR)
 				{
+					#if MC_VER <= MC_1_7_10
+					BlockStateWrapper newBlockToIgnore = BlockStateWrapper.fromBlockState(defaultBlockStateToIgnore.blockState, levelWrapper);
+					blockStateWrappers.add(newBlockToIgnore);
+					#else
 					// add all possible blockstates (to account for light blocks with different light values and such)
 					#if MC_VER <= MC_1_12_2
 					List<IBlockState> blockStatesToIgnore = defaultBlockStateToIgnore.blockState.getBlock().getBlockState().getValidStates();
@@ -1107,6 +1348,7 @@ public class BlockStateWrapper implements IBlockStateWrapper
 						BlockStateWrapper newBlockToIgnore = fromBlockState(blockState, levelWrapper);
 						blockStateWrappers.add(newBlockToIgnore);
 					}
+					#endif
 				}
 				else
 				{
@@ -1133,7 +1375,11 @@ public class BlockStateWrapper implements IBlockStateWrapper
 		rendererIgnoredCaveBlocks = null;
 		waterSurfaceReplacementBlocks = null;
 		waterSubsurfaceReplacementBlocks = null;
+		
 		waterBlock = null;
+		dirtBlock = null;
+		iceBlock = null;
+		snowBlock = null;
 	}
 	
 	//endregion
@@ -1173,7 +1419,14 @@ public class BlockStateWrapper implements IBlockStateWrapper
 	public String getSerialString() { return this.serialString; }
 	
 	@Override
-	public Object getWrappedMcObject() { return this.blockState; }
+	public Object getWrappedMcObject() 
+	{
+		#if MC_VER <= MC_1_7_10
+		return this.wrappedMcObject;
+		#else
+		return this.blockState;
+		#endif
+	}
 	
 	@Override
 	public boolean isAir() { return isAir(this.blockState); }
@@ -1188,7 +1441,9 @@ public class BlockStateWrapper implements IBlockStateWrapper
 			return true;
 		}
 		
-		#if MC_VER <= MC_1_12_2
+		#if MC_VER <= MC_1_7_10
+		return blockState.getBlock() == Blocks.air;
+		#elif MC_VER <= MC_1_12_2
 		return blockState.getBlock() == Blocks.AIR;
 		#else
 		return blockState.isAir();
@@ -1199,9 +1454,11 @@ public class BlockStateWrapper implements IBlockStateWrapper
 	@Override public boolean isLiquid() { return this.isLiquid; }
 	@Override public boolean isBeaconBlock() { return this.isBeaconBlock; }
 	@Override public boolean isBeaconBaseBlock() { return this.isBeaconBaseBlock; }
+	@Override public boolean isIceBlock() { return this.isIceBlock; }
 	@Override public boolean isBeaconTintBlock() { return this.beaconTintColor != null; }
 	@Override public boolean allowsBeaconBeamPassage() { return this.allowsBeaconBeamPassage; }
 	@Override public boolean allowApiColorOverride() { return this.allowApiColorOverride; }
+	@Override public boolean allowApiTextureOverride() { return this.allowApiTextureOverride; }
 	@Override public boolean renderTexture() { return this.renderTexture; }
 	@Override public boolean useBottomTextureForSides() { return this.useBottomTextureForSides; }
 	@Override public boolean alwaysRasterizeTexture() { return this.alwaysRasterizeTexture; }
@@ -1231,6 +1488,14 @@ public class BlockStateWrapper implements IBlockStateWrapper
 			return AIR_STRING;
 		}
 		
+		#if MC_VER <= MC_1_7_10
+		String serialString = GameData.getBlockRegistry().getNameForObject(blockState.getBlock());
+		if (blockState.getMeta() != 0)
+		{
+			serialString += RESOURCE_LOCATION_SEPARATOR + blockState.getMeta();
+		}
+		return serialString;
+		#else
 		
 		
 		// older versions of MC have a static registry
@@ -1269,11 +1534,25 @@ public class BlockStateWrapper implements IBlockStateWrapper
 		String serialString = resourceLocation.getNamespace() + RESOURCE_LOCATION_SEPARATOR + resourceLocation.getPath()
 				+ STATE_STRING_SEPARATOR + serializeBlockStateProperties(blockState);
 		return serialString;
+		#endif
 	}
 	
 	
+	/** returns AIR if the given string can't be deserialized */
+	public static BlockStateWrapper deserializeOrDefault(String resourceStateString, ILevelWrapper levelWrapper)
+	{
+		try
+		{
+			return deserialize(resourceStateString, levelWrapper);
+		}
+		catch (IOException e)
+		{
+			return BlockStateWrapper.AIR;
+		}
+	}
+	
 	/** will only work if a level is currently loaded */
-	public static IBlockStateWrapper deserialize(String resourceStateString, ILevelWrapper levelWrapper) throws IOException
+	public static BlockStateWrapper deserialize(String resourceStateString, ILevelWrapper levelWrapper) throws IOException
 	{
 		// we need the final string for the concurrent hash map later
 		final String finalResourceStateString = resourceStateString;
@@ -1296,6 +1575,45 @@ public class BlockStateWrapper implements IBlockStateWrapper
 		BlockStateWrapper foundWrapper = AIR;
 		try
 		{
+			#if MC_VER <= MC_1_7_10
+			String metaString = null; // will be null if no meta was included
+			int stateSeparatorIndex = resourceStateString.indexOf(STATE_STRING_SEPARATOR);
+			if (stateSeparatorIndex != -1)
+			{
+				metaString = resourceStateString.substring(stateSeparatorIndex + STATE_STRING_SEPARATOR.length());
+				resourceStateString = resourceStateString.substring(0, stateSeparatorIndex);
+			}
+			
+			int separatorOne = resourceStateString.indexOf(RESOURCE_LOCATION_SEPARATOR);
+			if (separatorOne != -1)
+			{
+				stateSeparatorIndex = resourceStateString.indexOf(RESOURCE_LOCATION_SEPARATOR, separatorOne + 1);
+				if (stateSeparatorIndex != -1)
+				{
+					metaString = resourceStateString.substring(stateSeparatorIndex + 1);
+					resourceStateString = resourceStateString.substring(0, stateSeparatorIndex);
+				}
+			}
+			
+			try
+			{
+				Block block = GameData.getBlockRegistry().getObject(resourceStateString);
+				int meta = 0;
+				if (metaString != null)
+				{
+					meta = Integer.parseInt(metaString);
+				}
+				
+				foundWrapper = fromBlockState(block, meta, levelWrapper);
+				return foundWrapper;
+			}
+			catch (Exception e)
+			{
+				throw new IOException("Failed to deserialize the string [" + finalResourceStateString + "] into a BlockStateWrapper: " + e.getMessage(), e);
+			}
+			
+			#else
+			
 			// try to parse out the BlockState
 			String blockStatePropertiesString = null; // will be null if no properties were included
 			int stateSeparatorIndex = resourceStateString.indexOf(STATE_STRING_SEPARATOR);
@@ -1398,7 +1716,10 @@ public class BlockStateWrapper implements IBlockStateWrapper
 					#endif
 					{
 						String possibleStatePropertiesString = serializeBlockStateProperties(possibleState);
-						if (possibleStatePropertiesString.equals(blockStatePropertiesString))
+						
+						// ignoring case is important since the plugin may send properties
+						// that don't match with what MC gives us (Bukkit returns all lowercase)
+						if (possibleStatePropertiesString.equalsIgnoreCase(blockStatePropertiesString))
 						{
 							foundState = possibleState;
 							break;
@@ -1434,6 +1755,7 @@ public class BlockStateWrapper implements IBlockStateWrapper
 			{
 				throw new IOException("Failed to deserialize the string [" + finalResourceStateString + "] into a BlockStateWrapper: " + e.getMessage(), e);
 			}
+			#endif
 		}
 		finally
 		{
@@ -1443,17 +1765,35 @@ public class BlockStateWrapper implements IBlockStateWrapper
 			
 			if (foundWrapper != AIR)
 			{
+				#if MC_VER <= MC_1_7_10
+				
+				int blockIdAndMeta = 0;
+				// should always be true (the only exception should be air), 
+				// but just in case
+				if (foundWrapper.blockState instanceof FakeBlockState)
+				{
+					blockIdAndMeta = ((FakeBlockState)foundWrapper.blockState).getIdAndMeta();
+				}
+				
+				WRAPPER_BY_BLOCK_ID_AND_META.putIfAbsent(blockIdAndMeta, foundWrapper);
+				#else
 				WRAPPER_BY_BLOCK_STATE.putIfAbsent(foundWrapper.blockState, foundWrapper);
+				#endif
 			}
 		}
 	}
 	
 	/** used to compare and save BlockStates based on their properties */
-	#if MC_VER <= MC_1_12_2
+	#if MC_VER <= MC_1_7_10
+	#elif MC_VER <= MC_1_12_2
 	private static String serializeBlockStateProperties(IBlockState blockState)
 	#else
 	private static String serializeBlockStateProperties(BlockState blockState)
 	#endif
+	
+	#if MC_VER <= MC_1_7_10
+	// block properties aren't available in 1.7.10
+	#else
 	{
 		// get the property list for this block (doesn't contain this block state's values, just the names and possible values)
 		#if MC_VER <= MC_1_12_2
@@ -1495,6 +1835,7 @@ public class BlockStateWrapper implements IBlockStateWrapper
 		
 		return stringBuilder.toString();
 	}
+	#endif
 	
 	//endregion
 	

@@ -19,15 +19,22 @@
 
 package com.seibel.distanthorizons.common.render.openGl.postProcessing.ssao;
 
+import com.seibel.distanthorizons.api.enums.config.EDhApiDepthDirection;
+import com.seibel.distanthorizons.api.enums.config.EDhApiDepthRange;
 import com.seibel.distanthorizons.api.objects.math.DhApiMat4f;
 import com.seibel.distanthorizons.common.render.openGl.GlDhMetaRenderer;
 import com.seibel.distanthorizons.common.render.openGl.glObject.shader.GlShaderProgram;
 import com.seibel.distanthorizons.common.render.openGl.postProcessing.GlScreenQuad;
 import com.seibel.distanthorizons.common.wrappers.minecraft.MinecraftGLWrapper;
 import com.seibel.distanthorizons.common.render.openGl.util.GlAbstractShaderRenderer;
+import com.seibel.distanthorizons.core.dependencyInjection.SingletonInjector;
 import com.seibel.distanthorizons.core.render.RenderParams;
 import com.seibel.distanthorizons.core.util.math.DhMat4f;
-import org.lwjgl.opengl.GL33;
+import com.seibel.distanthorizons.core.wrapperInterfaces.render.AbstractDhRenderApiDefinition;
+import org.lwjgl.opengl.GL13;
+import org.lwjgl.opengl.GL30;
+
+import static com.seibel.distanthorizons.lwjgl.LWJGLServiceProvider.LWJGL;
 
 /**
  * Draws the SSAO to a texture. <br><br>
@@ -41,6 +48,7 @@ public class GlDhSSAOShader extends GlAbstractShaderRenderer
 	public static GlDhSSAOShader INSTANCE = new GlDhSSAOShader();
 	
 	private static final MinecraftGLWrapper GLMC = MinecraftGLWrapper.INSTANCE;
+	private static final AbstractDhRenderApiDefinition RENDER_DEF = SingletonInjector.INSTANCE.get(AbstractDhRenderApiDefinition.class);
 	
 	
 	public int frameBuffer;
@@ -57,8 +65,10 @@ public class GlDhSSAOShader extends GlAbstractShaderRenderer
 	public int uStrength;
 	public int uMinLight;
 	public int uBias;
-	public int uDepthMap;
+	public int uDhDepthTexture;
 	public int uFadeDistanceInBlocks;
+	public int uIsReverseZDepth;
+	public int uDepthIsZeroToPositiveOne;
 	
 	
 	
@@ -83,8 +93,10 @@ public class GlDhSSAOShader extends GlAbstractShaderRenderer
 		this.uStrength = this.shader.getUniformLocation("uStrength");
 		this.uMinLight = this.shader.getUniformLocation("uMinLight");
 		this.uBias = this.shader.getUniformLocation("uBias");
-		this.uDepthMap = this.shader.getUniformLocation("uDepthMap");
+		this.uDhDepthTexture = this.shader.getUniformLocation("uDhDepthTexture");
 		this.uFadeDistanceInBlocks = this.shader.getUniformLocation("uFadeDistanceInBlocks");
+		this.uIsReverseZDepth = this.shader.getUniformLocation("uIsReverseZDepth");
+		this.uDepthIsZeroToPositiveOne = this.shader.getUniformLocation("uDepthIsZeroToPositiveOne");
 	}
 	
 	
@@ -115,7 +127,8 @@ public class GlDhSSAOShader extends GlAbstractShaderRenderer
 		this.shader.setUniform(this.uBias, 0.02f);
 		this.shader.setUniform(this.uFadeDistanceInBlocks, 1_600.0f);
 		
-		GL33.glUniform1i(this.uDepthMap, 0);
+		this.shader.setUniform(this.uIsReverseZDepth, (RENDER_DEF.getDepthDirection() == EDhApiDepthDirection.REVERSE_Z) ? 1 : 0);
+		this.shader.setUniform(this.uDepthIsZeroToPositiveOne, (RENDER_DEF.getDepthRange() == EDhApiDepthRange.ZERO_TO_POS_ONE) ? 1 : 0);
 		
 	}
 	
@@ -128,12 +141,12 @@ public class GlDhSSAOShader extends GlAbstractShaderRenderer
 	@Override
 	protected void onRender()
 	{
-		GLMC.glBindFramebuffer(GL33.GL_FRAMEBUFFER, this.frameBuffer);
+		GLMC.glBindFramebuffer(GL30.GL_FRAMEBUFFER, this.frameBuffer);
 		GLMC.disableScissorTest();
 		GLMC.disableDepthTest();
 		GLMC.disableBlend();
 		
-		GLMC.glActiveTexture(GL33.GL_TEXTURE0);
+		GLMC.glActiveTexture(GL13.GL_TEXTURE0);
 		GLMC.glBindTexture(GlDhMetaRenderer.INSTANCE.getActiveDepthTextureId());
 		
 		GlScreenQuad.INSTANCE.render();

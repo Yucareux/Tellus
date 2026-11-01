@@ -13,7 +13,7 @@ public class MixinLevelTicks<T>
 
 #else
 
-import com.seibel.distanthorizons.common.wrappers.worldGeneration.BatchGenerationEnvironment;
+import com.seibel.distanthorizons.api.DhApi;
 import net.minecraft.world.ticks.LevelTicks;
 import net.minecraft.world.ticks.ScheduledTick;
 import org.spongepowered.asm.mixin.Mixin;
@@ -29,7 +29,7 @@ public class MixinLevelTicks<T>
 	{
 		// In MC 1.21.4 an error check was added to log attempting to schedule ticks for unloaded chunks
 		// this caused a lot of unnecessary errors when generating sand (FallingBlock.class).
-		if (BatchGenerationEnvironment.isThisDhWorldGenThread())
+		if (DhApi.isDhThread())
 		{
 			ci.cancel();
 		}

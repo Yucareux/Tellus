@@ -86,7 +86,7 @@ public class ChunkHashRepo extends AbstractDhRepo<DhChunkPos, ChunkHashDTO>
 		return dto;
 	}
 	
-	private final String insertSqlTemplate =
+	private final String upsertSqlTemplate =
 		"INSERT INTO "+this.getTableName() + " (\n" +
 		"   ChunkPosX, ChunkPosZ, \n" +
 		"   ChunkHash, \n" +
@@ -95,11 +95,14 @@ public class ChunkHashRepo extends AbstractDhRepo<DhChunkPos, ChunkHashDTO>
 		"    ?, ?, \n" +
 		"    ?, \n" +
 		"    ?, ? \n" +
-		");";
+		") \n" +
+		"ON CONFLICT(ChunkPosX, ChunkPosZ) DO UPDATE SET \n" +
+		"    ChunkHash = excluded.ChunkHash \n" +
+		"   ,LastModifiedUnixDateTime = excluded.LastModifiedUnixDateTime";
 	@Override
-	public PreparedStatement createInsertStatement(ChunkHashDTO dto) throws SQLException
+	public PreparedStatement createUpsertStatement(ChunkHashDTO dto) throws SQLException
 	{
-		PreparedStatement statement = this.createPreparedStatement(this.insertSqlTemplate);
+		PreparedStatement statement = this.createPreparedStatement(this.upsertSqlTemplate);
 		if (statement == null)
 		{
 			return null;
@@ -114,32 +117,6 @@ public class ChunkHashRepo extends AbstractDhRepo<DhChunkPos, ChunkHashDTO>
 		
 		statement.setObject(i++, System.currentTimeMillis()); // last modified unix time
 		statement.setObject(i++, System.currentTimeMillis()); // created unix time
-		
-		return statement;
-	}
-	
-	private final String updateSqlTemplate =
-		"UPDATE "+this.getTableName()+" \n" +
-		"SET \n" +
-		"    ChunkHash = ? \n" +
-		"   ,LastModifiedUnixDateTime = ? \n" +
-		"WHERE ChunkPosX = ? AND ChunkPosZ = ?";
-	@Override
-	public PreparedStatement createUpdateStatement(ChunkHashDTO dto) throws SQLException
-	{
-		PreparedStatement statement = this.createPreparedStatement(updateSqlTemplate);
-		if (statement == null)
-		{
-			return null;
-		}
-		
-		
-		int i = 1;
-		statement.setObject(i++, dto.chunkHash);
-		statement.setObject(i++, System.currentTimeMillis()); // last modified unix time
-		
-		statement.setObject(i++, dto.pos.getX());
-		statement.setObject(i++, dto.pos.getZ());
 		
 		return statement;
 	}

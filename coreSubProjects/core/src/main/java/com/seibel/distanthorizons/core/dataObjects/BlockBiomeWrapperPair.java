@@ -5,6 +5,7 @@ import com.seibel.distanthorizons.core.dependencyInjection.SingletonInjector;
 import com.seibel.distanthorizons.core.wrapperInterfaces.IWrapperFactory;
 import com.seibel.distanthorizons.core.wrapperInterfaces.block.IBlockStateWrapper;
 import com.seibel.distanthorizons.core.wrapperInterfaces.world.IBiomeWrapper;
+import org.jetbrains.annotations.NotNull;
 
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -39,6 +40,17 @@ public class BlockBiomeWrapperPair
 	
 	public static BlockBiomeWrapperPair get(IBlockStateWrapper blockState, IBiomeWrapper biome)
 	{
+		// nulls shouldn't happen, but just in case
+		if (blockState == null)
+		{
+			throw new NullPointerException("Block state shouldn't be null.");
+		}
+		if (biome == null)
+		{
+			throw new NullPointerException("Biome wrapper shouldn't be null.");
+		}
+		
+		
 		// check for existing entry
 		ConcurrentHashMap<IBiomeWrapper, BlockBiomeWrapperPair> pairByBiomeWrapper = CACHED_PAIR_BY_BIOME_BY_BLOCK.get(blockState);
 		if (pairByBiomeWrapper != null)

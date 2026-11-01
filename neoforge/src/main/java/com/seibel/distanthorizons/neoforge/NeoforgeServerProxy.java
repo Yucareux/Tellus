@@ -5,7 +5,7 @@ import com.seibel.distanthorizons.common.util.ProxyUtil;
 import com.seibel.distanthorizons.common.wrappers.chunk.ChunkWrapper;
 import com.seibel.distanthorizons.common.wrappers.misc.ServerPlayerWrapper;
 import com.seibel.distanthorizons.common.wrappers.world.ServerLevelWrapper;
-import com.seibel.distanthorizons.common.wrappers.worldGeneration.BatchGenerationEnvironment;
+import com.seibel.distanthorizons.common.wrappers.worldGeneration.DhChunkGenerator;
 import com.seibel.distanthorizons.core.api.internal.ServerApi;
 import com.seibel.distanthorizons.core.logging.DhLoggerBuilder;
 import com.seibel.distanthorizons.core.wrapperInterfaces.chunk.IChunkWrapper;
@@ -41,7 +41,6 @@ public class NeoforgeServerProxy implements AbstractModInitializer.IEventProxy
 	private final ServerApi serverApi = ServerApi.INSTANCE;
 	private static final DhLogger LOGGER = new DhLoggerBuilder().build();
 	private final boolean isDedicated;
-	public static Supplier<Boolean> isGenerationThreadChecker = null;
 	
 	
 	//=============//
@@ -51,7 +50,6 @@ public class NeoforgeServerProxy implements AbstractModInitializer.IEventProxy
 	public NeoforgeServerProxy(boolean isDedicated)
 	{
 		this.isDedicated = isDedicated;
-		isGenerationThreadChecker = BatchGenerationEnvironment::isThisDhWorldGenThread;
 	}
 	
 	@Override
@@ -119,9 +117,9 @@ public class NeoforgeServerProxy implements AbstractModInitializer.IEventProxy
 	public void playerChangedDimensionEvent(PlayerEvent.PlayerChangedDimensionEvent event)
 	{
 		this.serverApi.serverPlayerLevelChangeEvent(
-				getServerPlayerWrapper(event),
-				getServerLevelWrapper(event.getFrom(), event),
-				getServerLevelWrapper(event.getTo(), event)
+			getServerPlayerWrapper(event),
+			getServerLevelWrapper(event.getFrom(), event),
+			getServerLevelWrapper(event.getTo(), event)
 		);
 	}
 	

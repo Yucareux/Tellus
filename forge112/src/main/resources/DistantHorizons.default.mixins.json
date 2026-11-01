@@ -1,0 +1,21 @@
+{
+    "package": "com.seibel.distanthorizons.forge112.mixins",
+    "required": true,
+    "target": "@env(DEFAULT)",
+    "minVersion": "0.8.5",
+    "compatibilityLevel": "JAVA_8",
+    "mixins": [
+        "common.MixinThreadedFileIOBase"
+    ],
+    "server": [
+        "server.MixinEntityPlayerMP"
+    ],
+    "client": [
+        "client.MixinActiveRenderInfo",
+        "client.MixinEntityRenderer",
+        "client.MixinMinecraft",
+        "client.MixinNetHandlerPlayClient",
+        "client.MixinOptionsScreen",
+        "client.MixinRenderGlobal"
+    ]
+}

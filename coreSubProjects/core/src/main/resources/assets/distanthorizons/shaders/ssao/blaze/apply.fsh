@@ -1,8 +1,11 @@
-#version 330 core
+#version 330
+// needed for "layout(location = 0)" required as as of MC 26.3
+#extension GL_ARB_separate_shader_objects : require
 
-in vec2 TexCoord;
+layout(location = 0) in vec2 texCoord;
 
-out vec4 fragColor;
+layout(location = 0) out vec4 fragColor;
+
 
 uniform sampler2D uSourceColorTexture;
 uniform sampler2D uSourceDepthTexture;
@@ -13,6 +16,7 @@ layout (std140) uniform applyFragUniformBlock
     int uBlurRadius;
     float uNearClipPlane; // in blocks
     float uFarClipPlane; // in blocks
+    bool uIsReverseZDepth;
 };
 
 
@@ -67,16 +71,26 @@ void main()
 {
     fragColor = vec4(1.0);
     
-    float fragmentDepth = textureLod(uSourceDepthTexture, TexCoord, 0).r;
-
-    // a fragment depth of "1" means the fragment wasn't drawn to,
-    // we only want to apply SSAO to LODs, not to the sky outside the LODs
-    if (fragmentDepth < 1) 
+    float fragmentDepth = textureLod(uSourceDepthTexture, texCoord, 0).r;
+    
+    bool drawnTo;
+    if (uIsReverseZDepth)
+    {
+        drawnTo = (fragmentDepth > 0);
+    }
+    else
+    {
+        // a fragment depth of "1" means the fragment wasn't drawn to,
+        // we only want to apply SSAO to LODs, not to the sky outside the LODs
+        drawnTo = (fragmentDepth < 1.0);
+    }
+    
+    if (drawnTo)
     {
         if (uBlurRadius > 0) 
         {
             float fragmentDepthLinear = linearizeDepth(fragmentDepth);
-            fragColor.a = BilateralGaussianBlur(TexCoord, fragmentDepthLinear, 1.6);
+            fragColor.a = BilateralGaussianBlur(texCoord, fragmentDepthLinear, 1.6);
         }
         else 
         {

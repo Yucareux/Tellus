@@ -61,10 +61,11 @@ public class PriorityTaskPicker
 	//==========//
 	///region
 	
-	public Executor createExecutor(String name) { return this.createExecutor(name, null); }
-	public Executor createExecutor(String name, @Nullable PriorityTaskPicker.IExecutorCanRunFunc canRunFunc)
+	public Executor createExecutor(String name) { return this.createExecutor(name, Thread.NORM_PRIORITY, null); }
+	public Executor createExecutor(String name, int priority) { return this.createExecutor(name, priority, null); }
+	public Executor createExecutor(String name, int priority, @Nullable PriorityTaskPicker.IExecutorCanRunFunc canRunFunc)
 	{
-		Executor executor = new Executor(this, name, canRunFunc);
+		Executor executor = new Executor(this, name, priority, canRunFunc);
 		this.executors.add(executor);
 		return executor;
 	}
@@ -119,12 +120,14 @@ public class PriorityTaskPicker
 				// or until this executor is empty,
 				// or until we should move on to the next executor
 				while (this.occupiedThreadsRef.get() < Config.Common.MultiThreading.numberOfThreads.get()
+						&& executor.canTakeAnotherThread()
 						&& (task = executor.taskQueue.poll()) != null)
 				{
 					try
 					{
 						executor.runTask(task);
 						this.occupiedThreadsRef.getAndIncrement();
+						executor.occupiedThreadsRef.getAndIncrement();
 					}
 					catch (RejectedExecutionException e)
 					{
@@ -176,7 +179,17 @@ public class PriorityTaskPicker
 	{
 		Stream<Executor> stream = this.executors.stream();
 		// returns smaller numbers first
-		stream = stream.sorted(Comparator.comparingLong((executor) -> executor.totalRuntimeNanos.get()));
+		//stream = stream.sorted(Comparator.comparingLong((executor) -> executor.totalRuntimeNanos.get()));
+		stream = stream.sorted((Executor a, Executor b) ->
+		{
+			int priorityCompare = Integer.compare(b.priority, a.priority); // higher number first
+			if (priorityCompare != 0)
+			{
+				return priorityCompare;
+			}
+			
+			return Long.compare(a.totalRuntimeNanos.get(), b.totalRuntimeNanos.get()); // lower number first
+		});
 		return stream.iterator();
 	}
 	
@@ -186,6 +199,17 @@ public class PriorityTaskPicker
 		LOGGER.info("Shutting down PriorityTaskPicker thread pool...");
 		this.isShutDownRef.set(true);
 		
+		// signal all executors to shutdown
+		for (int i = 0; i < this.executors.size(); i++)
+		{
+			Executor executor = this.executors.get(i);
+			if (executor != null)
+			{
+				executor.shutdown();
+			}
+		}
+		
+		// since they're all already shutting down concurrently, this is bounded by the slowest one
 		try
 		{
 			for (int i = 0; i < this.executors.size(); i++)
@@ -193,7 +217,6 @@ public class PriorityTaskPicker
 				Executor executor = this.executors.get(i);
 				if (executor != null)
 				{
-					executor.shutdown();
 					if (!executor.awaitTermination(5, TimeUnit.SECONDS))
 					{
 						executor.shutdownNow();
@@ -230,6 +253,20 @@ public class PriorityTaskPicker
 		
 		private final AtomicInteger runningTasksRef = new AtomicInteger(0);
 		private final AtomicInteger completedTasksRef = new AtomicInteger(0);
+		/** tasks handed to {@link #threadPoolExecutor} that haven't finished yet */
+		private final AtomicInteger occupiedThreadsRef = new AtomicInteger(0);
+		
+		/** 
+		 * The share of the threads this executor may occupy while another executor has tasks waiting. <br>
+		 * Without it a higher priority executor with a steady stream of tasks never leaves a thread to the others.
+		 */
+		private double maxThreadShareWhileOthersWait = 1.0;
+		
+		/** 
+		 * a higher number means this executor will run before others. <br> 
+		 * 0 = default
+		 */
+		private final int priority;
 		
 		private final AtomicLong totalRuntimeNanos = new AtomicLong(0);
 		/** used for performance logging */
@@ -248,10 +285,11 @@ public class PriorityTaskPicker
 		//=============//
 		///region
 		
-		public Executor(PriorityTaskPicker parentTaskPicker, String name, @Nullable PriorityTaskPicker.IExecutorCanRunFunc canRunFunc)
+		public Executor(PriorityTaskPicker parentTaskPicker, String name, int priority, @Nullable PriorityTaskPicker.IExecutorCanRunFunc canRunFunc)
 		{
 			this.parentTaskPicker = parentTaskPicker;
 			this.name = name;
+			this.priority = priority;
 			this.canRunFunc = canRunFunc;
 			
 			this.threadPoolExecutor = this.createThreadPool();
@@ -319,11 +357,48 @@ public class PriorityTaskPicker
 		/** The passed in {@link Runnable} must be exactly the same as the one passed into {@link PriorityTaskPicker.Executor#execute(Runnable)} */
 		public void remove(@NotNull Runnable command) { this.taskQueue.removeIf(trackedRunnable -> trackedRunnable.command == command); }
 		
+		/** Lets a paused executor resume as soon as it can run again instead of at the next periodic check. */
+		public void wakeUp() { this.parentTaskPicker.tryStartNextTask(); }
+		
+		/** @see #maxThreadShareWhileOthersWait */
+		public Executor limitThreadShareWhileOthersWait(double share)
+		{
+			this.maxThreadShareWhileOthersWait = share;
+			return this;
+		}
+		
+		private boolean canTakeAnotherThread()
+		{
+			if (this.maxThreadShareWhileOthersWait >= 1.0)
+			{
+				return true;
+			}
+			
+			int maxThreads = Math.max(1, (int) (Config.Common.MultiThreading.numberOfThreads.get() * this.maxThreadShareWhileOthersWait));
+			if (this.occupiedThreadsRef.get() < maxThreads)
+			{
+				return true;
+			}
+			
+			// the limit only matters while someone else is waiting for a thread
+			for (Executor executor : this.parentTaskPicker.executors)
+			{
+				if (executor != this
+					&& !executor.taskQueue.isEmpty()
+					&& executor.canRun())
+				{
+					return false;
+				}
+			}
+			return true;
+		}
+		
 		
 		public void runTask(@NotNull Runnable command) { this.threadPoolExecutor.execute(command); }
 		
 		
 		public int getQueueSize() { return this.taskQueue.size(); }
+		/** number of threads */
 		public int getPoolSize() { return Config.Common.MultiThreading.numberOfThreads.get(); }
 		
 		public int getRunningTaskCount() { return this.runningTasksRef.get(); }
@@ -485,6 +560,7 @@ public class PriorityTaskPicker
 				
 				// Update variables related to task status
 				this.parentTaskPicker.occupiedThreadsRef.getAndDecrement();
+				this.executor.occupiedThreadsRef.getAndDecrement();
 				this.executor.runningTasksRef.getAndDecrement();
 				this.executor.completedTasksRef.getAndIncrement();
 				this.executor.totalRuntimeNanos.addAndGet(timeElapsed);

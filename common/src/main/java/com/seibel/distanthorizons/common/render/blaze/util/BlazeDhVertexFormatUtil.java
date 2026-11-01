@@ -5,7 +5,6 @@ public class BlazeDhVertexFormatUtil {}
 
 #else
 
-import com.mojang.blaze3d.vertex.VertexFormatElement;
 import com.seibel.distanthorizons.api.enums.config.EDhApiRenderingEngine;
 import com.seibel.distanthorizons.core.config.Config;
 import com.seibel.distanthorizons.core.dataObjects.render.bufferBuilding.LodQuadBuilder;
@@ -17,9 +16,15 @@ import com.seibel.distanthorizons.core.wrapperInterfaces.minecraft.IMinecraftCli
 import org.jetbrains.annotations.NotNull;
 
 #if MC_VER <= MC_26_1_2
-#else
+import com.mojang.blaze3d.vertex.VertexFormatElement;
+#elif MC_VER <= MC_26_2_0
+import com.mojang.blaze3d.vertex.VertexFormatElement;
 import com.mojang.blaze3d.GpuFormat;
+#else
+import com.mojang.renderpearl.api.vertex.VertexFormatElement;
+import com.mojang.renderpearl.api.GpuFormat;
 #endif
+
 
 /**
  * @see LodQuadBuilder

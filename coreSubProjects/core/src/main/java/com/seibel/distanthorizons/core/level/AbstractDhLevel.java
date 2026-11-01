@@ -25,7 +25,6 @@ import com.seibel.distanthorizons.core.dataObjects.fullData.sources.FullDataSour
 import com.seibel.distanthorizons.core.render.renderer.CloudRenderHandler;
 import com.seibel.distanthorizons.core.util.delayedSaveCache.DelayedBeaconSaveCache;
 import com.seibel.distanthorizons.core.util.delayedSaveCache.DelayedDataSourceSaveCache;
-import com.seibel.distanthorizons.core.generation.DhLightingEngine;
 import com.seibel.distanthorizons.core.logging.DhLoggerBuilder;
 import com.seibel.distanthorizons.core.pos.DhChunkPos;
 import com.seibel.distanthorizons.core.pos.DhSectionPos;
@@ -36,7 +35,6 @@ import com.seibel.distanthorizons.core.sql.repo.AbstractDhRepo;
 import com.seibel.distanthorizons.core.sql.repo.BeaconBeamRepo;
 import com.seibel.distanthorizons.core.sql.repo.ChunkHashRepo;
 import com.seibel.distanthorizons.core.util.KeyedLockContainer;
-import com.seibel.distanthorizons.core.util.LodUtil;
 import com.seibel.distanthorizons.core.wrapperInterfaces.chunk.IChunkWrapper;
 import com.seibel.distanthorizons.core.wrapperInterfaces.render.renderPass.IDhGenericRenderer;
 import com.seibel.distanthorizons.coreapi.DependencyInjection.ApiEventInjector;
@@ -45,6 +43,7 @@ import org.jetbrains.annotations.Nullable;
 
 import java.io.File;
 import java.io.IOException;
+import java.sql.Connection;
 import java.sql.SQLException;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -176,32 +175,63 @@ public abstract class AbstractDhLevel implements IDhLevel
 	
 	private CompletableFuture<Void> onDataSourceSaveAsync(FullDataSourceV2 fullDataSource)
 	{
-		// block lights should have been populated at the chunkWrapper stage
-		// waiting to populate the data source's skylight at this stage prevents re-lighting and
-		// allows us to reduce cross-chunk lighting issues by lighting the whole 4x4 LOD at once 
-		DhLightingEngine.INSTANCE.bakeDataSourceSkyLight(fullDataSource, this.getLevelWrapper().hasSkyLight() ? LodUtil.MAX_MC_LIGHT : LodUtil.MIN_MC_LIGHT);
-		
-		
 		return this.updateDataSourcesAsync(fullDataSource)
 			.thenRun(() -> 
 			{
+				// If we are processing a lot of chunks at once
+				// (like with C2ME OpenCL)
+				// then we can quickly become bottlenecked by the
+				// chunk hash (due to being a lot of small disk operations).
+				// Disabling the chunk hash saving can improve performance a moderate amount.
+				boolean checkChunkHash = !Config.Common.LodBuilding.disableUnchangedChunkCheck.get();
+				if (!checkChunkHash)
+				{
+					return;
+				}
+				
 				try
 				{
 					HashSet<DhChunkPos> updatedChunkPosSet = this.updatedChunkPosSetBySectionPos.remove(fullDataSource.getPos());
 					if (updatedChunkPosSet != null)
 					{
-						for (DhChunkPos chunkPos : updatedChunkPosSet)
+						if (this.chunkHashRepo == null)
 						{
-							// save after the data source has been updated to prevent saving the hash without the associated datasource
-							Integer chunkHash = this.updatedChunkHashesByChunkPos.remove(chunkPos);
-							if (this.chunkHashRepo != null && chunkHash != null)
+							return;
+						}
+						
+						Connection dbConnection = this.chunkHashRepo.getConnection();
+						if (dbConnection == null)
+						{
+							return;
+						}
+						
+						// insert all chunk hashes in a single transaction to speed things up
+						boolean previousAutoCommit = dbConnection.getAutoCommit();
+						dbConnection.setAutoCommit(false);
+						
+						try
+						{
+							for (DhChunkPos chunkPos : updatedChunkPosSet)
 							{
-								this.chunkHashRepo.save(new ChunkHashDTO(chunkPos, chunkHash));
+								// save after the data source has been updated to prevent saving the hash without the associated datasource
+								Integer chunkHash = this.updatedChunkHashesByChunkPos.remove(chunkPos);
+								if (this.chunkHashRepo != null
+									&& chunkHash != null)
+								{
+									this.chunkHashRepo.save(new ChunkHashDTO(chunkPos, chunkHash));
+								}
+								
+								ApiEventInjector.INSTANCE.fireAllEvents(
+									DhApiChunkModifiedEvent.class,
+									new DhApiChunkModifiedEvent.EventParam(this.getLevelWrapper(), chunkPos.getX(), chunkPos.getZ()));
 							}
 							
-							ApiEventInjector.INSTANCE.fireAllEvents(
-								DhApiChunkModifiedEvent.class,
-								new DhApiChunkModifiedEvent.EventParam(this.getLevelWrapper(), chunkPos.getX(), chunkPos.getZ()));
+							dbConnection.commit();
+						}
+						finally
+						{
+							dbConnection.rollback();
+							dbConnection.setAutoCommit(previousAutoCommit);
 						}
 					}
 				}

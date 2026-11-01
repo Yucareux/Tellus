@@ -9,5 +9,10 @@ unimined.minecraft {
     }
 }
 
-runClient.javaLauncher = null
-runServer.javaLauncher = null
+// set the java version for running is necessary for older MC versions
+// that don't support the latest java version
+def launcher = javaToolchains.launcherFor {
+    languageVersion.set(JavaLanguageVersion.of(rootProject.java_version as Integer))
+}
+runClient.javaLauncher.set(launcher) 
+runServer.javaLauncher.set(launcher)

@@ -19,11 +19,13 @@
 
 package com.seibel.distanthorizons.common.wrappers.worldGeneration.step;
 
-#if MC_VER > MC_1_12_2
+#if MC_VER <= MC_1_12_2
+
+#elif MC_VER <= MC_26_2_0 // replaced by StepTerrain
 import java.util.ArrayList;
 
 import com.seibel.distanthorizons.common.wrappers.chunk.ChunkWrapper;
-import com.seibel.distanthorizons.common.wrappers.worldGeneration.BatchGenerationEnvironment;
+import com.seibel.distanthorizons.common.wrappers.worldGeneration.DhChunkGenerator;
 import com.seibel.distanthorizons.common.wrappers.worldGeneration.params.ThreadWorldGenParams;
 
 import com.seibel.distanthorizons.common.wrappers.worldGeneration.mimicObject.DhLitWorldGenRegion;
@@ -44,7 +46,7 @@ public final class StepNoise extends AbstractWorldGenStep
 {
 	private static final ChunkStatus STATUS = ChunkStatus.NOISE;
 	
-	private final BatchGenerationEnvironment environment;
+	private final DhChunkGenerator dhChunkGen;
 	
 	
 	
@@ -52,7 +54,7 @@ public final class StepNoise extends AbstractWorldGenStep
 	// constructor //
 	//=============//
 	
-	public StepNoise(BatchGenerationEnvironment batchGenerationEnvironment) { this.environment = batchGenerationEnvironment; }
+	public StepNoise(DhChunkGenerator dhChunkGen) { this.dhChunkGen = dhChunkGen; }
 	
 	
 	
@@ -65,8 +67,8 @@ public final class StepNoise extends AbstractWorldGenStep
 	
 	@Override
 	public void generateGroup(
-			ThreadWorldGenParams tParams, DhLitWorldGenRegion worldGenRegion,
-			ArrayGridList<ChunkWrapper> chunkWrappers)
+		ThreadWorldGenParams tParams, DhLitWorldGenRegion worldGenRegion,
+		ArrayGridList<ChunkWrapper> chunkWrappers)
 	{
 		ArrayList<ChunkWrapper> chunksToGen = this.getChunkWrappersToGenerate(chunkWrappers);
 		for (ChunkWrapper chunkWrapper : chunksToGen)
@@ -74,33 +76,33 @@ public final class StepNoise extends AbstractWorldGenStep
 			ChunkAccess chunk = chunkWrapper.getChunk();
 			
 			#if MC_VER < MC_1_17_1
-			this.environment.globalParams.generator.fillFromNoise(worldGenRegion, tParams.structFeatManager, chunk);
+			this.dhChunkGen.globalParams.generator.fillFromNoise(worldGenRegion, tParams.structFeatManager, chunk);
 			#elif MC_VER < MC_1_18_2
-			chunk = this.environment.confirmFutureWasRunSynchronously(
-						this.environment.globalParams.generator.fillFromNoise(
+			chunk = this.dhChunkGen.confirmFutureWasRunSynchronously(
+						this.dhChunkGen.globalParams.generator.fillFromNoise(
 							Runnable::run,
 							tParams.structFeatManager.forWorldGenRegion(worldGenRegion), 
 							chunk));
 			#elif MC_VER < MC_1_19_2
-			chunk = this.environment.confirmFutureWasRunSynchronously(
-						this.environment.globalParams.generator.fillFromNoise(
+			chunk = this.dhChunkGen.confirmFutureWasRunSynchronously(
+						this.dhChunkGen.globalParams.generator.fillFromNoise(
 							Runnable::run, 
 							Blender.of(worldGenRegion),
 							tParams.structFeatManager.forWorldGenRegion(worldGenRegion), 
 							chunk));
 			#elif MC_VER < MC_1_21_1
-			chunk = this.environment.confirmFutureWasRunSynchronously(
-						this.environment.globalParams.generator.fillFromNoise(
+			chunk = this.dhChunkGen.confirmFutureWasRunSynchronously(
+						this.dhChunkGen.globalParams.generator.fillFromNoise(
 							Runnable::run, 
 							Blender.of(worldGenRegion), 
-							this.environment.globalParams.randomState,
+							this.dhChunkGen.globalParams.randomState,
 							tParams.structFeatManager.forWorldGenRegion(worldGenRegion), 
 							chunk));
 			#else
-			chunk = this.environment.confirmFutureWasRunSynchronously(
-						this.environment.globalParams.generator.fillFromNoise(
+			chunk = this.dhChunkGen.confirmFutureWasRunSynchronously(
+						this.dhChunkGen.globalParams.generator.fillFromNoise(
 							Blender.of(worldGenRegion), 
-							this.environment.globalParams.randomState,
+							this.dhChunkGen.globalParams.randomState,
 							tParams.structFeatManager.forWorldGenRegion(worldGenRegion), 
 							chunk));
 			#endif

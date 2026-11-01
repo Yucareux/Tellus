@@ -12,7 +12,33 @@ stages:
 variables:
   # Pull core when building
   GIT_SUBMODULE_STRATEGY: recursive
+  # retry downloading sources,
+  # this is necessary if Gitlab fails to download the repo/sources
+  # on the first try
+  GET_SOURCES_ATTEMPTS: 5
+  ARTIFACT_DOWNLOAD_ATTEMPTS: 5
+  RESTORE_CACHE_ATTEMPTS: 5
 
+
+# Shared bash helper: 
+# retry a command up to 3 times with a 30s delay between attempts.
+# GitLab's `retry:` keyword doesn't have a delay so we need to
+# use a bash script instead
+.retry_script: &retry_script |
+  retry() {
+    local n=1
+    local max=3
+    local delay=30
+    until "$@"; do
+      if [ "$n" -ge "$max" ]; then
+        echo "Command failed after [${n}] attempts: [$*]" >&2
+        return 1
+      fi
+      echo "Attempt [${n}/${max}] failed, retrying in [${delay}] sec..." >&2
+      n=$((n + 1))
+      sleep "$delay"
+    done
+  }
 
 # These can be extended so code is a bit less duplicated
 .build_java:
@@ -39,6 +65,7 @@ build:
   parallel:
     matrix:
       - MC_VER: [
+      "26.3.0",
       "26.2.0",
       "26.1.2",
       "1.21.11", "1.21.10", "1.21.9", "1.21.8", "1.21.6", "1.21.5", "1.21.4", "1.21.3", "1.21.1",
@@ -47,23 +74,25 @@ build:
       "1.18.2",
       "1.17.1",
       "1.16.5",
-      "1.12.2"
+      "1.12.2",
+      "1.7.10"
       ]
   before_script:
-    # Only MC 1.16.5 (Java 8) and 1.12.2 (JDK 8 for MC alongside JDK 25 for unimined) need JDK 8
+    - *retry_script
+    # Only MC 1.16.5 (Java 8), 1.12.2 and 1.7.10 (JDK 8 for MC alongside JDK 25 for unimined) need JDK 8
     # Installing it for every matrix job floods the network with parallel apt installs at pipeline start for no reason.
     - |
       case "$MC_VER" in
-        1.16.5|1.12.2)
-          apt-get update -q
-          apt-get install -y openjdk-8-jdk
+        1.16.5|1.12.2|1.7.10)
+          retry apt-get update -q
+          retry apt-get install -y openjdk-8-jdk
           ;;
       esac
   script:
     # this both runs the unit tests and assembles the code
     # (no separate clean: the container starts fresh, so build/ is already empty)
-    - ./gradlew build -PmcVer="${MC_VER}" -PinfoGitCommit="${CI_COMMIT_SHA}" -PinfoGitBranch="${CI_COMMIT_BRANCH}" -PinfoBuildSource="GitLab CI (${CI_PIPELINE_ID})" --gradle-user-home cache/;
-    - cp ./cleanroom/build/libs/* ./fabric/build/libs/* ./forge/build/libs/* ./neoforge/build/libs/* ./build/forgix/* . || true
+    - retry ./gradlew build -PmcVer="${MC_VER}" -PinfoGitCommit="${CI_COMMIT_SHA}" -PinfoGitBranch="${CI_COMMIT_BRANCH}" -PinfoBuildSource="GitLab CI (${CI_PIPELINE_ID})" --gradle-user-home cache/;
+    - cp ./fabric/build/libs/* ./forge17/build/libs/* ./forge112/build/libs/* ./forge/build/libs/* ./neoforge/build/libs/* ./build/forgix/* . || true
   artifacts:
     name: "NightlyBuild_${MC_VER}-${CI_COMMIT_SHORT_SHA}-${CI_COMMIT_TIMESTAMP}"
     paths:
@@ -80,12 +109,14 @@ build:
 api:
   stage: api
   needs: []
+  before_script:
+    - *retry_script
   script:
     # this should only run for the API
     # this also runs unit tests
-    - ./gradlew api:build --gradle-user-home cache/;
+    - retry ./gradlew api:build --gradle-user-home cache/;
     # build the javadoc here so the pages job can publish it without triggering another API build
-    - ./gradlew api:javadoc --gradle-user-home cache/;
+    - retry ./gradlew api:javadoc --gradle-user-home cache/;
     - cp ./coreSubProjects/api/build/libs/* .
   artifacts:
     name: "NightlyBuild_Api-${CI_COMMIT_SHORT_SHA}-${CI_COMMIT_TIMESTAMP}"
@@ -119,9 +150,11 @@ translations:
   stage: translations
   needs: []
   image: crowdin/cli:latest
+  before_script:
+    - *retry_script
   script:
-    - if [ "$CI_COMMIT_BEFORE_SHA" = "0000000000000000000000000000000000000000" ] || git diff --name-only "$CI_COMMIT_BEFORE_SHA" "$CI_COMMIT_SHA" -- coreSubProjects/core/src/main/resources/assets/distanthorizons/lang | grep -q .; then crowdin upload sources; fi
-    - crowdin download --export-only-approved --skip-untranslated-files
+    - if [ "$CI_COMMIT_BEFORE_SHA" = "0000000000000000000000000000000000000000" ] || git diff --name-only "$CI_COMMIT_BEFORE_SHA" "$CI_COMMIT_SHA" -- coreSubProjects/core/src/main/resources/assets/distanthorizons/lang | grep -q .; then retry crowdin upload sources; fi
+    - retry crowdin download --export-only-approved --skip-untranslated-files
     - for f in coreSubProjects/core/src/main/resources/assets/distanthorizons/lang/*.json; do [ -e "$f" ] || continue; sed -i 's/\\\\n/\\n/g' "$f"; n="$(basename "$f" | tr '[:upper:]' '[:lower:]')"; [ "$(basename "$f")" = "$n" ] || mv "$f" "$(dirname "$f")/$n"; done
   artifacts:
     paths:

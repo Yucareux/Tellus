@@ -19,7 +19,11 @@
 
 package com.seibel.distanthorizons.common.render.openGl.glObject.enums;
 
-import static org.lwjgl.opengl.GL46.*;
+import static org.lwjgl.opengl.GL11.*;
+import static org.lwjgl.opengl.GL13.*;
+import static org.lwjgl.opengl.GL14.*;
+import static org.lwjgl.opengl.GL20.*;
+import static org.lwjgl.opengl.GL32.*;
 
 // Turns GL int enums back to readable strings
 public class GLEnums

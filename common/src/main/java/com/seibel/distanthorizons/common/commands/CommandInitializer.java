@@ -1,24 +1,17 @@
 package com.seibel.distanthorizons.common.commands;
 #if MC_VER <= MC_1_12_2
-import com.seibel.distanthorizons.core.config.ConfigHandler;
-import com.seibel.distanthorizons.core.config.types.AbstractConfigBase;
-import com.seibel.distanthorizons.core.config.types.ConfigEntry;
-import com.seibel.distanthorizons.core.logging.f3.F3Screen;
 import net.minecraft.command.CommandBase;
 import net.minecraft.command.ICommand;
 import net.minecraft.command.ICommandSender;
 import net.minecraft.server.MinecraftServer;
-import net.minecraft.util.text.TextComponentString;
+import org.jetbrains.annotations.NotNull;
 #else
 import com.mojang.brigadier.CommandDispatcher;
 import com.mojang.brigadier.builder.LiteralArgumentBuilder;
 import net.minecraft.commands.CommandSourceStack;
 import static net.minecraft.commands.Commands.literal;
-#endif
 import org.jetbrains.annotations.Nullable;
-
-import java.util.ArrayList;
-import java.util.List;
+#endif
 
 import static com.seibel.distanthorizons.core.network.messages.MessageRegistry.DEBUG_CODEC_CRASH_MESSAGE;
 
@@ -45,30 +38,54 @@ public class CommandInitializer
 	{
 		return new CommandBase()
 		{
+			#if MC_VER <= MC_1_7_10
 			@Override
-			public String getName() { return "dh"; }
+			public String getCommandName()
+			#else
+			@Override
+			public String getName()
+			#endif
+			{ return "dh"; }
 			
+			#if MC_VER <= MC_1_7_10
 			@Override
-			public String getUsage(ICommandSender sender) { return "/dh <debug|config|pregen>"; }
+			public String getCommandUsage(ICommandSender sender)
+			#else
+			@Override
+			public String getUsage(ICommandSender sender)
+			#endif
+			{
+				return DEBUG_CODEC_CRASH_MESSAGE
+						? "/dh <help|debug|config|crash|pregen>"
+						: "/dh <help|debug|config|pregen>";
+			}
 			
+			
+			#if MC_VER <= MC_1_7_10
 			@Override
-			public void execute(MinecraftServer server, ICommandSender sender, String[] args)
+			public void processCommand(ICommandSender sender, String[] args) { this.executeCommand(MinecraftServer.getServer(), sender, args); }
+			#else
+			@Override
+			public void execute(MinecraftServer server, ICommandSender sender, String[] args) { this.executeCommand(server, sender, args); }
+			#endif
+			
+			
+			
+			private void executeCommand(MinecraftServer server, ICommandSender sender, String[] args)
 			{
 				if (args.length == 0)
 				{
-					if (DEBUG_CODEC_CRASH_MESSAGE)
-					{
-						sender.sendMessage(new TextComponentString("Usage: /dh <debug|config|crash|pregen>"));
-					}
-					else
-					{
-						sender.sendMessage(new TextComponentString("Usage: /dh <debug|config|pregen"));
-					}
+					HelpCommand helpCommand = new HelpCommand();
+					helpCommand.execute(sender);
 					return;
 				}
 				
 				switch (args[0])
 				{
+					case "help":
+						HelpCommand helpCommand = new HelpCommand();
+						helpCommand.execute(sender);
+						break;
 					case "debug":
 						DebugCommand debugCommand = new DebugCommand();
 						debugCommand.execute(sender);
@@ -87,16 +104,21 @@ public class CommandInitializer
 					case "pregen":
 						if (!server.isDedicatedServer())
 						{
-							sender.sendMessage(new TextComponentString("Pregen command is only available on dedicated servers"));
+							AbstractDhCommand.sendMessage(sender, "Pregen command is only available on dedicated servers");
 							break;
 						}
 						PregenCommand pregenCommand = new PregenCommand();
 						pregenCommand.execute(server, sender, args);
 						break;
 					default:
-						sender.sendMessage(new TextComponentString("Unknown subcommand: " + args[0]));
+						AbstractDhCommand.sendMessage(sender, "Unknown subcommand: " + args[0]);
 				}
 			}
+			
+			#if MC_VER <= MC_1_7_10
+			@Override 
+			public int compareTo(@NotNull Object obj) { return 0; }
+			#endif
 		};
 		
 	}
@@ -148,6 +170,7 @@ public class CommandInitializer
 				});
 		
 		builder.then(new ConfigCommand().buildCommand());
+		builder.then(new HelpCommand().buildCommand());
 		builder.then(new DebugCommand().buildCommand());
 		builder.then(new PregenCommand().buildCommand());
 		

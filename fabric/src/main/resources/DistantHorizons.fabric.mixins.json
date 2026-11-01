@@ -18,12 +18,15 @@
     "client.MixinFogRenderer",
     "client.MixinGameRenderer",
     "client.MixinImmersivePortalsRenderStates",
+    "client.MixinIrisFrameBuffer",
     "client.MixinLevelRenderer",
     "client.MixinChunkSectionsToRender",
     "client.MixinLightTexture",
     "client.MixinMinecraft",
     "client.MixinOptionsScreen",
-    "client.MixinSharedConstants"
+    "client.MixinSharedConstants",
+    "client.MixinProjectionMatrixBuffer",
+    "client.MixinMain"
   ],
   "server": [],
   "injectors": {

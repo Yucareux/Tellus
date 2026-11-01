@@ -40,11 +40,18 @@ public interface IOverrideInjector<BindableType extends IBindable>
 	
 	
 	/**
-	 * See {@link IDependencyInjector#bind(Class, IBindable) bind(Class, IBindable)} for full documentation.
+	 * Links the given implementation object to an interface, so it can be referenced later. <br>
+	 * If another override with the given priority already has been bound it will be silently replaced
+	 * by this new override.
 	 *
+	 * @param dependencyInterface The interface (or parent class) the implementation object should implement.
+	 * @param dependencyImplementation An object that implements the dependencyInterface interface.
+	 * 
 	 * @throws IllegalArgumentException if a non-Distant Horizons Override with the priority {@link IOverrideInjector#CORE_PRIORITY} is passed in
 	 * or an override is passed in with an invalid priority value.
-	 * @throws IllegalStateException if another override with the given priority already has been bound.
+	 * 
+	 * @apiNote since 7.1.0 IllegalStateException no longer throws if another override is already bound with the same priority.
+	 * 
 	 * @see IDependencyInjector#bind(Class, IBindable)
 	 */
 	void bind(Class<? extends IDhApiOverrideable> dependencyInterface, IDhApiOverrideable dependencyImplementation) throws IllegalStateException, IllegalArgumentException;
@@ -69,6 +76,13 @@ public interface IOverrideInjector<BindableType extends IBindable>
 	
 	/** Removes the given concrete {@link IDhApiOverrideable} bound to the given interface. */
 	void unbind(Class<? extends IDhApiOverrideable> dependencyInterface, IDhApiOverrideable dependencyImplementation);
+	
+	/** 
+	 * Removes all bound implementations of the given interface.
+	 * 
+	 * @since API 7.1.0 
+	 */
+	void unbindAll(Class<? extends IDhApiOverrideable> dependencyInterface);
 	
 	/** Removes all bound overrides. */
 	void clear();

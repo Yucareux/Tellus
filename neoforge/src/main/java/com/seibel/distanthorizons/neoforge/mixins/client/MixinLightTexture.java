@@ -19,11 +19,11 @@
 
 package com.seibel.distanthorizons.neoforge.mixins.client;
 
+import com.seibel.distanthorizons.api.enums.config.EDhApiRenderingApi;
 import com.seibel.distanthorizons.common.wrappers.minecraft.MinecraftRenderWrapper;
 import com.seibel.distanthorizons.core.dependencyInjection.SingletonInjector;
-import com.seibel.distanthorizons.core.wrapperInterfaces.minecraft.IMinecraftClientWrapper;
 import com.seibel.distanthorizons.core.wrapperInterfaces.minecraft.IMinecraftRenderWrapper;
-import com.seibel.distanthorizons.core.wrapperInterfaces.world.IClientLevelWrapper;
+import com.seibel.distanthorizons.core.wrapperInterfaces.render.AbstractDhRenderApiDefinition;
 import com.seibel.distanthorizons.neoforge.wrappers.NeoforgeTextureUnwrapper;
 
 import org.spongepowered.asm.mixin.Final;
@@ -38,20 +38,20 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 import com.mojang.blaze3d.platform.NativeImage;
 #elif MC_VER < MC_1_21_5
 import com.mojang.blaze3d.pipeline.TextureTarget;
-#elif MC_VER < MC_1_21_9
+#elif MC_VER <= MC_26_2_0
 import com.mojang.blaze3d.opengl.GlTexture;
 import com.mojang.blaze3d.systems.RenderSystem;
 import com.mojang.blaze3d.textures.GpuTexture;
 #else
-import com.mojang.blaze3d.opengl.GlTexture;
-import com.mojang.blaze3d.textures.GpuTexture;
+import com.mojang.renderpearl.api.textures.GpuTexture;
+import com.mojang.renderpearl.backend.opengl.GlTexture;
 #endif
 
 #if MC_VER <= MC_1_21_11
 import net.minecraft.client.renderer.LightTexture;
 #else
-import net.minecraft.client.renderer.Lightmap;
 import net.minecraft.client.renderer.state.LightmapRenderState;
+import net.minecraft.client.renderer.Lightmap;
 #endif
 
 
@@ -62,6 +62,7 @@ import net.minecraft.client.renderer.state.LightmapRenderState;
 #endif
 public class MixinLightTexture
 {
+	
 	#if MC_VER < MC_1_21_3
 	@Shadow 
 	@Final
@@ -78,7 +79,8 @@ public class MixinLightTexture
 	
 	@Unique
 	private MinecraftRenderWrapper renderWrapper = null;
-	
+	@Unique
+	private AbstractDhRenderApiDefinition renderDef = null;
 	
 	
 	
@@ -94,26 +96,36 @@ public class MixinLightTexture
 		if (this.renderWrapper == null)
 		{
 			this.renderWrapper = (MinecraftRenderWrapper)SingletonInjector.INSTANCE.get(IMinecraftRenderWrapper.class);
+			this.renderDef = SingletonInjector.INSTANCE.get(AbstractDhRenderApiDefinition.class);
 		}
 		
 		
 		#if MC_VER < MC_1_21_3
-		renderWrapper.updateLightmap(this.lightPixels);
+		this.renderWrapper.updateLightmap(this.lightPixels);
 		#elif MC_VER < MC_1_21_5
-		renderWrapper.setLightmapId(this.target.getColorTextureId());
-		#elif MC_VER < MC_1_21_9
-		GlTexture glTexture = (GlTexture) this.texture;
-		renderWrapper.setLightmapId(glTexture.glId());
+		this.renderWrapper.setLightmapId(this.target.getColorTextureId());
 		#elif MC_VER <= MC_1_21_10
 		GlTexture glTexture = (GlTexture) this.texture;
-		renderWrapper.setLightmapId(glTexture.glId());
-		#else
+		this.renderWrapper.setLightmapId(glTexture.glId());
+		#elif MC_VER <= MC_26_1_2
 		// both options are available since the renderer can be changed to either Blaze3D or OpenGL
-		int id = NeoforgeTextureUnwrapper.getGlTextureIdFromGpuTexture(this.texture);
-		renderWrapper.setLightmapId(id);
+		int textureId = NeoforgeTextureUnwrapper.getGlTextureIdFromGpuTexture(this.texture);
+		this.renderWrapper.setLightmapId(textureId);
 		
-		renderWrapper.setLightmapGpuTexture(this.texture);
+		this.renderWrapper.setLightmapGpuTexture(this.texture);
+		#else
+		
+		if (this.renderDef.getRenderApi() == EDhApiRenderingApi.OPEN_GL)
+		{
+			GlTexture glTexture = (GlTexture) this.texture;
+			this.renderWrapper.setLightmapId(glTexture.glId());
+		}
+		
+		// this will be used for Blaze3D OpenGL and Vulkan
+		this.renderWrapper.setLightmapGpuTexture(this.texture);
 		#endif
 	}
+	
+	
 	
 }

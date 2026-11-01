@@ -98,11 +98,24 @@ public interface IFullDataSourceRetrievalQueue extends Closeable
 	//===============//
 	//region
 	
+	/**
+	 * Used to make sure the low-quality LODs
+	 * are generated first (if requested).
+	 */
+	boolean getCanRegenerate();
+	void setCanRegenerate(boolean retrievingLowDetailLods);
+	
 	/** 
 	 * Generally the retrieval queue should be fairly small, so its faster to iterate over the existing list
 	 * and check if each one is valid vs dumbly attempting to remove every position that just went out of range.
 	 */
-	void removeRetrievalRequestIf(DhSectionPos.ICancelablePrimitiveLongConsumer removeIf);
+	void removeRetrievalRequestIf(DhSectionPos.IPrimitiveLongConsumer removeIf);
+	
+	/**
+	 * Can be used to check if any queued tasks
+	 * meet a certain positional state
+	 */
+	boolean requestPosExistsWhere(DhSectionPos.IPrimitiveLongConsumer returnTrueIf);
 	
 	CompletableFuture<DataSourceRetrievalResult> submitRetrievalTask(long pos, byte requiredDataDetail);
 	
@@ -136,13 +149,9 @@ public interface IFullDataSourceRetrievalQueue extends Closeable
 	/** returns how many chunks are currently queued for retrieval */
 	int getQueuedChunkCount();
 	
-	/** used for rendering to the F3 menu */
-	int getEstimatedRemainingTaskCount();
-	void setEstimatedRemainingTaskCount(int newEstimate);
-	
 	/** used for displaying a progress update to the user */
-	int getRetrievalEstimatedRemainingChunkCount();
-	void setRetrievalEstimatedRemainingChunkCount(int newEstimate);
+	long getRetrievalEstimatedRemainingChunkCount();
+	void setRetrievalEstimatedRemainingChunkCount(long newEstimate);
 
 	void addDebugMenuStringsToList(List<String> messageList);
 	

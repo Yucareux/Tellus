@@ -10,9 +10,7 @@ import com.seibel.distanthorizons.api.interfaces.override.worldGenerator.IDhApiW
 import com.seibel.distanthorizons.api.interfaces.world.IDhApiLevelWrapper;
 import com.seibel.distanthorizons.api.objects.data.DhApiTerrainDataPoint;
 import com.seibel.distanthorizons.api.objects.data.IDhApiFullDataSource;
-import com.seibel.distanthorizons.common.wrappers.world.ServerLevelWrapper;
 import com.seibel.distanthorizons.core.logging.DhLoggerBuilder;
-import net.minecraft.server.level.ServerLevel;
 import com.seibel.distanthorizons.core.logging.DhLogger;
 
 import java.io.IOException;
@@ -45,7 +43,7 @@ public class TestGenericWorldGenerator implements IDhApiWorldGenerator
 	@Override
 	public byte getSmallestDataDetailLevel() { return (byte) (EDhApiDetailLevel.BLOCK.detailLevel); }
 	@Override
-	public byte getLargestDataDetailLevel() 
+	public byte getLargestDataDetailLevel()
 	{ return (byte) (EDhApiDetailLevel.BLOCK.detailLevel + 12); }
 	//{ return (byte) (EDhApiDetailLevel.BLOCK.detailLevel); }
 	
@@ -53,7 +51,7 @@ public class TestGenericWorldGenerator implements IDhApiWorldGenerator
 	@Override
 	public EDhApiWorldGeneratorReturnType getReturnType() { return EDhApiWorldGeneratorReturnType.API_DATA_SOURCES; }
 	
-	@Override 
+	@Override
 	public boolean runApiValidation() { return true; }
 	
 	
@@ -64,17 +62,17 @@ public class TestGenericWorldGenerator implements IDhApiWorldGenerator
 	
 	@Override
 	public CompletableFuture<Void> generateLod(
-			int chunkPosMinX, int chunkPosMinZ,
-			int posX, int posZ, byte detailLevel,
-			IDhApiFullDataSource pooledFullDataSource,
-			EDhApiDistantGeneratorMode generatorMode, ExecutorService worldGeneratorThreadPool,
-			Consumer<IDhApiFullDataSource> resultConsumer)
+		int chunkPosMinX, int chunkPosMinZ,
+		int posX, int posZ, byte detailLevel,
+		IDhApiFullDataSource pooledFullDataSource,
+		EDhApiDistantGeneratorMode generatorMode, ExecutorService worldGeneratorThreadPool,
+		Consumer<IDhApiFullDataSource> resultConsumer)
 	{
-		return CompletableFuture.runAsync(() -> 
-			this.generateInternal(
-				chunkPosMinX, chunkPosMinZ,
-				posX, posZ, detailLevel,
-				pooledFullDataSource, generatorMode, resultConsumer),
+		return CompletableFuture.runAsync(() ->
+				this.generateInternal(
+					chunkPosMinX, chunkPosMinZ,
+					posX, posZ, detailLevel,
+					pooledFullDataSource, generatorMode, resultConsumer),
 			worldGeneratorThreadPool);
 	}
 	public void generateInternal(
@@ -164,7 +162,7 @@ public class TestGenericWorldGenerator implements IDhApiWorldGenerator
 				
 				IDhApiBlockStateWrapper block = colorBlock;
 				if (x == 0 || x == (width-1)
-						|| z == 0 || z == (width-1))
+					|| z == 0 || z == (width-1))
 				{
 					block = borderBlock;
 				}
@@ -179,7 +177,7 @@ public class TestGenericWorldGenerator implements IDhApiWorldGenerator
 		}
 		
 		resultConsumer.accept(pooledFullDataSource);
-			
+		
 		#else
 		#endif
 	}

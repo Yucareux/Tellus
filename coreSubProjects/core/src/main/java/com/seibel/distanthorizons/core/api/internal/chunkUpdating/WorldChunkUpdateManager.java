@@ -30,8 +30,6 @@ public class WorldChunkUpdateManager
 	/** singleton since we only expect to have one world loaded at a time */
 	public static final WorldChunkUpdateManager INSTANCE = new WorldChunkUpdateManager();
 	
-	public static final Set<String> LOGGED_GET_ERROR_MESSAGES = Collections.newSetFromMap(new ConcurrentHashMap<String, Boolean>());
-	
 	
 	/** 
 	 * Queues are only removed during world shutdown.
@@ -109,7 +107,7 @@ public class WorldChunkUpdateManager
 					return oldQueueManager;
 				}
 				
-				oldQueueManager = new ChunkUpdateQueueManager();
+				oldQueueManager = new ChunkUpdateQueueManager(newLevelWrapper.getDhIdentifier());
 				return oldQueueManager;
 			});
 	}
@@ -136,7 +134,11 @@ public class WorldChunkUpdateManager
 		return queueCountRef.get();
 	}
 	
-	public void clear() { this.updateQueueByLevelWrapper.clear(); }
+	public void clear() 
+	{
+		this.updateQueueByLevelWrapper.forEach((levelWrapper, updateManager) -> updateManager.close());
+		this.updateQueueByLevelWrapper.clear();
+	}
 	
 	//endregion
 	

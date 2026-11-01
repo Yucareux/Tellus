@@ -22,6 +22,7 @@ package com.seibel.distanthorizons.core.dataObjects.render;
 import com.seibel.distanthorizons.api.enums.config.EDhApiVerticalQuality;
 import com.seibel.distanthorizons.core.dataObjects.render.textures.BlockTextureRegistry;
 import com.seibel.distanthorizons.core.logging.DhLoggerBuilder;
+import com.seibel.distanthorizons.core.util.RenderDataPointReducingList;
 import com.seibel.distanthorizons.core.util.objects.pooling.PhantomArrayList.AbstractPhantomArrayList;
 import com.seibel.distanthorizons.core.util.objects.pooling.PhantomArrayList.PhantomArrayListPool;
 import com.seibel.distanthorizons.core.pos.DhSectionPos;
@@ -65,6 +66,16 @@ public class ColumnRenderSource extends AbstractPhantomArrayList
 	public int yOffset;
 	
 	public final LongArrayList renderDataContainer;
+	/**
+	 * void data is a 2D array
+	 * that represents the air render data below
+	 * LODs that aren't right up against the minimum world height.
+	 * <br><br>
+	 * This is necessary so sky/block lighting is correct.
+	 * Otherwise those air LODs will be optimized away by
+	 * the {@link RenderDataPointReducingList}.
+	 */
+	public final LongArrayList voidRenderDataContainer;
 	
 	/**
 	 * Parallel to {@link ColumnRenderSource#renderDataContainer},
@@ -98,7 +109,7 @@ public class ColumnRenderSource extends AbstractPhantomArrayList
 	 */
 	private ColumnRenderSource(long pos, int maxVertSliceCount, int yOffset)
 	{
-		super(ARRAY_LIST_POOL, 1, 0, 1, 0, 0);
+		super(ARRAY_LIST_POOL, 1, 0, 2, 0, 0);
 		
 		this.pos = pos;
 		this.yOffset = yOffset;
@@ -107,6 +118,7 @@ public class ColumnRenderSource extends AbstractPhantomArrayList
 		
 		int maxDatapointCount = WIDTH * WIDTH * this.maxVerticalSliceCount;
 		this.renderDataContainer = this.pooledArraysCheckout.getLongArray(0, maxDatapointCount);
+		this.voidRenderDataContainer = this.pooledArraysCheckout.getLongArray(1, WIDTH * WIDTH);
 		
 		// texture ids are only stored for high detail sections
 		int textureIndexCount = texturedLodsEnabledAtDetailLevel(this.getDataDetailLevel()) ? maxDatapointCount : 0;
@@ -133,22 +145,29 @@ public class ColumnRenderSource extends AbstractPhantomArrayList
 	
 	public void populateColumnView(ColumnRenderView view, int posX, int posZ) throws IllegalArgumentException
 	{
-		int offset = this.getDatapointIndex(posX, posZ, 0);
+		int dataOffset = this.getDatapointIndex(posX, posZ, 0);
+		int voidDataOffset = this.getVoidDatapointIndex(posX, posZ);
 		
 		// don't allow returning views that are outside this render source's bounds
-		if (offset >= this.renderDataContainer.size())
-		{
-			throw new IllegalArgumentException("Column View offset ["+offset+"] greater than parent render data container ["+DhSectionPos.toString(this.pos)+"] size ["+this.renderDataContainer.size()+"].");
-		}
-		else if (posX < 0 || posX >= WIDTH
-				|| posZ < 0 || posZ >= WIDTH)
+		if (posX < 0 || posX >= WIDTH
+			|| posZ < 0 || posZ >= WIDTH)
 		{
 			throw new IllegalArgumentException("Column View pos outside valid range ["+posX+","+posZ+"].");
 		}
+		else if (dataOffset >= this.renderDataContainer.size())
+		{
+			throw new IllegalArgumentException("Column Data View offset ["+dataOffset+"] greater than parent render data container ["+DhSectionPos.toString(this.pos)+"] size ["+this.renderDataContainer.size()+"].");
+		}
+		else if (voidDataOffset >= this.voidRenderDataContainer.size())
+		{
+			throw new IllegalArgumentException("Column Void View offset ["+voidDataOffset+"] greater than parent render data container ["+DhSectionPos.toString(this.pos)+"] size ["+this.voidRenderDataContainer.size()+"].");
+		}
 		
 		view.populate(
-			this.renderDataContainer, this.maxVerticalSliceCount,
-			offset, this.maxVerticalSliceCount);
+			this.renderDataContainer, this.voidRenderDataContainer, 
+			this.maxVerticalSliceCount,
+			dataOffset, voidDataOffset, 
+			this.maxVerticalSliceCount);
 	}
 	
 	//endregion
@@ -270,6 +289,12 @@ public class ColumnRenderSource extends AbstractPhantomArrayList
 		return (posX * WIDTH * this.maxVerticalSliceCount)
 			+ (posZ * this.maxVerticalSliceCount)
 			+ verticalIndex;
+	}
+	
+	private int getVoidDatapointIndex(int posX, int posZ)
+	{
+		return (posX * WIDTH)
+			+ posZ;
 	}
 	
 	//endregion

@@ -25,7 +25,7 @@ import java.util.concurrent.locks.ReentrantLock;
 
 import com.seibel.distanthorizons.common.wrappers.McObjectConverter;
 import com.seibel.distanthorizons.common.wrappers.chunk.ChunkWrapper;
-import com.seibel.distanthorizons.common.wrappers.worldGeneration.BatchGenerationEnvironment;
+import com.seibel.distanthorizons.common.wrappers.worldGeneration.DhChunkGenerator;
 import com.seibel.distanthorizons.core.logging.DhLoggerBuilder;
 import com.seibel.distanthorizons.core.pos.DhChunkPos;
 import com.seibel.distanthorizons.core.util.LodUtil;
@@ -88,7 +88,7 @@ public class DhLitWorldGenRegion extends WorldGenRegion
 	
 	public final ServerLevel serverLevel;
 	public final DummyLightEngine lightEngine;
-	public final BatchGenerationEnvironment.IEmptyChunkRetrievalFunc generator;
+	public final DhChunkGenerator.IEmptyChunkRetrievalFunc generator;
 	public final int writeRadius;
 	public final int size;
 	
@@ -96,7 +96,7 @@ public class DhLitWorldGenRegion extends WorldGenRegion
 	private final List<ChunkAccess> chunkCacheList;
 	private final Long2ObjectOpenHashMap<ChunkAccess> chunkMap = new Long2ObjectOpenHashMap<ChunkAccess>();
 	
-	/** 
+	/**
 	 * Present to reduce the chance that we accidentally break underlying MC code that isn't thread safe, 
 	 * specifically: "it.unimi.dsi.fastutil.longs.Long2ObjectLinkedOpenHashMap.getAndMoveToFirst()"
 	 */
@@ -133,7 +133,7 @@ public class DhLitWorldGenRegion extends WorldGenRegion
 			ChunkAccess centerChunk,
 			ServerLevel serverLevel, DummyLightEngine lightEngine,
 			List<ChunkAccess> chunkList, ChunkStatus chunkStatus, int writeRadius,
-			BatchGenerationEnvironment.IEmptyChunkRetrievalFunc generator)
+			DhChunkGenerator.IEmptyChunkRetrievalFunc generator)
 	{
 		#if MC_VER == MC_1_16_5
 		super(serverLevel, chunkList);
@@ -180,7 +180,7 @@ public class DhLitWorldGenRegion extends WorldGenRegion
 		// TODO what do these "abs" positions mean?
 		int absX = Math.abs(chunkPos.getX() - sectionCoordX);
 		int absZ = Math.abs(chunkPos.getZ() - sectionCoordZ);
-		if (absX > this.writeRadius 
+		if (absX > this.writeRadius
 			|| absZ > this.writeRadius)
 		{
 			return false;
@@ -393,7 +393,7 @@ public class DhLitWorldGenRegion extends WorldGenRegion
 			chunk = this.dhGetChunk(chunkX, chunkZ);
 		}
 		
-		if (chunk != null 
+		if (chunk != null
 			&& ChunkWrapper.getStatus(chunk).isOrAfter(chunkStatus))
 		{
 			return chunk;
@@ -430,7 +430,7 @@ public class DhLitWorldGenRegion extends WorldGenRegion
 			}
 		}
 		
-		if (chunkStatus != ChunkStatus.EMPTY 
+		if (chunkStatus != ChunkStatus.EMPTY
 			&& chunkStatus != debugTriggeredForStatus)
 		{
 			// logger disabled since this doesn't seem to significantly harm anything
@@ -448,7 +448,7 @@ public class DhLitWorldGenRegion extends WorldGenRegion
 	{
 		int xOffset = x - this.firstPos.getX();
 		int zOffset = z - this.firstPos.getZ();
-		return zOffset >= 0 && zOffset < this.size 
+		return zOffset >= 0 && zOffset < this.size
 			&& xOffset >= 0 && xOffset < this.size;
 	}
 	

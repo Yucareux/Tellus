@@ -33,6 +33,7 @@ import com.seibel.distanthorizons.core.wrapperInterfaces.IWrapperFactory;
 import com.seibel.distanthorizons.core.wrapperInterfaces.render.AbstractDhRenderApiDefinition;
 import com.seibel.distanthorizons.core.wrapperInterfaces.render.objects.ILodContainerUniformBufferWrapper;
 import com.seibel.distanthorizons.core.wrapperInterfaces.render.objects.IVertexBufferWrapper;
+import com.seibel.distanthorizons.core.wrapperInterfaces.world.IClientLevelWrapper;
 import org.jetbrains.annotations.Nullable;
 
 import java.nio.ByteBuffer;
@@ -91,7 +92,7 @@ public class LodBufferContainer implements AutoCloseable
 	
 	/** Should be run on a DH thread. */
 	public static CompletableFuture<LodBufferContainer> tryMakeAndUploadBuffersAsync(
-		long pos, IDhClientLevel clientLevel,
+		long pos, IClientLevelWrapper clientLevelWrapper,
 		ArrayList<ByteBuffer> opaqueBuffers,
 		ArrayList<ByteBuffer> transparentBuffers
 	)
@@ -108,7 +109,7 @@ public class LodBufferContainer implements AutoCloseable
 		
 		DhBlockPos minCornerBlockPos = new DhBlockPos(
 			DhSectionPos.getMinCornerBlockX(pos),
-			clientLevel.getLevelWrapper().getMinHeight(),
+			clientLevelWrapper.getMinHeight(),
 			DhSectionPos.getMinCornerBlockZ(pos));
 		LodBufferContainer bufferContainer = new LodBufferContainer(pos, minCornerBlockPos);
 		

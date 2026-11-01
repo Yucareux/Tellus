@@ -136,7 +136,7 @@ public class UpdateModScreen extends DhScreen
 					(buttonWidget) -> LOGGER.info("Nice, you found an Easter egg :)"),
 					#endif
 					// Add a title to the button
-					#if MC_VER <= MC_1_12_2
+					#if MC_VER == MC_1_12_2
 					Translatable(ModInfo.ID + ".updater.title").getFormattedText(),
 					#else
 					Translatable(ModInfo.ID + ".updater.title"),
@@ -177,7 +177,7 @@ public class UpdateModScreen extends DhScreen
 				(buttonWidget) -> DhScreenUtil.setScreen(new ChangelogScreen(this, this.newVersionID)),
 				#endif
 				// Add a title to the button
-				#if MC_VER <= MC_1_12_2
+				#if MC_VER == MC_1_12_2
 				Translatable(ModInfo.ID + ".updater.title").getFormattedText()
 				#else
 				Translatable(ModInfo.ID + ".updater.title")

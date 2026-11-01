@@ -19,11 +19,13 @@
 
 package com.seibel.distanthorizons.fabric.mixins.client;
 
+import com.seibel.distanthorizons.api.enums.config.EDhApiRenderingApi;
 import com.seibel.distanthorizons.common.wrappers.minecraft.MinecraftRenderWrapper;
 import com.seibel.distanthorizons.core.api.internal.ClientApi;
 import com.seibel.distanthorizons.core.dependencyInjection.SingletonInjector;
 import com.seibel.distanthorizons.core.wrapperInterfaces.minecraft.IMinecraftClientWrapper;
 import com.seibel.distanthorizons.core.wrapperInterfaces.minecraft.IMinecraftRenderWrapper;
+import com.seibel.distanthorizons.core.wrapperInterfaces.render.AbstractDhRenderApiDefinition;
 import com.seibel.distanthorizons.core.wrapperInterfaces.world.IClientLevelWrapper;
 
 import org.spongepowered.asm.mixin.Final;
@@ -38,11 +40,15 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 import com.mojang.blaze3d.platform.NativeImage;
 #elif MC_VER < MC_1_21_5
 import com.mojang.blaze3d.pipeline.TextureTarget;
-#else
+#elif MC_VER <= MC_26_2_0
 import com.mojang.blaze3d.opengl.GlTexture;
 import com.mojang.blaze3d.systems.RenderSystem;
 import com.mojang.blaze3d.textures.GpuTexture;
+#else
+import com.mojang.renderpearl.api.textures.GpuTexture;
+import com.mojang.renderpearl.backend.opengl.GlTexture;
 #endif
+
 #if MC_VER <= MC_1_21_11
 import net.minecraft.client.renderer.LightTexture;
 #else
@@ -75,6 +81,8 @@ public class MixinLightTexture
 	
 	@Unique
 	private MinecraftRenderWrapper renderWrapper = null;
+	@Unique
+	private AbstractDhRenderApiDefinition renderDef = null;
 	
 	
 	
@@ -90,6 +98,7 @@ public class MixinLightTexture
 		if (this.renderWrapper == null)
 		{
 			this.renderWrapper = (MinecraftRenderWrapper)SingletonInjector.INSTANCE.get(IMinecraftRenderWrapper.class);
+			this.renderDef = SingletonInjector.INSTANCE.get(AbstractDhRenderApiDefinition.class);
 		}
 		
 		
@@ -108,8 +117,7 @@ public class MixinLightTexture
 		this.renderWrapper.setLightmapGpuTexture(this.texture);
 		#else
 		
-		// this will only be used when using native GL rendering
-		if (this.texture instanceof GlTexture)
+		if (this.renderDef.getRenderApi() == EDhApiRenderingApi.OPEN_GL)
 		{
 			GlTexture glTexture = (GlTexture) this.texture;
 			this.renderWrapper.setLightmapId(glTexture.glId());

@@ -96,11 +96,11 @@ public class RenderQualityPresetConfigEventHandler extends AbstractPresetConfigE
 				this.put(EDhApiQualityPreset.HIGH, EDhApiMcRenderingFadeMode.DOUBLE_PASS);
 				this.put(EDhApiQualityPreset.EXTREME, EDhApiMcRenderingFadeMode.DOUBLE_PASS);
 			}});
-	private final ConfigPresetOptions<EDhApiQualityPreset, Boolean> dhFadeFarClipPlane = new ConfigPresetOptions<>(Config.Client.Advanced.Graphics.Quality.dhFadeFarClipPlane,
+	private final ConfigPresetOptions<EDhApiQualityPreset, Boolean> antiAliasing = new ConfigPresetOptions<>(Config.Client.Advanced.Graphics.enableAntiAliasing,
 			new HashMap<EDhApiQualityPreset, Boolean>()
 			{{
 				this.put(EDhApiQualityPreset.MINIMUM, false);
-				this.put(EDhApiQualityPreset.LOW, false);
+				this.put(EDhApiQualityPreset.LOW, true);
 				this.put(EDhApiQualityPreset.MEDIUM, true);
 				this.put(EDhApiQualityPreset.HIGH, true);
 				this.put(EDhApiQualityPreset.EXTREME, true);
@@ -148,7 +148,7 @@ public class RenderQualityPresetConfigEventHandler extends AbstractPresetConfigE
 		this.configList.add(this.horizontalQuality);
 		this.configList.add(this.transparency);
 		this.configList.add(this.ssaoEnabled);
-		this.configList.add(this.dhFadeFarClipPlane);
+		this.configList.add(this.antiAliasing);
 		this.configList.add(this.vanillaFade);
 		this.configList.add(this.dhDither);
 		this.configList.add(this.caveCulling);

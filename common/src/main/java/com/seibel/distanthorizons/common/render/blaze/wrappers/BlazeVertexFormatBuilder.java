@@ -4,9 +4,15 @@ package com.seibel.distanthorizons.common.render.blaze.wrappers;
 public class BlazeVertexFormatBuilder {}
 #else
 
+
+
+#if MC_VER <= MC_26_2_0
 import com.mojang.blaze3d.vertex.VertexFormat;
 import com.mojang.blaze3d.vertex.VertexFormatElement;
-import com.seibel.distanthorizons.common.render.blaze.util.BlazeDhVertexFormatUtil;
+#else
+import com.mojang.renderpearl.api.vertex.VertexFormat;
+import com.mojang.renderpearl.api.vertex.VertexFormatElement;
+#endif
 
 public class BlazeVertexFormatBuilder
 {

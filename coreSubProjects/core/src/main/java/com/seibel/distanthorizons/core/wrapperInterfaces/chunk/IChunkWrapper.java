@@ -21,7 +21,6 @@ package com.seibel.distanthorizons.core.wrapperInterfaces.chunk;
 
 import com.seibel.distanthorizons.core.generation.AdjacentChunkHolder;
 import com.seibel.distanthorizons.core.pos.blockPos.DhBlockPos;
-import com.seibel.distanthorizons.core.pos.blockPos.DhBlockPos2D;
 import com.seibel.distanthorizons.core.pos.blockPos.DhBlockPosMutable;
 import com.seibel.distanthorizons.core.pos.DhChunkPos;
 import com.seibel.distanthorizons.core.sql.dto.BeaconBeamDTO;
@@ -74,8 +73,6 @@ public interface IChunkWrapper extends IBindable
 	 */
 	int getLightBlockingHeightMapValue(int xRel, int zRel);
 	
-	int getMaxBlockX();
-	int getMaxBlockZ();
 	int getMinBlockX();
 	int getMinBlockZ();
 	
@@ -97,20 +94,6 @@ public interface IChunkWrapper extends IBindable
 	
 	/** Note: don't modify this array, it will only be generated once and then shared between uses */
 	ArrayList<DhBlockPos> getWorldBlockLightPosList();
-	
-	
-	default boolean blockPosInsideChunk(DhBlockPos blockPos) { return this.blockPosInsideChunk(blockPos.getX(), blockPos.getY(), blockPos.getZ()); }
-	default boolean blockPosInsideChunk(int x, int y, int z)
-	{
-		return (x >= this.getMinBlockX() && x <= this.getMaxBlockX()
-				&& y >= this.getInclusiveMinBuildHeight() && y < this.getExclusiveMaxBuildHeight()
-				&& z >= this.getMinBlockZ() && z <= this.getMaxBlockZ());
-	}
-	default boolean blockPosInsideChunk(DhBlockPos2D blockPos)
-	{
-		return (blockPos.x >= this.getMinBlockX() && blockPos.x <= this.getMaxBlockX()
-				&& blockPos.z >= this.getMinBlockZ() && blockPos.z <= this.getMaxBlockZ());
-	}
 	
 	String toString();
 	

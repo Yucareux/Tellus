@@ -2,6 +2,8 @@ package com.seibel.distanthorizons.core.multiplayer.fullData;
 
 import com.seibel.distanthorizons.core.network.messages.fullData.FullDataSplitMessage;
 import com.seibel.distanthorizons.core.network.session.NetworkSession;
+import com.seibel.distanthorizons.core.logging.DhLogger;
+import com.seibel.distanthorizons.core.logging.DhLoggerBuilder;
 import com.seibel.distanthorizons.core.util.TimerUtil;
 import io.netty.buffer.ByteBuf;
 
@@ -12,6 +14,7 @@ import java.util.function.*;
 
 public class FullDataPayloadSender implements AutoCloseable
 {
+	private static final DhLogger LOGGER = new DhLoggerBuilder().build();
 	private static final int TICK_RATE = 20;
 	
 	/** 1 Mebibyte minus 576 bytes for other info */
@@ -78,7 +81,14 @@ public class FullDataPayloadSender implements AutoCloseable
 			
 			if (pendingTransfer.buffer.readableBytes() == 0)
 			{
-				pendingTransfer.sendFinalMessage.run();
+				try
+				{
+					pendingTransfer.sendFinalMessage.run();
+				}
+				catch (Throwable e)
+				{
+					LOGGER.error("Failed to send the completed full data transfer", e);
+				}
 				this.transferQueue.poll();
 			}
 		}

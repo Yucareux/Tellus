@@ -37,7 +37,7 @@ import com.seibel.distanthorizons.api.methods.events.sharedParameterObjects.DhAp
  * @since API 6.0.0
  * @see IDhApiBlockStateWrapper
  */
-public abstract class DhApiBlockStateWrapperCreatedEvent implements IDhApiEvent<DhApiBlockStateWrapperCreatedEvent.EventParam>
+public abstract class   DhApiBlockStateWrapperCreatedEvent implements IDhApiEvent<DhApiBlockStateWrapperCreatedEvent.EventParam>
 {
 	public abstract void blockStateWrapperCreated(DhApiEventParam<EventParam> event);
 	
@@ -67,6 +67,7 @@ public abstract class DhApiBlockStateWrapperCreatedEvent implements IDhApiEvent<
 		private EDhApiBlockMaterial blockMaterial = null;
 		private Integer opacity = null;
 		private Boolean allowApiColorOverride = null;
+		private Boolean allowApiTextureOverride = null;
 		
 		
 		
@@ -107,6 +108,14 @@ public abstract class DhApiBlockStateWrapperCreatedEvent implements IDhApiEvent<
 			this.overridesSet = true;
 		}
 		public Boolean getAllowApiColorOverride() { return this.allowApiColorOverride; }
+		
+		/** if set to true, {@link DhApiBlockTextureOverrideEvent} events will be triggered whenever a block is first seen. */
+		public void setAllowApiTextureOverride(boolean allowApiColorOverride) 
+		{
+			this.allowApiTextureOverride = allowApiColorOverride;
+			this.overridesSet = true;
+		}
+		public Boolean getAllowApiTextureOverride() { return this.allowApiTextureOverride; }
 		
 		/** If true then one or more options for this block were set to be changed */
 		public boolean getOverridesSet() { return this.overridesSet; }

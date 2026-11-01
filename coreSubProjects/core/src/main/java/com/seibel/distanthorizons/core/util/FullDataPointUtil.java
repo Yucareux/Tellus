@@ -190,7 +190,7 @@ public class FullDataPointUtil
 	public static long setBottomY(long data, int bottomY) { return (data & ~((long) MIN_Y_MASK << MIN_Y_OFFSET)) | (((long) bottomY & MIN_Y_MASK) << MIN_Y_OFFSET); }
 	public static long setBlockLight(long data, byte blockLight) { return (data & ~((long) BLOCK_LIGHT_MASK << BLOCK_LIGHT_OFFSET) | (long) blockLight << BLOCK_LIGHT_OFFSET); }
 	public static long setSkyLight(long data, int skyLight) { return (data & ~((long) SKY_LIGHT_MASK << SKY_LIGHT_OFFSET) | (long) skyLight << SKY_LIGHT_OFFSET); }
-
+	
 	//endregion
 
 
@@ -242,7 +242,7 @@ public class FullDataPointUtil
 			| (long) skyLight << LEGACY_SKY_LIGHT_OFFSET
 			| (long) blockLight << LEGACY_BLOCK_LIGHT_OFFSET;
 	}
-	
+
 	//endregion
 	
 	

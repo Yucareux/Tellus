@@ -1,20 +1,22 @@
 #version 330
+// needed for "layout(location = 0)" required as as of MC 26.3
+#extension GL_ARB_separate_shader_objects : require
 
-in uvec3 vPosition;
-in uint meta; // contains light and micro-offset data
-in vec4 vColor;
-in int irisMaterial;
-in int irisNormal;
-in uint textureTile; // block texture tile id, 0 = flat color
+layout(location = 0) in uvec3 vPosition;
+layout(location = 1) in uint meta; // contains light and micro-offset data
+layout(location = 2) in vec4 vColor;
+layout(location = 3) in uint irisMaterial;
+layout(location = 4) in uint irisNormal;
+layout(location = 5) in uint textureTile; // block texture tile id, 0 = flat color
 
 // order matters, this must match the fragment shader's inputs
-out vec3 vPos;
-out vec4 vertexColor;
-out vec3 vertexWorldPos;
+layout(location = 0) out vec3 vPos;
+layout(location = 1) out vec4 vertexColor;
+layout(location = 2) out vec3 vertexWorldPos;
 // block-grid position used to generate texture UVs, fract() of this repeats per block
-out vec3 vBlockPos;
-flat out uint vNormalIndex;
-flat out uint vTextureTileId;
+layout(location = 3) out vec3 vBlockPos;
+layout(location = 4) flat out uint vNormalIndex;
+layout(location = 5) flat out uint vTextureTileId;
 
 layout (std140) uniform vertUniqueUniformBlock
 {
@@ -29,11 +31,32 @@ layout (std140) uniform vertSharedUniformBlock
     float uMircoOffset;
     float uEarthRadius;
     
+    float uFrameMod8;
+    float uViewWidth;
+    float uViewHeight;
+
     vec3 uCameraPos;
     mat4 uCombinedMatrix;
 };
 
 uniform sampler2D uLightMap;
+
+vec2 jitterOffsets[8] = vec2[8](
+    vec2( 0.125, -0.375),
+    vec2(-0.125,  0.375),
+    vec2( 0.625,  0.125),
+    vec2( 0.375, -0.625),
+    vec2(-0.625,  0.625),
+    vec2(-0.875, -0.125),
+    vec2( 0.375, -0.875),
+    vec2( 0.875,  0.875)
+);
+
+vec2 TAAJitter(vec2 coord, float w) 
+{
+    vec2 offset = jitterOffsets[int(uFrameMod8)] * (w / vec2(uViewWidth, uViewHeight));
+    return coord + offset;
+}
 
 /** 
  * LOD terrain Vertex Shader
@@ -87,4 +110,11 @@ void main()
     }
     
     gl_Position = uCombinedMatrix * vec4(vertexWorldPos, 1.0);
+    
+    // -1 if TAA is diabled
+    if (uFrameMod8 > 0)
+    {
+		// jittering the model around is necessary to smooth out TAA properly
+        gl_Position.xy = TAAJitter(gl_Position.xy, gl_Position.w);
+    }
 }

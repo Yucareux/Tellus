@@ -75,7 +75,7 @@ public abstract class AbstractLodRequestState
 		{
 			this.progressUpdateThreadRunning = true;
 			
-			progressUpdaterThread.execute(() ->
+			this.progressUpdaterThread.execute(() ->
 			{
 				while (this.progressUpdateThreadRunning)
 				{
@@ -98,7 +98,7 @@ public abstract class AbstractLodRequestState
 	private void sendRetrievalProgress()
 	{
 		// format the remaining chunks
-		int remainingChunkCount = this.retrievalQueue.getRetrievalEstimatedRemainingChunkCount();
+		long remainingChunkCount = this.retrievalQueue.getRetrievalEstimatedRemainingChunkCount();
 		remainingChunkCount += this.retrievalQueue.getQueuedChunkCount();
 		String remainingChunkCountStr = F3Screen.NUMBER_FORMAT.format(remainingChunkCount);
 		
@@ -146,11 +146,12 @@ public abstract class AbstractLodRequestState
 			EDhApiDistantGeneratorProgressDisplayLocation displayLocation = Config.Common.WorldGenerator.showGenerationProgress.get();
 			if (displayLocation == EDhApiDistantGeneratorProgressDisplayLocation.OVERLAY)
 			{
-				ClientApi.INSTANCE.showOverlayMessageNextFrame(message);
+				ClientApi.INSTANCE.queueOverlayMessage(message);
 			}
 			else if (displayLocation == EDhApiDistantGeneratorProgressDisplayLocation.CHAT)
 			{
-				ClientApi.INSTANCE.showChatMessageNextFrame(message);
+				// fast chat queue since the messages can be sent very quickly
+				ClientApi.INSTANCE.queueFastChatMessage(message);
 			}
 			else if (displayLocation == EDhApiDistantGeneratorProgressDisplayLocation.LOG)
 			{

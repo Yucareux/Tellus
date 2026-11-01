@@ -1,5 +1,6 @@
 package com.seibel.distanthorizons.core.api.internal.chunkUpdating;
 
+import com.google.common.cache.Cache;
 import com.google.common.cache.CacheBuilder;
 import com.seibel.distanthorizons.core.api.internal.ClientApi;
 import com.seibel.distanthorizons.core.api.internal.SharedApi;
@@ -12,6 +13,7 @@ import com.seibel.distanthorizons.core.logging.DhLoggerBuilder;
 import com.seibel.distanthorizons.core.logging.f3.F3Screen;
 import com.seibel.distanthorizons.core.pos.DhChunkPos;
 import com.seibel.distanthorizons.core.util.LodUtil;
+import com.seibel.distanthorizons.core.util.ThreadUtil;
 import com.seibel.distanthorizons.core.util.threading.ThreadPoolUtil;
 import com.seibel.distanthorizons.core.world.EWorldEnvironment;
 import com.seibel.distanthorizons.core.logging.DhLogger;
@@ -30,7 +32,7 @@ import java.util.concurrent.*;
 /**
  * @see WorldChunkUpdateManager
  */
-public class ChunkUpdateQueueManager
+public class ChunkUpdateQueueManager implements AutoCloseable
 {
 	private static final DhLogger LOGGER = new DhLoggerBuilder().build();
 	
@@ -46,21 +48,33 @@ public class ChunkUpdateQueueManager
 	/** how many milliseconds must pass before an overloaded message can be sent in chat or the log */
 	public static final int MIN_MS_BETWEEN_OVERLOADED_LOG_MESSAGE = 30_000;
 	
+	public static final long UPDATE_DEBOUNCE_NANOS = TimeUnit.MILLISECONDS.toNanos(250);
+	
+	/** how long to wait between queue checks if the queue was empty */
+	private static final int PROCESS_QUEUE_DELAY_MS = 50;
 	
 	
-	private final Set<DhChunkPos> ignoredChunkPosSet = Collections.newSetFromMap(new ConcurrentHashMap<>());
+	
 	private static long lastOverloadedLogMessageMsTime = 0;
 	
 	
 	
+	private final Set<DhChunkPos> ignoredChunkPosSet = Collections.newSetFromMap(new ConcurrentHashMap<>());
+	
+	private final ExecutorService queueingThread;
 	
 	public final ChunkPosQueue updateQueue;
 	public final ChunkPosQueue preUpdateQueue;
 	
-	public final ConcurrentMap<DhChunkPos, IChunkWrapper> queuedChunkWrapperByChunkPos = CacheBuilder.newBuilder()
-		.expireAfterWrite(20, TimeUnit.SECONDS)
-		.<DhChunkPos, IChunkWrapper>build()
-		.asMap();
+	/** 
+	 * tracking nearby chunks is necessary for lighting
+	 * to propagate across chunk borders.
+	 */
+	public final Cache<DhChunkPos, IChunkWrapper> queuedChunkWrapperByChunkPos = 
+		CacheBuilder.newBuilder()
+		// expire after access is so the chunks can be used for their adjacents
+		.expireAfterAccess(10, TimeUnit.SECONDS)
+		.build();
 	
 	/** dynamically changes based on the number of threads currently available */
 	public int maxSize = 500;
@@ -75,10 +89,13 @@ public class ChunkUpdateQueueManager
 	//=============//
 	//region
 	
-	public ChunkUpdateQueueManager()
+	public ChunkUpdateQueueManager(String levelId)
 	{
 		this.updateQueue = new ChunkPosQueue();
 		this.preUpdateQueue = new ChunkPosQueue();
+		
+		this.queueingThread = ThreadUtil.makeSingleThreadPool("Chunk Update Queue ["+levelId+"]");
+		this.queueingThread.execute(this::runQueueingLoop);
 	}
 	
 	//endregion
@@ -131,12 +148,12 @@ public class ChunkUpdateQueueManager
 			ChunkUpdateData removedData = queue.popFurthest();
 			if (removedData != null)
 			{
-				this.queuedChunkWrapperByChunkPos.remove(removedData.chunkWrapper.getChunkPos());
+				this.queuedChunkWrapperByChunkPos.invalidate(removedData.chunkWrapper.getChunkPos());
 			}
 		}
 		
 		queue.addItem(pos,updateData);
-		this.queuedChunkWrapperByChunkPos.putIfAbsent(pos, updateData.chunkWrapper);
+		this.queuedChunkWrapperByChunkPos.put(pos, updateData.chunkWrapper); // replaces the queued chunk if present to use the new data
 		
 		remainingSlots = this.maxSize - this.getQueuedCount();
 		if (remainingSlots <= 0)
@@ -162,7 +179,7 @@ public class ChunkUpdateQueueManager
 			boolean showWarningInChat = Config.Common.Logging.Warning.showUpdateQueueOverloadedChatWarning.get();
 			if (showWarningInChat)
 			{
-				ClientApi.INSTANCE.showChatMessageNextFrame(message);
+				ClientApi.INSTANCE.queueSlowChatMessage(message);
 			}
 			
 			// Don't log warnings in singleplayer or in hosted LAN since it usually isn't a problem (and if it is it's easy to notice).
@@ -186,7 +203,7 @@ public class ChunkUpdateQueueManager
 	@Nullable
 	public IChunkWrapper tryGetChunk(DhChunkPos pos)
 	{
-		IChunkWrapper existingWrapper = this.queuedChunkWrapperByChunkPos.get(pos);
+		IChunkWrapper existingWrapper = this.queuedChunkWrapperByChunkPos.getIfPresent(pos);
 		if (existingWrapper == null)
 		{
 			return null;
@@ -216,6 +233,36 @@ public class ChunkUpdateQueueManager
 	//===================//
 	//region
 	
+	private void runQueueingLoop()
+	{
+		while (!Thread.interrupted())
+		{
+			try
+			{
+				this.processQueue();
+				
+				// if the queue is empty, 
+				// reduce the rate that we check the queue again
+				if (this.updateQueue.isEmpty() 
+					&& this.preUpdateQueue.isEmpty())
+				{
+					Thread.sleep(PROCESS_QUEUE_DELAY_MS);
+					
+					// clean up to fix expired chunks not being cleaned up if the queue is empty
+					this.queuedChunkWrapperByChunkPos.cleanUp();
+				}
+			}
+			catch (InterruptedException ignored)
+			{
+				Thread.currentThread().interrupt();
+			}
+			catch (Exception e)
+			{
+				LOGGER.error("Unexpected error in chunk update queueing thread, error: ["+e.getMessage()+"].", e);
+			}
+		}
+	}
+	
 	public void processQueue()
 	{
 		// update the center & max size of the queue manager
@@ -244,22 +291,7 @@ public class ChunkUpdateQueueManager
 		//===============================//
 		
 		this.processQueuedChunkPreUpdate();
-		this.processQueuedChunkUpdate();
-		
-		// queue the next position if there are still positions to process
-		AbstractExecutorService executor = ThreadPoolUtil.getChunkToLodBuilderExecutor();
-		if (executor != null && !this.updateQueuesEmpty())
-		{
-			try
-			{
-				executor.execute(this::processQueue);
-			}
-			catch (RejectedExecutionException ignore)
-			{
-				// the executor was shut down, it should be back up shortly and able to accept new jobs
-			}
-		}
-		
+		this.tryDispatchReadyChunkUpdate();
 	}
 	
 	private void processQueuedChunkPreUpdate()
@@ -299,7 +331,7 @@ public class ChunkUpdateQueueManager
 		}
 	}
 	
-	private void processQueuedChunkUpdate()
+	private void tryDispatchReadyChunkUpdate()
 	{
 		ChunkUpdateData updateData = this.updateQueue.popClosest();
 		if (updateData == null)
@@ -307,14 +339,40 @@ public class ChunkUpdateQueueManager
 			return;
 		}
 		
+		// wait for UPDATE_DEBOUNCE_NANOS before updating
+		// the chunk so we can make sure the neighbors are queued
+		long updateWaitNanoTime = System.nanoTime() - updateData.firstQueuedNanoTime;
+		if (updateWaitNanoTime < UPDATE_DEBOUNCE_NANOS)
+		{
+			this.updateQueue.addItem(updateData.chunkWrapper.getChunkPos(), updateData);
+			return;
+		}
+		
+		AbstractExecutorService executor = ThreadPoolUtil.getChunkToLodBuilderExecutor();
+		if (executor == null)
+		{
+			this.updateQueue.addItem(updateData.chunkWrapper.getChunkPos(), updateData);
+			return;
+		}
+		
+		try
+		{
+			executor.execute(() -> this.processChunkUpdate(updateData));
+		}
+		catch (RejectedExecutionException ignore)
+		{
+			this.updateQueue.addItem(updateData.chunkWrapper.getChunkPos(), updateData);
+		}
+	}
+	
+	private void processChunkUpdate(ChunkUpdateData updateData)
+	{
 		IChunkWrapper chunkWrapper = updateData.chunkWrapper;
 		IDhLevel dhLevel = updateData.dhLevel;
 		ILevelWrapper levelWrapper = dhLevel.getLevelWrapper();
 		
 		// having a list of the nearby chunks is needed for lighting and beacon generation
-		ArrayList<IChunkWrapper> nearbyChunkList  = this.tryGetNeighborChunkListForChunk(chunkWrapper);
-		
-		
+		ArrayList<IChunkWrapper> nearbyChunkList = this.tryGetNeighborChunkListForChunk(chunkWrapper);
 		
 		try
 		{
@@ -330,9 +388,8 @@ public class ChunkUpdateQueueManager
 		{
 			LOGGER.error("Unexpected error when updating chunk at pos: [" + chunkWrapper.getChunkPos() + "]", e);
 		}
-		
-		this.queuedChunkWrapperByChunkPos.remove(updateData.chunkWrapper.getChunkPos());
 	}
+	
 	private ArrayList<IChunkWrapper> tryGetNeighborChunkListForChunk(IChunkWrapper chunkWrapper)
 	{
 		// get the neighboring chunk list
@@ -400,6 +457,18 @@ public class ChunkUpdateQueueManager
 		
 		return "Queued chunk updates: "+"("+y+preUpdatingCountStr+cf+" + "+o+updatingCountStr+cf+") ["+queuedCountStr+"/"+maxUpdateCountStr+"]";
 	}
+	
+	//endregion
+	
+	
+	
+	//================//
+	// base overrides //
+	//================//
+	//region
+	
+	@Override
+	public void close() { this.queueingThread.shutdownNow(); }
 	
 	//endregion
 	

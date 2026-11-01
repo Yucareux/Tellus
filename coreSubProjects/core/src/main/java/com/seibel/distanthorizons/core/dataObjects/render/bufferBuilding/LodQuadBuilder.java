@@ -115,13 +115,6 @@ public class LodQuadBuilder implements AutoCloseable
 	@SuppressWarnings("unchecked")
 	private final ArrayList<BufferQuad>[] transparentQuads = (ArrayList<BufferQuad>[]) new ArrayList[6];
 	
-	/**
-	 * The face tile ids for the data point currently being added, indexed by {@link EDhDirection#faceIndex}.
-	 * Null when the current data point should render flat.
-	 * @see com.seibel.distanthorizons.core.dataObjects.render.textures.BlockTextureRegistry
-	 */
-	private short @Nullable [] currentFaceTileIds = null;
-	
 	/** 
 	 * Caching the BufferQuad objects reduces overhead slightly. <br>
 	 * Caching is handled per builder (vs globally in {@link BufferQuad} itself) 

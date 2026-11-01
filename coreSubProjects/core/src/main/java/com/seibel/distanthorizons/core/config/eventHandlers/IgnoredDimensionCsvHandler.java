@@ -27,6 +27,7 @@ import com.seibel.distanthorizons.core.config.Config;
 import com.seibel.distanthorizons.core.config.listeners.IConfigListener;
 import com.seibel.distanthorizons.core.logging.DhLogger;
 import com.seibel.distanthorizons.core.logging.DhLoggerBuilder;
+import com.seibel.distanthorizons.coreapi.ModInfo;
 import com.seibel.distanthorizons.coreapi.util.StringUtil;
 
 public class IgnoredDimensionCsvHandler extends DhApiBeforeRenderEvent implements IConfigListener
@@ -91,13 +92,13 @@ public class IgnoredDimensionCsvHandler extends DhApiBeforeRenderEvent implement
 		if (IgnoredDimensionCsvHandler.INSTANCE.dimensionNameShouldBeIgnored(dimName))
 		{
 			event.cancelEvent();
-			Config.Client.Advanced.Graphics.Fog.enableVanillaFog.setApiValue(true);
-			Config.Client.Advanced.Graphics.Quality.vanillaFadeMode.setApiValue(EDhApiMcRenderingFadeMode.NONE);
+			Config.Client.Advanced.Graphics.Fog.enableVanillaFog.setApiValue(true, ModInfo.READABLE_NAME);
+			Config.Client.Advanced.Graphics.Quality.vanillaFadeMode.setApiValue(EDhApiMcRenderingFadeMode.NONE, ModInfo.READABLE_NAME);
 		}
 		else
 		{
-			Config.Client.Advanced.Graphics.Fog.enableVanillaFog.setApiValue(null);
-			Config.Client.Advanced.Graphics.Quality.vanillaFadeMode.setApiValue(null);
+			Config.Client.Advanced.Graphics.Fog.enableVanillaFog.setApiValue(null, ModInfo.READABLE_NAME);
+			Config.Client.Advanced.Graphics.Quality.vanillaFadeMode.setApiValue(null, ModInfo.READABLE_NAME);
 		}
 	}
 	

@@ -1,8 +1,10 @@
-#version 330 core
+#version 330
+// needed for "layout(location = 0)" required as as of MC 26.3
+#extension GL_ARB_separate_shader_objects : require
 
-in vec2 TexCoord;
+layout(location = 0) in vec2 texCoord;
 
-out vec4 fragColor;
+layout(location = 0) out vec4 fragColor;
 
 layout (std140) uniform baseFragUniformBlock
 {
@@ -20,7 +22,7 @@ uniform sampler2D uSourceDepthTexture;
 void main()
 {
     fragColor = vec4(0.0);
-    float fragmentDepth = texture(uSourceDepthTexture, TexCoord).r;
+    float fragmentDepth = texture(uSourceDepthTexture, texCoord).r;
     
     bool drawnTo;
     if (uIsReverseZDepth)
@@ -36,7 +38,7 @@ void main()
     // only update fragments that were drawn to
     if (drawnTo)
     {
-        fragColor = texture(uSourceColorTexture, TexCoord);
+        fragColor = texture(uSourceColorTexture, texCoord);
     }
     else
     {

@@ -1,0 +1,12 @@
+[{
+    "modid": "${mod_id}",
+    "name": "${mod_name}",
+    "version": "${version}",
+    "mcversion": "1.12.2",
+    "description": "${description}",
+    "authorList": ${authors},
+    "credits": "",
+    "url": "",
+    "updateJSON": "",
+    "logoFile": "${logo_path}"
+}]

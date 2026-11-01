@@ -30,7 +30,11 @@ import com.seibel.distanthorizons.core.wrapperInterfaces.minecraft.IMinecraftRen
 import com.seibel.distanthorizons.core.wrapperInterfaces.minecraft.IProfilerWrapper;
 import com.seibel.distanthorizons.core.wrapperInterfaces.render.renderPass.IDhVanillaFadeRenderer;
 import com.seibel.distanthorizons.core.logging.DhLogger;
-import org.lwjgl.opengl.GL33;
+import org.lwjgl.opengl.GL11;
+import org.lwjgl.opengl.GL12;
+import org.lwjgl.opengl.GL30;
+
+import static com.seibel.distanthorizons.lwjgl.LWJGLServiceProvider.LWJGL;
 
 import java.nio.ByteBuffer;
 
@@ -81,12 +85,12 @@ public class GlVanillaFadeRenderer implements IDhVanillaFadeRenderer
 	{
 		if (this.fadeFramebuffer != -1)
 		{
-			GL33.glDeleteFramebuffers(this.fadeFramebuffer);
+			LWJGL.glDeleteFramebuffers(this.fadeFramebuffer);
 			this.fadeFramebuffer = -1;
 		}
 		
-		this.fadeFramebuffer = GL33.glGenFramebuffers();
-		GLMC.glBindFramebuffer(GL33.GL_FRAMEBUFFER, this.fadeFramebuffer);
+		this.fadeFramebuffer = LWJGL.glGenFramebuffers();
+		GLMC.glBindFramebuffer(GL30.GL_FRAMEBUFFER, this.fadeFramebuffer);
 		
 		
 		// Applying the fade texture is only needed if MC is drawing to their own frame buffer,
@@ -99,16 +103,16 @@ public class GlVanillaFadeRenderer implements IDhVanillaFadeRenderer
 				this.fadeTexture = -1;
 			}
 			
-			this.fadeTexture = GL33.glGenTextures();
+			this.fadeTexture = GL11.glGenTextures();
 			GLMC.glBindTexture(this.fadeTexture);
-			GL33.glTexImage2D(GL33.GL_TEXTURE_2D, 0, GL33.GL_RGBA16, width, height, 0, GL33.GL_RGBA, GL33.GL_UNSIGNED_SHORT_4_4_4_4, (ByteBuffer) null);
-			GL33.glTexParameteri(GL33.GL_TEXTURE_2D, GL33.GL_TEXTURE_MIN_FILTER, GL33.GL_LINEAR);
-			GL33.glTexParameteri(GL33.GL_TEXTURE_2D, GL33.GL_TEXTURE_MAG_FILTER, GL33.GL_LINEAR);
-			GL33.glFramebufferTexture2D(GL33.GL_FRAMEBUFFER, GL33.GL_COLOR_ATTACHMENT0, GL33.GL_TEXTURE_2D, this.fadeTexture, 0);
+			LWJGL.glTexImage2D(GL11.GL_TEXTURE_2D, 0, GL11.GL_RGBA16, width, height, 0, GL11.GL_RGBA, GL12.GL_UNSIGNED_SHORT_4_4_4_4, (ByteBuffer) null);
+			LWJGL.glTexParameteri(GL11.GL_TEXTURE_2D, GL11.GL_TEXTURE_MIN_FILTER, GL11.GL_LINEAR);
+			LWJGL.glTexParameteri(GL11.GL_TEXTURE_2D, GL11.GL_TEXTURE_MAG_FILTER, GL11.GL_LINEAR);
+			LWJGL.glFramebufferTexture2D(GL30.GL_FRAMEBUFFER, GL30.GL_COLOR_ATTACHMENT0, GL11.GL_TEXTURE_2D, this.fadeTexture, 0);
 		}
 		else
 		{
-			GL33.glFramebufferTexture2D(GL33.GL_FRAMEBUFFER, GL33.GL_COLOR_ATTACHMENT0, GL33.GL_TEXTURE_2D, MC_RENDER.getGlColorTextureId(), 0);
+			LWJGL.glFramebufferTexture2D(GL30.GL_FRAMEBUFFER, GL30.GL_COLOR_ATTACHMENT0, GL11.GL_TEXTURE_2D, MC_RENDER.getGlColorTextureId(), 0);
 		}
 	}
 	

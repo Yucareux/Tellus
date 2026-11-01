@@ -47,9 +47,18 @@ import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 import org.spongepowered.asm.mixin.injection.callback.LocalCapture;
 
+#if MC_VER <= MC_26_2_0
+#else
+import com.mojang.blaze3d.systems.RenderSystem;
+import com.seibel.distanthorizons.common.commonMixins.MixinProjectionMatrixBufferCommon;
+import com.seibel.distanthorizons.common.wrappers.minecraft.MinecraftClientWrapper;
+import net.minecraft.client.renderer.state.level.PlayerRenderState;
+#endif
+
 @Mixin(GameRenderer.class)
 public class MixinGameRenderer
 {
+	#if MC_VER <= MC_26_2_0
 	// get the modified projection matrix right before it's uploaded to the GPU
 	@Inject(
 		method = "renderLevel",
@@ -86,5 +95,28 @@ public class MixinGameRenderer
 		
 		ClientApi.RENDER_STATE.mcProjectionMatrix = McObjectConverter.convert(projectionMatrix);
 	}
+	
+	#else
+	
+	@Inject(method = "renderLevel", at = @At("HEAD"))
+	private void onRenderLevelStart(CallbackInfo ci)
+	{
+		ClientApi.RENDER_STATE.clientLevelWrapper = ClientLevelWrapper.getWrapperIfDifferent(
+			ClientApi.RENDER_STATE.clientLevelWrapper,
+			(ClientLevel) MinecraftClientWrapper.INSTANCE.getPlayer().level());
+		
+		ClientApi.RENDER_STATE.partialTickTime = MinecraftRenderWrapper.INSTANCE.getPartialTickTime();
+		
+		MixinProjectionMatrixBufferCommon.getNewMvmMatrix = true;
+	}
+	
+	@Inject(method = "renderLevel", at = @At("RETURN"))
+	private void onRenderLevelEnd(CallbackInfo ci)
+	{ MixinProjectionMatrixBufferCommon.getNewMvmMatrix = false; }
+	
+	#endif
+	
+	
+	
 }
 #endif

@@ -23,7 +23,7 @@ package com.seibel.distanthorizons.common.wrappers.worldGeneration.step;
 import java.util.ArrayList;
 
 import com.seibel.distanthorizons.common.wrappers.chunk.ChunkWrapper;
-import com.seibel.distanthorizons.common.wrappers.worldGeneration.BatchGenerationEnvironment;
+import com.seibel.distanthorizons.common.wrappers.worldGeneration.DhChunkGenerator;
 import com.seibel.distanthorizons.common.wrappers.worldGeneration.params.ThreadWorldGenParams;
 
 import com.seibel.distanthorizons.common.wrappers.worldGeneration.mimicObject.DhLitWorldGenRegion;
@@ -41,7 +41,7 @@ public final class StepStructureReference extends AbstractWorldGenStep
 {
 	private static final ChunkStatus STATUS = ChunkStatus.STRUCTURE_REFERENCES;
 	
-	private final BatchGenerationEnvironment environment;
+	private final DhChunkGenerator dhChunkGen;
 	
 	
 	
@@ -49,7 +49,7 @@ public final class StepStructureReference extends AbstractWorldGenStep
 	// constructor //
 	//=============//
 	
-	public StepStructureReference(BatchGenerationEnvironment batchGenerationEnvironment) { this.environment = batchGenerationEnvironment; }
+	public StepStructureReference(DhChunkGenerator dhChunkGen) { this.dhChunkGen = dhChunkGen; }
 	
 	
 	
@@ -62,14 +62,14 @@ public final class StepStructureReference extends AbstractWorldGenStep
 	
 	@Override
 	public void generateGroup(
-			ThreadWorldGenParams tParams, DhLitWorldGenRegion worldGenRegion,
-			ArrayGridList<ChunkWrapper> chunkWrappers)
+		ThreadWorldGenParams tParams, DhLitWorldGenRegion worldGenRegion,
+		ArrayGridList<ChunkWrapper> chunkWrappers)
 	{
 		ArrayList<ChunkWrapper> chunksToGen = this.getChunkWrappersToGenerate(chunkWrappers);
 		for (ChunkWrapper chunkWrapper : chunksToGen)
 		{
 			ChunkAccess chunk = chunkWrapper.getChunk();
-			this.environment.globalParams.generator.createReferences(worldGenRegion, tParams.structFeatManager.forWorldGenRegion(worldGenRegion), chunk);
+			this.dhChunkGen.globalParams.generator.createReferences(worldGenRegion, tParams.structFeatManager.forWorldGenRegion(worldGenRegion), chunk);
 		}
 	}
 	

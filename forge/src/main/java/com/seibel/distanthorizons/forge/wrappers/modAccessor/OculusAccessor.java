@@ -23,6 +23,7 @@ import com.seibel.distanthorizons.core.logging.DhLogger;
 import com.seibel.distanthorizons.core.logging.DhLoggerBuilder;
 import com.seibel.distanthorizons.core.wrapperInterfaces.modAccessor.IIrisAccessor;
 
+// Oculus (Iris) 1.8.0 (the oldest that supports DH) is only available for MC 1.20.1
 #if MC_VER == MC_1_20_1
 import net.irisshaders.iris.Iris;
 import net.irisshaders.iris.api.v0.IrisApi;
@@ -42,31 +43,48 @@ public class OculusAccessor implements IIrisAccessor
 	@Override
 	public String getModName()
 	{
+		// Oculus (Iris) 1.8.0 (the oldest that supports DH) is only available for MC 1.20.1
 		#if MC_VER == MC_1_20_1
 		return Iris.MODID;
 		#else
-		return "iris"; // Oculus doesn't support this MC version
+		return "iris";
 		#endif
 	}
 	
 	@Override
 	public boolean isShaderPackInUse()
 	{
+		// Oculus (Iris) 1.8.0 (the oldest that supports DH) is only available for MC 1.20.1
 		#if MC_VER == MC_1_20_1
 		return IrisApi.getInstance().isShaderPackInUse();
 		#else
-		return true; // Oculus doesn't support this MC version
+		return true;
 		#endif
 	}
 	
 	@Override
 	public boolean isRenderingShadowPass()
 	{
+		// Oculus (Iris) 1.8.0 (the oldest that supports DH) is only available for MC 1.20.1
 		#if MC_VER == MC_1_20_1
 		return IrisApi.getInstance().isRenderingShadowPass();
 		#else
-		return false; // Oculus doesn't support this MC version
+		return false;
 		#endif
+	}
+	
+	@Override
+	public boolean isReverseZDuringShaders()
+	{
+		// Reverse Z isn't supported on Iris' end
+		// for these older versions of MC 
+		return false;
+	}
+	
+	@Override
+	public int getFramebufferDepthTextureId(Object framebuffer)
+	{
+		return -1;
 	}
 	
 }

@@ -20,6 +20,7 @@
 package com.seibel.distanthorizons.core.generation.tasks;
 
 import com.seibel.distanthorizons.core.pos.DhSectionPos;
+import com.seibel.distanthorizons.core.util.LodUtil;
 import com.seibel.distanthorizons.coreapi.util.BitShiftUtil;
 
 import java.util.concurrent.CompletableFuture;
@@ -49,7 +50,11 @@ public final class DataSourceRetrievalTask
 	{
 		this.pos = pos;
 		this.requestDetailLevel = dataDetail;
-		this.widthInChunks = BitShiftUtil.powerOfTwo(DhSectionPos.getDetailLevel(this.pos) - this.requestDetailLevel - 4); // minus 4 is equal to dividing by 16 to convert to chunk scale 
+		
+		int widthInBlocks = BitShiftUtil.powerOfTwo(DhSectionPos.getDetailLevel(this.pos));
+		this.widthInChunks = widthInBlocks / LodUtil.CHUNK_WIDTH; 
 	}
-
-		}
+	
+	
+	
+}

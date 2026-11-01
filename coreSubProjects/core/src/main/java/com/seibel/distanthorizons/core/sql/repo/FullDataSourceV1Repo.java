@@ -114,7 +114,6 @@ public class FullDataSourceV1Repo extends AbstractDhRepo<Long, FullDataSourceV1D
 					"   ,? \n" +
 					// created/lastModified are automatically set by Sqlite
 					");";
-	@Override
 	public PreparedStatement createInsertStatement(FullDataSourceV1DTO dto) throws SQLException
 	{
 		PreparedStatement statement = this.createPreparedStatement(this.insertSqlTemplate);
@@ -153,7 +152,6 @@ public class FullDataSourceV1Repo extends AbstractDhRepo<Long, FullDataSourceV1D
 			
 			"   ,LastModifiedDateTime = CURRENT_TIMESTAMP \n" +
 			"WHERE DhSectionPos = ?";
-	@Override
 	public PreparedStatement createUpdateStatement(FullDataSourceV1DTO dto) throws SQLException
 	{
 		PreparedStatement statement = this.createPreparedStatement(this.updateSqlTemplate);
@@ -177,6 +175,10 @@ public class FullDataSourceV1Repo extends AbstractDhRepo<Long, FullDataSourceV1D
 		
 		return statement;
 	}
+	
+	@Override 
+	public @Nullable PreparedStatement createUpsertStatement(FullDataSourceV1DTO dto) throws SQLException
+	{ throw new UnsupportedOperationException("V1 data shouldn't be inserted/updated"); }
 	
 	
 	

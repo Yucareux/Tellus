@@ -1,0 +1,20 @@
+plugins {
+    id 'dh-loader'
+}
+
+unimined.minecraft 
+{
+    minecraftForge 
+    {
+        loader gradle.ext.forge_version
+        useToolchains = false
+        accessTransformer project(":common").file("src/main/resources/${gradle.ext.accessWidenerVersion}.distanthorizons_at.cfg")
+        mixinConfig("DistantHorizons.forge.mixins.json")
+    }
+
+    mods 
+    {
+        //remap(configurations.modCompileOnly)
+        remap(configurations.modRuntimeOnly)
+    }
+}

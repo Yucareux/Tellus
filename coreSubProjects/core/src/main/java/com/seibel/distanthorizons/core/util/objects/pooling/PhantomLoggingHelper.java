@@ -48,7 +48,7 @@ public class PhantomLoggingHelper
 		}
 	}
 	
-	public static void LogAllocationStackTracePairCounts(DhLogger logger, ArrayList<Pair<String, AtomicInteger>> allocationStackTraceCountPairList)
+	public static void LogAllocationStackTracePairCounts(DhLogger logger, String prefix, ArrayList<Pair<String, AtomicInteger>> allocationStackTraceCountPairList)
 	{
 		// high numbers first
 		allocationStackTraceCountPairList.sort((a, b) -> Integer.compare(b.second.get(), a.second.get()));
@@ -61,7 +61,7 @@ public class PhantomLoggingHelper
 			
 			stringBuilder.append(count).append(". ").append(stack).append("\n");
 		}
-		logger.warn("Stacks: ["+ allocationStackTraceCountPairList.size()+"]\n" + stringBuilder.toString());
+		logger.warn(prefix+" Stacks: ["+ allocationStackTraceCountPairList.size()+"]\n" + stringBuilder.toString());
 	}
 	
 	
@@ -203,7 +203,7 @@ public class PhantomLoggingHelper
 						{
 							LOGGER.warn("Phantoms collected: ["+ F3Screen.NUMBER_FORMAT.format(collectedCount)+"].");
 							
-							PhantomLoggingHelper.LogAllocationStackTracePairCounts(LOGGER, parentClassNameCountPairList);
+							PhantomLoggingHelper.LogAllocationStackTracePairCounts(LOGGER, "Parent class", parentClassNameCountPairList);
 							
 							//// log stack traces if present
 							//if (LOG_PHANTOM_ALLOCATION_STACKS)

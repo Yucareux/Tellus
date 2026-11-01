@@ -85,6 +85,12 @@ public interface ILevelWrapper extends IDhApiLevelWrapper, IBindable
 	@Override
 	int getMinHeight();
 	
+	// Future note: don't use MC's getSeaLevel()
+	// this method returns an incorrect value for The End
+	// on MC 1.21.1,
+	// use the chunk generator's sea level instead
+	//int getSeaLevel();
+	
 	/** Fired when the level is being unloaded. Doesn't unload the level. */
 	void onUnload();
 	

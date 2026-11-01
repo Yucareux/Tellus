@@ -99,6 +99,12 @@ public class ChunkCompoundTagParser
 		.fileLevelConfig(Config.Common.Logging.logWorldGenChunkLoadEventToFile)
 		.build();
 	
+	public static final DhLogger RATE_LIMITED_LOGGER = new DhLoggerBuilder()
+		.name("LOD Chunk Reader")
+		.fileLevelConfig(Config.Common.Logging.logWorldGenChunkLoadEventToFile)
+		.maxCountPerSecond(1)
+		.build();
+	
 	private static final AtomicBoolean ZERO_CHUNK_POS_ERROR_LOGGED_REF = new AtomicBoolean(false);
 	private static final ConcurrentHashMap<String, Object> LOGGED_ERROR_MESSAGE_MAP = new ConcurrentHashMap<>();
 	
@@ -677,8 +683,10 @@ public class ChunkCompoundTagParser
 		{
 			DhChunkPos dhChunkPos = McObjectConverter.convert(chunkPos);
 			
-			LOGGER.warn("Unable to deserialize blocks for chunk section [" + dhChunkPos.getX() + ", " + sectionYIndex + ", " + dhChunkPos.getZ() + "], error: ["+newMessage+"]. " +
-					"This can probably be ignored, although if your world looks wrong, optimizing it via the single player menu then deleting your DH database(s) should fix the problem.");
+			RATE_LIMITED_LOGGER.warn(
+				"Unable to deserialize blocks for chunk section [" + dhChunkPos.getX() + ", " + sectionYIndex + ", " + dhChunkPos.getZ() + "], error: ["+newMessage+"]. " +
+				"This can probably be ignored, although if your world looks wrong, optimizing it via the single player menu then deleting your DH database(s) should fix the problem."
+			);
 			
 			return newMessage;
 		});

@@ -18,6 +18,12 @@ def addMod(path, enabled) {
 dependencies {
     // Iris
     addMod("maven.modrinth:iris:${rootProject.neo_iris_version}", rootProject.neo_enable_iris)
+    
+    // Sodium
+    addMod("maven.modrinth:sodium:${rootProject.neo_sodium_version}", rootProject.neo_enable_sodium)
+    
+    // Chunky
+    addMod("maven.modrinth:chunky:${rootProject.neo_chunky_version}", rootProject.neo_enable_chunky)
 }
 
 

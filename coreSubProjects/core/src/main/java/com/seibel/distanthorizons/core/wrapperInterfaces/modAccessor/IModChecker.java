@@ -31,8 +31,24 @@ import java.io.File;
  */
 public interface IModChecker extends IBindable
 {
-	/** Checks if a mod is loaded */
-	boolean isModLoaded(String modid);
+	/** @return true if any of the given IDs are loaded */
+	default boolean isModLoaded(String[] modIdArray)
+	{
+		for (int i = 0; i < modIdArray.length; i++)
+		{
+			String modId = modIdArray[i];
+			boolean loaded = this.isModLoaded(modId);
+			if (loaded)
+			{
+				return true;
+			}
+		}
+		
+		return false;
+	}
 	
-	File modLocation(String modid);
+	/** Checks if a mod is loaded */
+	boolean isModLoaded(String modId);
+	
+	File modLocation(String modId);
 }

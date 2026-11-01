@@ -57,7 +57,9 @@ import net.minecraft.world.level.chunk.ChunkAccess;
 import net.minecraft.world.level.chunk.ChunkSource;
 #endif
 
-#if MC_VER <= MC_1_12_2
+#if MC_VER <= MC_1_7_10
+import net.minecraft.world.World;
+#elif MC_VER <= MC_1_12_2
 #elif MC_VER <= MC_1_20_4
 import net.minecraft.world.level.chunk.ChunkStatus;
 #else
@@ -74,7 +76,13 @@ public class ServerLevelWrapper implements IServerLevelWrapper
 	 * weak references are to prevent rare issues
 	 * where, upon world closure, some levels aren't shutdown/removed properly
 	 */
-	private static final Map<#if MC_VER <= MC_1_12_2 WorldServer #else ServerLevel #endif, WeakReference<ServerLevelWrapper>> LEVEL_WRAPPER_REF_BY_SERVER_LEVEL = Collections.synchronizedMap(new WeakHashMap<>());
+	#if MC_VER <= MC_1_12_2
+	private static final Map<WorldServer, WeakReference<ServerLevelWrapper>>
+	#else 
+	private static final Map<ServerLevel, WeakReference<ServerLevelWrapper>> 
+	#endif
+		LEVEL_WRAPPER_REF_BY_SERVER_LEVEL = Collections.synchronizedMap(new WeakHashMap<>());
+	
 	
 	private final #if MC_VER <= MC_1_12_2 WorldServer #else ServerLevel #endif level;
 	private IDhLevel dhLevel;
@@ -178,7 +186,10 @@ public class ServerLevelWrapper implements IServerLevelWrapper
 		{
 			// We use the overworld since it's the only dimension that is stored in the server root folder
 			
-			#if MC_VER <= MC_1_12_2
+			#if MC_VER <= MC_1_7_10
+			return net.minecraft.server.MinecraftServer.getServer().worldServers[0]
+				.getSaveHandler().getWorldDirectory().getParentFile().getName();
+			#elif MC_VER <= MC_1_12_2
 			return this.level.getMinecraftServer().getWorld(0).getSaveHandler().getWorldDirectory().getParentFile().getName();
 			#elif MC_VER >= MC_1_21_3
 			return this.level.getServer().getLevel(Level.OVERWORLD).getChunkSource().getDataStorage().dataFolder.getParent().getFileName().toString();
@@ -195,9 +206,13 @@ public class ServerLevelWrapper implements IServerLevelWrapper
 	
 	
 	@Override
-	public DimensionTypeWrapper getDimensionType() 
+	public DimensionTypeWrapper getDimensionType()
 	{
-		#if MC_VER <= MC_1_12_2
+		#if MC_VER <= MC_1_7_10
+		// Casting to World is necessary to fix a reobfuscation issue.
+		// otherwise it sometimes fails to obfuscate `provider` properly.
+		return DimensionTypeWrapper.getDimensionTypeWrapper(((World) this.level).provider.dimensionId);
+		#elif MC_VER <= MC_1_12_2
 		return DimensionTypeWrapper.getDimensionTypeWrapper(this.level.provider.getDimensionType());
 		#elif MC_VER <= MC_1_21_10
 		return DimensionTypeWrapper.getDimensionTypeWrapper(this.level.dimensionType());
@@ -205,11 +220,15 @@ public class ServerLevelWrapper implements IServerLevelWrapper
 		return DimensionTypeWrapper.getDimensionTypeWrapper(this.level.dimensionType(), this.getDimensionName());
 		#endif
 	}
-	
+
 	@Override
 	public String getDimensionName()
 	{
-		#if MC_VER <= MC_1_12_2
+		#if MC_VER <= MC_1_7_10
+		// Casting to World is necessary to fix a reobfuscation issue.
+		// otherwise it sometimes fails to obfuscate `provider` properly.
+		return LegacyDimensionInfo.fullName(((World) this.level).provider.dimensionId);
+		#elif MC_VER <= MC_1_12_2
 		return this.level.provider.getDimensionType().getName() + ":" + this.level.provider.getDimension();
 		#elif MC_VER <= MC_1_21_10
 		return this.level.dimension().location().toString();
@@ -239,18 +258,30 @@ public class ServerLevelWrapper implements IServerLevelWrapper
 	@Override
 	public boolean hasCeiling()
 	{
-		#if MC_VER <= MC_1_12_2
+		#if MC_VER <= MC_1_7_10
+		// Casting to World is necessary to fix a reobfuscation issue.
+		// otherwise it sometimes fails to obfuscate `provider` properly.
+		return ((World) this.level).provider
+			// 1.7.10's WorldProvider has no isNether(); the boolean field isHellWorld is its equivalent
+			.isHellWorld;
+		#elif MC_VER <= MC_1_12_2
 		// 1.12.2 has no hasCeiling() - only the nether has a ceiling in vanilla
 		return this.level.provider.isNether();
 		#else
 		return this.level.dimensionType().hasCeiling();
 		#endif
 	}
-	
+
 	@Override
 	public boolean hasSkyLight()
 	{
-		#if MC_VER <= MC_1_12_2
+		#if MC_VER <= MC_1_7_10
+		// Casting to World is necessary to fix a reobfuscation issue.
+		// otherwise it sometimes fails to obfuscate `provider` properly.
+		return !((World) this.level).provider
+			// 1.7.10 stores the inverse: hasNoSky is true when the dimension lacks skylight
+			.hasNoSky;
+		#elif MC_VER <= MC_1_12_2
 		return this.level.provider.hasSkyLight();
 		#else
 		return this.level.dimensionType().hasSkyLight();

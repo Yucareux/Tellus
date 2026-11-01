@@ -6,12 +6,12 @@ import net.minecraft.client.Minecraft;
 import com.seibel.distanthorizons.core.logging.DhLogger;
 
 #if MC_VER < MC_1_21_9
-#else
+#elif MC_VER <= MC_26_2_0
 import com.mojang.blaze3d.opengl.GlTexture;
 import com.mojang.blaze3d.textures.GpuTexture;
+#else
+import com.mojang.renderpearl.api.textures.GpuTexture;
 #endif
-
-import java.lang.invoke.MethodHandles;
 
 public class NeoforgeMinecraftRenderWrapper extends MinecraftRenderWrapper
 {

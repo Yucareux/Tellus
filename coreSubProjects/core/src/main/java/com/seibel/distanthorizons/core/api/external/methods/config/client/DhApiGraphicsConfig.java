@@ -47,6 +47,8 @@ public class DhApiGraphicsConfig implements IDhApiGraphicsConfig
 	@Override
 	public IDhApiNoiseTextureConfig noiseTexture() { return DhApiNoiseTextureConfig.INSTANCE; }
 	@Override
+	public IDhApiTextureConfig texture() { return DhApiTextureConfig.INSTANCE; }
+	@Override
 	public IDhApiGenericRenderingConfig genericRendering() { return DhApiGenericRenderingConfig.INSTANCE; }
 	
 	

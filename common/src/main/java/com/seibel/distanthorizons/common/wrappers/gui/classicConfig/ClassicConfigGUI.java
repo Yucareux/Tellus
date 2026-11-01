@@ -14,8 +14,11 @@ import com.seibel.distanthorizons.core.wrapperInterfaces.config.IConfigGui;
 import net.minecraft.client.Minecraft;
 #if MC_VER <= MC_1_12_2
 import net.minecraft.client.gui.*;
+import net.minecraft.world.World;
+#if MC_VER > MC_1_7_10
 import net.minecraft.client.renderer.Tessellator;
 import net.minecraft.util.text.ITextComponent;
+#endif
 #else
 import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.components.AbstractWidget;
@@ -28,7 +31,9 @@ import com.seibel.distanthorizons.core.logging.DhLogger;
 
 import org.jetbrains.annotations.NotNull;
 
-#if MC_VER <= MC_1_12_2
+#if MC_VER <= MC_1_7_10
+import net.minecraft.client.renderer.Tessellator;
+#elif MC_VER <= MC_1_12_2
 #elif MC_VER < MC_1_20_1
 import com.mojang.blaze3d.vertex.PoseStack;
 import net.minecraft.client.gui.GuiComponent;
@@ -144,8 +149,15 @@ public class ClassicConfigGUI
 			super(minecraftClient, canvasWidth, canvasHeight - (topMargin + botMargin), topMargin, itemSpacing);
 			#endif
 			
+			#if MC_VER <= MC_1_7_10
+			this.field_148163_i = false;
+			#else
 			this.centerListVertically = false;
-			#if MC_VER <= MC_1_12_2
+			#endif
+			
+			#if MC_VER <= MC_1_7_10
+			this.textRenderer = minecraftClient.fontRendererObj;
+			#elif MC_VER <= MC_1_12_2
 			this.textRenderer = minecraftClient.fontRenderer;
 			#else
 			this.textRenderer = minecraftClient.font;
@@ -168,7 +180,12 @@ public class ClassicConfigGUI
 		@Override
 		protected void drawContainerBackground(Tessellator tessellator)
 		{
-			if (this.mc.world != null)
+			#if MC_VER <= MC_1_7_10
+			World world = Minecraft.getMinecraft().theWorld;
+			#else
+			World world = this.mc.world;
+			#endif
+			if (world != null)
 			{
 				return; // in-game don't draw dirt background
 			}
@@ -176,7 +193,9 @@ public class ClassicConfigGUI
 		}
 		#endif
 		
-		#if MC_VER <= MC_1_12_2
+		#if MC_VER <= MC_1_7_10
+		public void addButton(DhConfigScreen gui, AbstractConfigBase dhConfigType, Gui button, GuiButton resetButton, GuiButton indexButton, String text)
+		#elif MC_VER <= MC_1_12_2
 		public void addButton(DhConfigScreen gui, AbstractConfigBase dhConfigType, Gui button, GuiButton resetButton, GuiButton indexButton, ITextComponent text)
 		#else
 		public void addButton(DhConfigScreen gui, AbstractConfigBase dhConfigType, AbstractWidget button, AbstractWidget resetButton, AbstractWidget indexButton, Component text)
@@ -215,19 +234,29 @@ public class ClassicConfigGUI
 				
 				double minX, minY, maxX, maxY;
 				
-				if (gui instanceof GuiButton button)
+				if (gui instanceof GuiButton)
 				{
-					if (!button.visible) continue;
-					minX = button.x;
-					minY = button.y;
+					GuiButton button = (GuiButton) gui;
+					if (!button.visible)
+					{
+						continue;
+					}
+					
+					minX = #if MC_VER <= MC_1_7_10 button.xPosition #else button.x #endif;
+					minY = #if MC_VER <= MC_1_7_10 button.yPosition #else button.y #endif;
 					maxX = minX + button.width;
 					maxY = minY + button.height;
 				}
-				else if (gui instanceof GuiTextField field)
+				else if (gui instanceof GuiTextField)
 				{
-					if (!field.getVisible()) continue;
-					minX = field.x;
-					minY = field.y;
+					GuiTextField field = (GuiTextField) gui;	
+					if (!field.getVisible())
+					{
+						continue;
+					}
+					
+					minX = #if MC_VER <= MC_1_7_10 field.xPosition #else field.x #endif;
+					minY = #if MC_VER <= MC_1_7_10 field.yPosition #else field.y #endif;
 					maxX = minX + field.width;
 					maxY = minY + field.height;
 				}
@@ -273,8 +302,10 @@ public class ClassicConfigGUI
 	public static class DhButtonEntry extends ContainerObjectSelectionList.Entry<DhButtonEntry>
 	#endif
 	{
-		#if MC_VER <= MC_1_12_2
-		private static final FontRenderer textRenderer = Minecraft.getMinecraft().fontRenderer;		
+		#if MC_VER <= MC_1_7_10
+		private static final FontRenderer textRenderer = Minecraft.getMinecraft().fontRendererObj;
+		#elif MC_VER <= MC_1_12_2
+		private static final FontRenderer textRenderer = Minecraft.getMinecraft().fontRenderer;
 		#else
 		private static final Font textRenderer = Minecraft.getInstance().font;
 		#endif
@@ -291,7 +322,7 @@ public class ClassicConfigGUI
 		#endif
 		
 		#if MC_VER <= MC_1_12_2
-		private final ITextComponent text;
+		private final #if MC_VER <= MC_1_7_10 String #else ITextComponent #endif text;
 		#else
 		private final Component text;
 		#endif
@@ -307,7 +338,7 @@ public class ClassicConfigGUI
 		public final AbstractConfigBase dhConfigType;
 		
 		#if MC_VER <= MC_1_12_2
-		public static final Map<Gui, ITextComponent> TEXT_BY_WIDGET = new HashMap<>();
+		public static final Map<Gui, #if MC_VER <= MC_1_7_10 String #else ITextComponent #endif> TEXT_BY_WIDGET = new HashMap<>();
 		public static final Map<Gui, DhButtonEntry> BUTTON_BY_WIDGET = new HashMap<>();
 		#else
 		public static final Map<AbstractWidget, Component> TEXT_BY_WIDGET = new HashMap<>();
@@ -317,7 +348,7 @@ public class ClassicConfigGUI
 		
 		
 		#if MC_VER <= MC_1_12_2
-		public DhButtonEntry(DhConfigScreen gui, AbstractConfigBase dhConfigType, Gui button, ITextComponent text, GuiButton resetButton, GuiButton indexButton)
+		public DhButtonEntry(DhConfigScreen gui, AbstractConfigBase dhConfigType, Gui button, #if MC_VER <= MC_1_7_10 String #else ITextComponent #endif text, GuiButton resetButton, GuiButton indexButton)
 		#else
 		public DhButtonEntry(DhConfigScreen gui, AbstractConfigBase dhConfigType, AbstractWidget button, Component text, AbstractWidget resetButton, AbstractWidget indexButton)
 		#endif
@@ -363,7 +394,9 @@ public class ClassicConfigGUI
 		
 		
 		@Override
-		#if MC_VER <= MC_1_12_2
+		#if MC_VER <= MC_1_7_10
+		public void drawEntry(int slotIndex, int x, int y, int listWidth, int slotHeight, Tessellator tessellator, int mouseX, int mouseY, boolean isSelected)
+		#elif MC_VER <= MC_1_12_2
 		public void drawEntry(int slotIndex, int x, int y, int listWidth, int slotHeight, int mouseX, int mouseY, boolean isSelected, float tickDelta)
         #elif MC_VER < MC_1_20_1
 		public void render(PoseStack matrices, int index, int y, int x, int entryWidth, int entryHeight, int mouseX, int mouseY, boolean hovered, float tickDelta)
@@ -391,13 +424,20 @@ public class ClassicConfigGUI
 				if (this.button != null)
 				{
 					#if MC_VER <= MC_1_12_2
-					if (this.button instanceof GuiButton guiButton)
+					if (this.button instanceof GuiButton)
 					{
+						GuiButton guiButton = (GuiButton) this.button;
+						
 						SetY(guiButton, y);
+						#if MC_VER <= MC_1_7_10
+						guiButton.drawButton(Minecraft.getMinecraft(), mouseX, mouseY);
+						#else
 						guiButton.drawButton(Minecraft.getMinecraft(), mouseX, mouseY, tickDelta);
+						#endif
 					}
-					if (this.button instanceof GuiTextField guiTextField)
+					if (this.button instanceof GuiTextField)
 					{
+						GuiTextField guiTextField = (GuiTextField) this.button;
 						SetY(guiTextField, y);
 						guiTextField.drawTextBox();
 					}
@@ -421,7 +461,9 @@ public class ClassicConfigGUI
 					SetY(this.resetButton, y);
 					#endif
 					
-					#if MC_VER <= MC_1_12_2
+					#if MC_VER <= MC_1_7_10
+					((GuiButton) this.resetButton).drawButton(Minecraft.getMinecraft(), mouseX, mouseY);
+					#elif MC_VER <= MC_1_12_2
 					((GuiButton) this.resetButton).drawButton(Minecraft.getMinecraft(), mouseX, mouseY, tickDelta);
 					#elif MC_VER <= MC_1_21_11
 					this.resetButton.render(matrices, mouseX, mouseY, tickDelta);
@@ -438,7 +480,9 @@ public class ClassicConfigGUI
 					SetY(this.indexButton, y);
 					#endif
 					
-					#if MC_VER <= MC_1_12_2
+					#if MC_VER <= MC_1_7_10
+					((GuiButton) this.indexButton).drawButton(Minecraft.getMinecraft(), mouseX, mouseY);
+					#elif MC_VER <= MC_1_12_2
 					((GuiButton) this.indexButton).drawButton(Minecraft.getMinecraft(), mouseX, mouseY, tickDelta);
 					#elif MC_VER <= MC_1_21_11
 					this.indexButton.render(matrices, mouseX, mouseY, tickDelta);
@@ -449,7 +493,9 @@ public class ClassicConfigGUI
 				
 				if (this.text != null)
 				{
-					#if MC_VER <= MC_1_12_2
+					#if MC_VER <= MC_1_7_10
+					int translatedLength = textRenderer.getStringWidth(this.text);
+					#elif MC_VER <= MC_1_12_2
 					int translatedLength = textRenderer.getStringWidth(this.text.getFormattedText());
 					#else
 					int translatedLength = textRenderer.width(this.text);
@@ -488,7 +534,7 @@ public class ClassicConfigGUI
 				
 				#if MC_VER <= MC_1_12_2
 				textRenderer.drawString(
-						this.text.getFormattedText(),
+						#if MC_VER <= MC_1_7_10 this.text #else this.text.getFormattedText() #endif,
 						textXPos, y + 5, 
 						0xFFFFFF);
                 #elif MC_VER < MC_1_20_1
@@ -521,21 +567,23 @@ public class ClassicConfigGUI
 			}
 		}
 		
+		
 		#if MC_VER <= MC_1_12_2
 		@Override
-		public void updatePosition(int slotIndex, int x, int y, float partialTicks) { }
-		
-		@Override
 		public boolean mousePressed(int slotIndex, int mouseX, int mouseY, int mouseEvent, int relativeX, int relativeY)
-		{
-			return false; // handled in DhConfigScreen.mouseClicked
-		}
+		{ return false; /* handled in DhConfigScreen.mouseClicked */ }
 		
 		@Override
 		public void mouseReleased(int slotIndex, int x, int y, int mouseEvent, int relativeX, int relativeY) { }
 		#endif
-
-		#if MC_VER > MC_1_12_2
+		
+		#if MC_VER <= MC_1_7_10
+		#elif MC_VER <= MC_1_12_2
+		@Override
+		public void updatePosition(int slotIndex, int x, int y, float partialTicks) { }
+		#endif
+		
+		#if MC_VER >= MC_1_16_5
 		@Override
 		public @NotNull List<? extends GuiEventListener> children()
 		{ return this.children; }

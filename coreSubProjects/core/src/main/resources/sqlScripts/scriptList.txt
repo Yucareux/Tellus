@@ -10,3 +10,4 @@
 0080-sqlite-addApplyToChildrenColumn.sql
 0090-sqlite-addAdjacentFullDataColumns.sql
 0100-sqlite-deleteLowDetailDataForRegen.sql
+0110-sqlite-addApplyToParentIndex.sql

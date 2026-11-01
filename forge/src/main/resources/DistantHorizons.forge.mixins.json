@@ -15,8 +15,10 @@
         "client.MixinDebugScreenOverlay",
         "client.MixinFogRenderer",
         "client.MixinLevelRenderer",
+        "client.MixinOculusFrameBuffer",
         "client.MixinLightTexture",
         "client.MixinOptionsScreen"
     ],
-    "server": []
+    "server": [],
+    "plugin": "com.seibel.distanthorizons.forge.mixins.ForgeMixinPlugin"
 }

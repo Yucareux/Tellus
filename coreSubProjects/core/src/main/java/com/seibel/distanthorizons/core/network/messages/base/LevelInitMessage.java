@@ -1,6 +1,6 @@
 package com.seibel.distanthorizons.core.network.messages.base;
 
-import com.google.common.base.MoreObjects;
+import com.seibel.distanthorizons.core.util.MoreObjects;
 import com.seibel.distanthorizons.core.network.messages.AbstractNetworkMessage;
 import io.netty.buffer.ByteBuf;
 

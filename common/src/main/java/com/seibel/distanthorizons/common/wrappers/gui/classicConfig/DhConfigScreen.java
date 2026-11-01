@@ -22,6 +22,7 @@ import com.seibel.distanthorizons.common.wrappers.gui.updater.ChangelogScreen;
 import com.seibel.distanthorizons.core.config.types.enums.EConfigCommentTextPosition;
 import com.seibel.distanthorizons.core.config.types.enums.EConfigValidity;
 import com.seibel.distanthorizons.core.dependencyInjection.SingletonInjector;
+import com.seibel.distanthorizons.core.enums.MinecraftTextFormat;
 import com.seibel.distanthorizons.core.jar.updater.SelfUpdater;
 import com.seibel.distanthorizons.core.logging.DhLoggerBuilder;
 import com.seibel.distanthorizons.core.util.AnnotationUtil;
@@ -29,7 +30,10 @@ import com.seibel.distanthorizons.core.wrapperInterfaces.config.IConfigGui;
 import com.seibel.distanthorizons.core.wrapperInterfaces.config.ILangWrapper;
 import com.seibel.distanthorizons.coreapi.ModInfo;
 import net.minecraft.client.Minecraft;
-#if MC_VER <= MC_1_12_2
+#if MC_VER <= MC_1_7_10
+import net.minecraft.client.gui.*;
+import net.minecraft.util.EnumChatFormatting;
+#elif MC_VER <= MC_1_12_2
 import net.minecraft.client.gui.*;
 import net.minecraft.client.renderer.Tessellator;
 import net.minecraft.util.text.ITextComponent;
@@ -72,9 +76,13 @@ import net.minecraft.resources.ResourceLocation;
 import net.minecraft.resources.Identifier;
 #endif
 
-import org.lwjgl.glfw.GLFW;
-#if MC_VER > MC_1_12_2
+#if MC_VER <= MC_1_12_2
+#elif MC_VER <= MC_26_2_0
 import com.mojang.blaze3d.platform.InputConstants;
+import org.lwjgl.glfw.GLFW;
+#else
+import com.mojang.blaze3d.platform.InputConstants;
+import org.lwjgl.sdl.SDLKeycode;
 #endif
 
 import static com.seibel.distanthorizons.common.wrappers.gui.GuiHelper.*;
@@ -108,6 +116,9 @@ class DhConfigScreen extends DhScreen
 	private GuiButton doneButton;
 	#else
 	private Button doneButton;
+	#endif
+	#if MC_VER <= MC_1_7_10
+	private final Map<GuiTextField, Predicate<String>> textFieldProcessors = new HashMap<>();
 	#endif
 	
 	
@@ -143,7 +154,17 @@ class DhConfigScreen extends DhScreen
 	
 	@Override
 	#if MC_VER <= MC_1_12_2
-	public void updateScreen() { super.updateScreen(); }
+	public void updateScreen()
+	{
+		super.updateScreen();
+		
+		#if MC_VER <= MC_1_7_10
+		for (GuiTextField field : this.textFieldProcessors.keySet())
+		{
+			field.updateCursorCounter();
+		}
+		#endif
+	}
 	#else
 	public void tick() { super.tick(); }
 	#endif
@@ -214,8 +235,9 @@ class DhConfigScreen extends DhScreen
 					}
 				},
 				#endif
+				
 				// Add a title to the button
-				#if MC_VER <= MC_1_12_2
+				#if MC_VER == MC_1_12_2
 				Translatable(ModInfo.ID + ".updater.title").getFormattedText()
 				#else
 				Translatable(ModInfo.ID + ".updater.title")
@@ -424,7 +446,9 @@ class DhConfigScreen extends DhScreen
 	private static void setupBooleanMenuOption(ConfigEntry<Boolean> booleanConfigEntry)
 	{
 		// For boolean
-		#if MC_VER <= MC_1_12_2
+		#if MC_VER <= MC_1_7_10
+		Function<Object, String> func = value -> (((Boolean) value ? EnumChatFormatting.GREEN : EnumChatFormatting.RED) + Translatable("distanthorizons.general."+((Boolean) value ? "true" : "false")));
+		#elif MC_VER <= MC_1_12_2
 		Function<Object, ITextComponent> func = value -> Translatable("distanthorizons.general."+((Boolean) value ? "true" : "false")).setStyle(new Style().setColor((Boolean) value ? TextFormatting.GREEN : TextFormatting.RED));
 		#else
 		Function<Object, Component> func = value -> Translatable("distanthorizons.general." + ((Boolean) value ? "true" : "false")).withStyle((Boolean) value ? ChatFormatting.GREEN : ChatFormatting.RED);
@@ -433,7 +457,9 @@ class DhConfigScreen extends DhScreen
 		final ConfigGuiInfo configGuiInfo = ((ConfigGuiInfo) booleanConfigEntry.guiValue);
 		
 		configGuiInfo.buttonOptionMap =
-			#if MC_VER <= MC_1_12_2
+			#if MC_VER <= MC_1_7_10
+			new AbstractMap.SimpleEntry<OnPressed, Function<Object, String>>(
+			#elif MC_VER <= MC_1_12_2
 			new AbstractMap.SimpleEntry<OnPressed, Function<Object, ITextComponent>>(
 			#else
 			new AbstractMap.SimpleEntry<Button.OnPress, Function<Object, Component>>(
@@ -447,8 +473,10 @@ class DhConfigScreen extends DhScreen
 					#endif
 					
 					booleanConfigEntry.uiSetWithoutSaving(!booleanConfigEntry.get());
-
-					#if MC_VER <= MC_1_12_2
+					
+					#if MC_VER <= MC_1_7_10
+					button.displayString = func.apply(booleanConfigEntry.get());
+					#elif MC_VER <= MC_1_12_2
 					button.displayString = func.apply(booleanConfigEntry.get()).getFormattedText();
 					#else
 					button.setMessage(func.apply(booleanConfigEntry.get()));
@@ -461,14 +489,19 @@ class DhConfigScreen extends DhScreen
 		
 		final ConfigGuiInfo configGuiInfo = ((ConfigGuiInfo) enumConfigEntry.guiValue);
 		
-		#if MC_VER <= MC_1_12_2
-		Function<Object, ITextComponent > getEnumTranslatableFunc = (value) -> Translatable(TRANSLATION_PREFIX + "enum." + enumClass.getSimpleName() + "." + enumConfigEntry.get().toString());
+		String translatableEnumPrefix = TRANSLATION_PREFIX + "enum." + enumClass.getSimpleName() + ".";
+		#if MC_VER <= MC_1_7_10
+		Function<Object, String> getEnumTranslatableFunc = (value) -> Translatable(translatableEnumPrefix + value.toString());
+		#elif MC_VER <= MC_1_12_2
+		Function<Object, ITextComponent> getEnumTranslatableFunc = (value) -> Translatable(translatableEnumPrefix + value.toString());
 		#else
-		Function<Object, Component> getEnumTranslatableFunc = (value) -> Translatable(TRANSLATION_PREFIX + "enum." + enumClass.getSimpleName() + "." + enumConfigEntry.get().toString());
+		Function<Object, Component> getEnumTranslatableFunc = (value) -> Translatable(translatableEnumPrefix + value.toString());
 		#endif
 		
 		configGuiInfo.buttonOptionMap =
-			#if MC_VER <= MC_1_12_2
+			#if MC_VER <= MC_1_7_10
+			new AbstractMap.SimpleEntry<OnPressed, Function<Object, String>>(
+			#elif MC_VER <= MC_1_12_2
 			new AbstractMap.SimpleEntry<OnPressed, Function<Object, ITextComponent>>(
 			#else
 			new AbstractMap.SimpleEntry<Button.OnPress, Function<Object, Component>>(
@@ -479,10 +512,15 @@ class DhConfigScreen extends DhScreen
 					int startingIndex = enumList.indexOf(enumConfigEntry.get());
 					Enum<?> enumValue = enumList.get(startingIndex);
 					
+					boolean shiftPressed;
 					#if MC_VER <= MC_1_12_2
-					boolean shiftPressed = GuiScreen.isShiftKeyDown();
+					shiftPressed = GuiScreen.isShiftKeyDown();
+					#elif MC_VER <= MC_26_2_0
+					shiftPressed = InputConstants.isKeyDown(MC_CLIENT.getGlfwWindowId(), GLFW.GLFW_KEY_LEFT_SHIFT) 
+						|| InputConstants.isKeyDown(MC_CLIENT.getGlfwWindowId(), GLFW.GLFW_KEY_RIGHT_SHIFT);
 					#else
-					boolean shiftPressed = InputConstants.isKeyDown(MC_CLIENT.getGlfwWindowId(), GLFW.GLFW_KEY_LEFT_SHIFT) || InputConstants.isKeyDown(MC_CLIENT.getGlfwWindowId(), GLFW.GLFW_KEY_RIGHT_SHIFT);
+					shiftPressed = InputConstants.isKeyDown(InputConstants.KEY_LSHIFT)
+						|| InputConstants.isKeyDown(InputConstants.KEY_RSHIFT);
 					#endif
 					
 					// move forward or backwards depending on if the shift key is pressed
@@ -503,12 +541,25 @@ class DhConfigScreen extends DhScreen
 					while (index != startingIndex)
 					{
 						enumValue = enumList.get(index);
-						if (!AnnotationUtil.doesEnumHaveAnnotation(enumValue, DisallowSelectingViaConfigGui.class))
+						
+						// does enum have ignore attribute?
+						boolean selectable = !AnnotationUtil.doesEnumHaveAnnotation(enumValue, DisallowSelectingViaConfigGui.class);
+						if (selectable)
 						{
-							// this enum shouldn't be selectable via the UI,
-							// skip it
+							// does this enum have a show function?
+							ConfigEntry.IShowEnumOptionFunc showEnumFunc = enumConfigEntry.getShowEnumOptionFunc();
+							if (showEnumFunc != null)
+							{
+								selectable = showEnumFunc.shouldShowEnum(enumValue);
+							}
+						}
+						
+						if (selectable)
+						{
+							// this enum is a valid option
 							break;
 						}
+						
 						
 						// move forward or backwards depending on if the shift key is pressed
 						index = shiftPressed ? index - 1 : index + 1;
@@ -535,7 +586,10 @@ class DhConfigScreen extends DhScreen
 					
 					enumConfigEntry.uiSetWithoutSaving(enumValue);
 					
-					#if MC_VER <= MC_1_12_2
+					#if MC_VER <= MC_1_7_10
+					button.enabled = !enumConfigEntry.apiIsOverriding();
+					button.displayString = getEnumTranslatableFunc.apply(enumConfigEntry.get());
+					#elif MC_VER <= MC_1_12_2
 					button.enabled = !enumConfigEntry.apiIsOverriding();
 					button.displayString = getEnumTranslatableFunc.apply(enumConfigEntry.get()).getFormattedText();
 					#else
@@ -572,21 +626,27 @@ class DhConfigScreen extends DhScreen
 			int resetButtonPosZ = 0;
 			
 			#if MC_VER <= MC_1_12_2 GuiButton #else Button #endif resetButton = MakeBtn(
-				#if MC_VER <= MC_1_12_2
-			Translatable("distanthorizons.general.reset").setStyle(new Style().setColor(TextFormatting.RED)),
+				#if MC_VER <= MC_1_7_10
+				EnumChatFormatting.RED + Translatable("distanthorizons.general.reset"),
+				#elif MC_VER <= MC_1_12_2
+				Translatable("distanthorizons.general.reset").setStyle(new Style().setColor(TextFormatting.RED)),
 				#else
 				Translatable("distanthorizons.general.reset").withStyle(ChatFormatting.RED),
 				#endif
-			resetButtonPosX, resetButtonPosZ,
-			ClassicConfigGUI.ConfigScreenConfigs.RESET_BUTTON_WIDTH, ClassicConfigGUI.ConfigScreenConfigs.RESET_BUTTON_HEIGHT,
-			btnAction);
+				resetButtonPosX, resetButtonPosZ,
+				ClassicConfigGUI.ConfigScreenConfigs.RESET_BUTTON_WIDTH, ClassicConfigGUI.ConfigScreenConfigs.RESET_BUTTON_HEIGHT,
+				btnAction
+			);
 			
 			
 			if (configEntry.mcVersionOverridePresent())
 			{
-				#if MC_VER <= MC_1_12_2
+				#if MC_VER <= MC_1_7_10
+				resetButton.displayString = EnumChatFormatting.DARK_GRAY + Translatable("distanthorizons.general.unsupportedMcVersion");
 				resetButton.enabled = false;
+				#elif MC_VER <= MC_1_12_2
 				resetButton.displayString = Translatable("distanthorizons.general.unsupportedMcVersion").setStyle(new Style().setColor(TextFormatting.DARK_GRAY)).getFormattedText();
+				resetButton.enabled = false;
 				#else
 				resetButton.active = false;
 				resetButton.setMessage(Translatable("distanthorizons.general.unsupportedMcVersion").withStyle(ChatFormatting.DARK_GRAY));
@@ -594,9 +654,12 @@ class DhConfigScreen extends DhScreen
 			}
 			else if (configEntry.apiIsOverriding())
 			{
-				#if MC_VER <= MC_1_12_2
+				#if MC_VER <= MC_1_7_10
+				resetButton.displayString = EnumChatFormatting.DARK_GRAY + Translatable("distanthorizons.general.apiOverride");
 				resetButton.enabled = false;
+				#elif MC_VER <= MC_1_12_2
 				resetButton.displayString = Translatable("distanthorizons.general.apiOverride").setStyle(new Style().setColor(TextFormatting.DARK_GRAY)).getFormattedText();
+				resetButton.enabled = false;
 				#else
 				resetButton.active = false;
 				resetButton.setMessage(Translatable("distanthorizons.general.apiOverride").withStyle(ChatFormatting.DARK_GRAY));
@@ -620,7 +683,9 @@ class DhConfigScreen extends DhScreen
 			//==============//
 			//region
 			
-			#if MC_VER <= MC_1_12_2
+			#if MC_VER <= MC_1_7_10
+			String textComponent = this.GetTranslatableTextComponentForConfig(configEntry);
+			#elif MC_VER <= MC_1_12_2
 			ITextComponent textComponent = this.GetTranslatableTextComponentForConfig(configEntry);
 			#else
 			Component textComponent = this.GetTranslatableTextComponentForConfig(configEntry);
@@ -636,15 +701,17 @@ class DhConfigScreen extends DhScreen
 			if (configGuiInfo.buttonOptionMap != null)
 			{
 				// enum/multi option input button
-				#if MC_VER <= MC_1_12_2
-				Map.Entry<OnPressed, Function<Object,ITextComponent>> widget = configGuiInfo.buttonOptionMap;
+				#if MC_VER <= MC_1_7_10
+				Map.Entry<OnPressed, Function<Object, String>> widget = configGuiInfo.buttonOptionMap;
+				#elif MC_VER <= MC_1_12_2
+				Map.Entry<OnPressed, Function<Object, ITextComponent>> widget = configGuiInfo.buttonOptionMap;
 				#else
 				Map.Entry<Button.OnPress, Function<Object, Component>> widget = configGuiInfo.buttonOptionMap;
 				#endif
 				
 				if (configEntry.getType().isEnum())
 				{
-					widget.setValue((value) -> Translatable(TRANSLATION_PREFIX + "enum." + configEntry.getType().getSimpleName() + "." + configEntry.get().toString()));
+					widget.setValue((value) -> Translatable(TRANSLATION_PREFIX + "enum." + configEntry.getType().getSimpleName() + "." + value.toString()));
 				}
 				
 				#if MC_VER <= MC_1_12_2
@@ -684,7 +751,7 @@ class DhConfigScreen extends DhScreen
 			{
 				// text box input
 				#if MC_VER <= MC_1_12_2
-				GuiTextField widget = new GuiTextField(0, this.fontRenderer,
+				GuiTextField widget = new GuiTextField( #if MC_VER <= MC_1_7_10 this.fontRendererObj #else 0, this.fontRenderer #endif,
 					optionFieldPosX, optionFieldPosZ,
 					ClassicConfigGUI.ConfigScreenConfigs.OPTION_FIELD_WIDTH - 4, ClassicConfigGUI.ConfigScreenConfigs.CATEGORY_BUTTON_HEIGHT);
 				widget.setMaxStringLength(3_000_000); // hopefully 3 million characters should be enough for any normal use-case, lol
@@ -699,7 +766,9 @@ class DhConfigScreen extends DhScreen
 				#endif
 				
 				Predicate<String> processor = configGuiInfo.tooltipFunction.apply(widget, this.doneButton);
-				#if MC_VER <= MC_1_12_2
+				#if MC_VER <= MC_1_7_10
+				this.textFieldProcessors.put(widget, processor);
+				#elif MC_VER <= MC_1_12_2
 				widget.setValidator(processor::test);
 				#elif MC_VER <= MC_1_21_11
 				widget.setFilter(processor);
@@ -723,7 +792,9 @@ class DhConfigScreen extends DhScreen
 		{
 			ConfigCategory configCategory = (ConfigCategory) configType;
 			
-			#if MC_VER <= MC_1_12_2
+			#if MC_VER <= MC_1_7_10
+			String textComponent = this.GetTranslatableTextComponentForConfig(configCategory);
+			#elif MC_VER <= MC_1_12_2
 			ITextComponent textComponent = this.GetTranslatableTextComponentForConfig(configCategory);
 			#else
 			Component textComponent = this.GetTranslatableTextComponentForConfig(configCategory);
@@ -758,7 +829,9 @@ class DhConfigScreen extends DhScreen
 		{
 			ConfigUIButton configUiButton = (ConfigUIButton) configType;
 			
-			#if MC_VER <= MC_1_12_2
+			#if MC_VER <= MC_1_7_10
+			String textComponent = this.GetTranslatableTextComponentForConfig(configUiButton);
+			#elif MC_VER <= MC_1_12_2
 			ITextComponent textComponent = this.GetTranslatableTextComponentForConfig(configUiButton);
 			#else
 			Component textComponent = this.GetTranslatableTextComponentForConfig(configUiButton);
@@ -788,7 +861,9 @@ class DhConfigScreen extends DhScreen
 		{
 			ConfigUIComment configUiComment = (ConfigUIComment) configType;
 			
-			#if MC_VER <= MC_1_12_2
+			#if MC_VER <= MC_1_7_10
+			String textComponent = this.GetTranslatableTextComponentForConfig(configUiComment);
+			#elif MC_VER <= MC_1_12_2
 			ITextComponent textComponent = this.GetTranslatableTextComponentForConfig(configUiComment);
 			#else
 			Component textComponent = this.GetTranslatableTextComponentForConfig(configUiComment);
@@ -839,7 +914,9 @@ class DhConfigScreen extends DhScreen
 		return false;
 	}
 	
-	#if MC_VER <= MC_1_12_2
+	#if MC_VER <= MC_1_7_10
+	private String GetTranslatableTextComponentForConfig(AbstractConfigBase<?> configType)
+	#elif MC_VER <= MC_1_12_2
 	private ITextComponent GetTranslatableTextComponentForConfig(AbstractConfigBase<?> configType)
 	#else
 	private Component GetTranslatableTextComponentForConfig(AbstractConfigBase<?> configType)
@@ -928,15 +1005,15 @@ class DhConfigScreen extends DhScreen
 		}
 		
 		#if MC_VER <= MC_1_12_2
-		this.renderTooltip(mouseX, mouseY, delta);
-		#else
-		this.renderTooltip(matrices, mouseX, mouseY, delta);
-		#endif
-		
-		#if MC_VER <= MC_1_12_2
 		super.drawScreen(mouseX, mouseY, delta);
 		#elif MC_VER < MC_1_20_2
 		super.render(matrices, mouseX, mouseY, delta);
+		#endif
+		
+		#if MC_VER <= MC_1_12_2
+		this.renderTooltip(mouseX, mouseY, delta);
+		#else
+		this.renderTooltip(matrices, mouseX, mouseY, delta);
 		#endif
 	}
 	
@@ -971,10 +1048,17 @@ class DhConfigScreen extends DhScreen
 		
 		boolean apiOverrideActive = false;
 		boolean unsupportedMcVersion = false;
+		String apiUser = null;
 		if (configBase instanceof ConfigEntry)
 		{
 			apiOverrideActive = ((ConfigEntry<?>) configBase).apiIsOverriding();
 			unsupportedMcVersion = ((ConfigEntry<?>) configBase).mcVersionOverridePresent();
+			apiUser = ((ConfigEntry<?>) configBase).getApiUser();
+		}
+		if (apiUser == null
+			|| apiUser.isEmpty())
+		{
+			apiUser = "UNKNOWN";
 		}
 		
 		String key = TRANSLATION_PREFIX + (configBase.category.isEmpty() ? "" : configBase.category + ".") + configBase.getName() + ".@tooltip";
@@ -1001,16 +1085,26 @@ class DhConfigScreen extends DhScreen
 		// display the tooltip if present
 		else if (LANG_WRAPPER.langExists(key))
 		{
-			#if MC_VER <= MC_1_12_2
+			#if MC_VER <= MC_1_7_10
+			List<String> list = new ArrayList<>();
+			#elif MC_VER <= MC_1_12_2
 			List<ITextComponent> list = new ArrayList<>();
 			#else
 			List<Component> list = new ArrayList<>();
 			#endif
 			
-			String lang = LANG_WRAPPER.getLang(key);
+			// 1.7.10 doesn't convert \n to new lines so we must do it manually
+			String lang = LANG_WRAPPER.getLang(key).replace("\\n", "\n");
 			for (String langLine : lang.split("\n"))
 			{
 				list.add(TextOrTranslatable(langLine));
+			}
+			
+			if (apiOverrideActive)
+			{
+				// raw text is used here since we don't want to force
+				// API users to translate their name
+				list.add(TextOrLiteral(MinecraftTextFormat.ORANGE + apiUser + MinecraftTextFormat.CLEAR_FORMATTING));
 			}
 			
 			#if MC_VER <= MC_1_12_2
@@ -1041,35 +1135,53 @@ class DhConfigScreen extends DhScreen
 	}
 	
 	@Override
-	protected void mouseClicked(int mouseX, int mouseY, int mouseButton) throws java.io.IOException
+	protected void mouseClicked(int mouseX, int mouseY, int mouseButton) 
+		#if MC_VER > MC_1_7_10 throws java.io.IOException #endif
 	{
 		super.mouseClicked(mouseX, mouseY, mouseButton);
 		
-		if (mouseY >= this.configListWidget.top && mouseY <= this.configListWidget.bottom)
+		if (mouseY >= this.configListWidget.top 
+			&& mouseY <= this.configListWidget.bottom)
 		{
 			for (ClassicConfigGUI.DhButtonEntry entry : this.configListWidget.children)
 			{
-				if (entry.button instanceof GuiButton btn && btn.visible)
+				if (entry.button instanceof GuiButton 
+					&& ((GuiButton)entry.button).visible)
 				{
+					GuiButton btn = (GuiButton)entry.button;
+					
 					if (btn.mousePressed(this.mc, mouseX, mouseY))
 					{
 						btn.playPressSound(this.mc.getSoundHandler());
+						
 						OnPressed handler = GuiHelper.HANDLER_BY_BUTTON.get(btn);
-						if (handler != null) handler.pressed(btn);
+						if (handler != null)
+						{
+							handler.pressed(btn);
+						}
 					}
 				}
-				else if (entry.button instanceof GuiTextField field && field.getVisible())
+				else if (entry.button instanceof GuiTextField 
+					&& ((GuiTextField)entry.button).getVisible())
 				{
+					GuiTextField field = (GuiTextField) entry.button;
 					field.mouseClicked(mouseX, mouseY, mouseButton);
 				}
 				
-				if (entry.resetButton instanceof GuiButton reset && reset.visible)
+				if (entry.resetButton instanceof GuiButton 
+					&& ((GuiButton)entry.resetButton).visible)
 				{
+					GuiButton reset = (GuiButton) entry.resetButton;
+					
 					if (reset.mousePressed(this.mc, mouseX, mouseY))
 					{
 						reset.playPressSound(this.mc.getSoundHandler());
+						
 						OnPressed handler = GuiHelper.HANDLER_BY_BUTTON.get(reset);
-						if (handler != null) handler.pressed(reset);
+						if (handler != null)
+						{
+							handler.pressed(reset);
+						}
 					}
 				}
 			}
@@ -1077,23 +1189,38 @@ class DhConfigScreen extends DhScreen
 	}
 	
 	@Override
-	protected void keyTyped(char typedChar, int keyCode) throws java.io.IOException
+	protected void keyTyped(char typedChar, int keyCode) 
+		#if MC_VER > MC_1_7_10 throws java.io.IOException #endif
 	{
 		super.keyTyped(typedChar, keyCode);
 		for (ClassicConfigGUI.DhButtonEntry entry : this.configListWidget.children)
 		{
-			if (entry.button instanceof GuiTextField field)
+			if (entry.button instanceof GuiTextField)
 			{
+				GuiTextField field = (GuiTextField) entry.button;
+				
 				field.textboxKeyTyped(typedChar, keyCode);
+				
+				#if MC_VER <= MC_1_7_10
+				Predicate<String> processor = this.textFieldProcessors.get(field);
+				if (processor != null)
+				{
+					processor.test(field.getText());
+				}
+				#endif
 			}
 		}
 	}
 	
 	@Override
-	public void handleMouseInput() throws java.io.IOException
+	public void handleMouseInput() 
+		#if MC_VER > MC_1_7_10 throws java.io.IOException #endif
 	{
 		super.handleMouseInput();
+		
+		#if MC_VER > MC_1_7_10
 		this.configListWidget.handleMouseInput();
+		#endif
 	}
 	#endif
 	

@@ -20,6 +20,7 @@
 package com.seibel.distanthorizons.core.file.fullDatafile.V2;
 
 import com.seibel.distanthorizons.api.enums.config.EDhApiDataCompressionMode;
+import com.seibel.distanthorizons.api.enums.worldGeneration.EDhApiGeneratorPlan;
 import com.seibel.distanthorizons.core.config.Config;
 import com.seibel.distanthorizons.core.dataObjects.fullData.sources.FullDataSourceV2;
 import com.seibel.distanthorizons.core.dependencyInjection.SingletonInjector;
@@ -36,9 +37,9 @@ import com.seibel.distanthorizons.core.render.renderer.IDebugRenderable;
 import com.seibel.distanthorizons.core.sql.dto.FullDataSourceV2DTO;
 import com.seibel.distanthorizons.core.sql.repo.AbstractDhRepo;
 import com.seibel.distanthorizons.core.sql.repo.FullDataSourceV2Repo;
-import com.seibel.distanthorizons.core.util.LodUtil;
 import com.seibel.distanthorizons.core.util.objects.DataCorruptedException;
 import com.seibel.distanthorizons.core.util.threading.ThreadPoolUtil;
+import com.seibel.distanthorizons.core.wrapperInterfaces.world.ILevelWrapper;
 import it.unimi.dsi.fastutil.longs.LongArrayList;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -69,8 +70,13 @@ public class FullDataSourceProviderV2 implements IDebugRenderable, AutoCloseable
 	 * @see FullDataSourceProviderV2#LEAF_SECTION_DETAIL_LEVEL
 	 */
 	public static final byte ROOT_SECTION_DETAIL_LEVEL
-			= DhSectionPos.SECTION_MINIMUM_DETAIL_LEVEL
-			+ LodUtil.REGION_DETAIL_LEVEL;
+		= DhSectionPos.SECTION_MINIMUM_DETAIL_LEVEL
+		// We might be able to get away with 9,
+		// but James would like to keep a little safe buffer, just in case.
+		// At 10+ the LOD application process breaks down and
+		// we start to get weird anomolies that look bad.
+		+ 8;
+	
 	/**
 	 * The lowest numerical detail level possible. 
 	 *
@@ -85,6 +91,7 @@ public class FullDataSourceProviderV2 implements IDebugRenderable, AutoCloseable
 	protected final AtomicBoolean isShutdownRef = new AtomicBoolean(false);
 	protected final File saveDir;
 	protected final IDhLevel level;
+	protected final ILevelWrapper levelWrapper;
 	protected final String levelId;
 	
 	
@@ -97,6 +104,7 @@ public class FullDataSourceProviderV2 implements IDebugRenderable, AutoCloseable
 	//=============//
 	// constructor //
 	//=============//
+	//region
 	
 	public FullDataSourceProviderV2(IDhLevel level, ISaveStructure saveStructure) throws SQLException, IOException { this(level, saveStructure, null); }
 	public FullDataSourceProviderV2(IDhLevel level, ISaveStructure saveStructure, @Nullable File saveDirOverride) throws SQLException, IOException
@@ -104,54 +112,54 @@ public class FullDataSourceProviderV2 implements IDebugRenderable, AutoCloseable
 		this.saveDir = (saveDirOverride == null) ? saveStructure.getSaveFolder(level.getLevelWrapper()) : saveDirOverride;
 		this.repo = new FullDataSourceV2Repo(AbstractDhRepo.DEFAULT_DATABASE_TYPE, new File(this.saveDir.getPath() + File.separator + ISaveStructure.DATABASE_NAME));
 		this.level = level;
+		this.levelWrapper = level.getLevelWrapper();
 		
-		this.levelId = this.level.getLevelWrapper().getDhIdentifier();
+		this.levelId = this.levelWrapper.getDhIdentifier();
 		
 		this.dataUpdater = new FullDataUpdaterV2(this, this.levelId);
-		this.updatePropagator = new FullDataUpdatePropagatorV2(this, this.dataUpdater, this.levelId);
+		this.updatePropagator = new FullDataUpdatePropagatorV2(this, this.dataUpdater, this.level);
 		this.dataMigratorV1 = new DataMigratorV1(this.dataUpdater, this.level, this.levelId, this.saveDir);
 		
 		DEBUG_WIREFRAME_RENDERER.register(this, Config.Client.Advanced.Debugging.DebugWireframe.showFullDataUpdateStatus);
 		
 	}
 	
+	//endregion
+	
 	
 	
 	//=================//
 	// event listeners //
 	//=================//
+	//region
 	
 	public void addDataSourceUpdateListener(IDataSourceUpdateListenerFunc<FullDataSourceV2> listener)
-	{
-		synchronized (this.dataUpdater.dateSourceUpdateListeners)
-		{
-			this.dataUpdater.dateSourceUpdateListeners.add(listener);
-		}
-	}
+	{ this.dataUpdater.addDataSourceUpdateListener(listener); }
 	public void removeDataSourceUpdateListener(IDataSourceUpdateListenerFunc<FullDataSourceV2> listener)
-	{
-		synchronized (this.dataUpdater.dateSourceUpdateListeners)
-		{
-			this.dataUpdater.dateSourceUpdateListeners.add(listener);
-		}
-	}
+	{ this.dataUpdater.removeDataSourceUpdateListener(listener); }
+	
+	//endregion
 	
 	
 	
 	//================//
 	// DTO converters //
 	//================//
+	//region
 	
 	protected FullDataSourceV2 createDataSourceFromDto(FullDataSourceV2DTO dto) throws InterruptedException, IOException, DataCorruptedException
 	{ return dto.createDataSource(this.level.getLevelWrapper(), null); }
 	protected FullDataSourceV2 createAdjDataSourceFromDto(FullDataSourceV2DTO dto, EDhDirection direction) throws InterruptedException, IOException, DataCorruptedException
 	{ return dto.createDataSource(this.level.getLevelWrapper(), direction); }
 	
+	//endregion
+	
 	
 	
 	//=========================//
 	// basic DataSource getter //
 	//=========================//
+	//region
 	
 	/**
 	 * Returns the {@link FullDataSourceV2} for the given section position. <Br>
@@ -285,11 +293,14 @@ public class FullDataSourceProviderV2 implements IDebugRenderable, AutoCloseable
 		}
 	}
 	
+	//endregion
+	
 	
 	
 	//=================//
 	// partial getters //
 	//=================//
+	//region
 	
 	/** 
 	 * Only returns the data row/column for the given compass-cardinal
@@ -345,11 +356,17 @@ public class FullDataSourceProviderV2 implements IDebugRenderable, AutoCloseable
 		return null;
 	}
 	
+	//endregion
+	
 	
 	
 	//=======================//
 	// retrieval (world gen) //
 	//=======================//
+	//region
+
+	/** Returns the generation plan applicable to this provider. */
+	public EDhApiGeneratorPlan getGeneratorPlan() { return Config.Common.WorldGenerator.generatorPlan.get(); }
 	
 	/**
 	 * Returns true if this provider can generate or retrieve
@@ -385,41 +402,46 @@ public class FullDataSourceProviderV2 implements IDebugRenderable, AutoCloseable
 		return !this.dataMigratorV1.migrationThreadRunning.get();
 	}
 	
-	/** 
+	/**
 	 * @return null if this provider can't generate any positions or
 	 * an empty array if all positions were generated 
 	 */
 	@Nullable
-	public LongArrayList getPositionsToRetrieve(long pos) { return null; }
-		
+	public LongArrayList getPositionsToRetrieve(long pos, byte generatorDetailLevel) { return null; }	
+	
 	/** @return null if the position couldn't be queued */
 	@Nullable
 	public CompletableFuture<DataSourceRetrievalResult> queuePositionForRetrieval(Long genPos) { return null; }
 	
 	/** does nothing if the given position isn't present in the queue */
-	public void removeRetrievalRequestIf(DhSectionPos.ICancelablePrimitiveLongConsumer removeIf) { }
+	public void removeRetrievalRequestIf(DhSectionPos.IPrimitiveLongConsumer removeIf) { }
 	
 	public void clearRetrievalQueue() { }
 	
-	/** Can be used to display how many total retrieval requests might be available. */
-	public void setTotalRetrievalPositionCount(int newCount) { }
 	/** Can be used to display how many total chunk retrieval requests should be available. */
-	public void setEstimatedRemainingRetrievalChunkCount(int newCount) { }
+	public void setEstimatedRemainingRetrievalChunkCount(long newCount) { }
+	public void setCanRegenerate(boolean canRegen) {}
+	
+	//endregion
 	
 	
 	
 	//=============//
 	// data update //
 	//=============//
+	//region
 	
 	public CompletableFuture<Void> updateDataSourceAsync(@NotNull FullDataSourceV2 inputData)
 	{ return this.dataUpdater.updateDataSourceAsync(inputData); }
+	
+	//endregion
 	
 	
 	
 	//========================//
 	// multiplayer networking //
 	//========================//
+	//region
 	
 	@Nullable
 	public Long getTimestampForPos(long pos)
@@ -432,22 +454,28 @@ public class FullDataSourceProviderV2 implements IDebugRenderable, AutoCloseable
 		return this.repo.getTimestampForPos(pos); 
 	}
 	
+	//endregion
+	
 	
 	
 	//===========//
 	// debugging //
 	//===========//
+	//region
 	
 	public void addDebugMenuStringsToList(List<String> messageList)
 	{
 		this.dataMigratorV1.addDebugMenuStringsToList(messageList);
 	}
 	
+	//endregion
+	
 	
 	
 	//===========//
 	// overrides //
 	//===========//
+	//region
 	
 	@Override
 	public void debugRender(AbstractDebugWireframeRenderer renderer)
@@ -471,6 +499,8 @@ public class FullDataSourceProviderV2 implements IDebugRenderable, AutoCloseable
 		
 		this.repo.close();
 	}
+	
+	//endregion
 	
 	
 	

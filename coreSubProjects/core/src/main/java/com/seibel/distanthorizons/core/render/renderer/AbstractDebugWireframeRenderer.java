@@ -51,6 +51,12 @@ public abstract class AbstractDebugWireframeRenderer implements IBindable
 		this.camPosFloatThisFrame = new DhVec3f(renderParams.exactCameraPosition);
 		
 		
+		// Allows Blaze3D to batch every renderBox() call made during 
+		// this frame into vs one render pass per box.
+		// Does nothing on OpenGL.
+		this.beginRenderBatch();
+		
+		
 		this.rendererLists.render(this);
 		
 		
@@ -72,9 +78,18 @@ public abstract class AbstractDebugWireframeRenderer implements IBindable
 			this.renderBox(particle.createNewRenderBox());
 		}
 		
+		
+		// render any remaining queued boxes
+		this.endRenderBatch();
+		
 	}
 	
 	public abstract void renderBox(Box box);
+	
+	/** Called once at the start of {@link #render(RenderParams)}, before any {@link #renderBox(Box)} calls. Override to reset/prepare a batch. */
+	protected void beginRenderBatch() { }
+	/** Called once at the end of {@link #render(RenderParams)}, after all {@link #renderBox(Box)} calls for the frame. Override to flush a batch. */
+	protected void endRenderBatch() { }
 	
 	//endregion
 	

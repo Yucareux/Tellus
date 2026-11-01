@@ -64,7 +64,7 @@ public class ExtendedHeightDataPointTest
 		Assert.assertEquals(15, RenderDataPointUtil.getBlockMaterialId(dataPoint));
 		Assert.assertEquals(0xFF_FF_7E_AE, RenderDataPointUtil.getColor(dataPoint));
 
-		long shifted = RenderDataPointUtil.shiftHeightAndDepth(dataPoint, (short) 100);
+		long shifted = RenderDataPointUtil.setYMax(RenderDataPointUtil.setYMin(dataPoint, TALL_BOTTOM_Y + 100), TALL_TOP_Y + 100);
 		Assert.assertEquals(TALL_TOP_Y + 100, RenderDataPointUtil.getYMax(shifted));
 		Assert.assertEquals(TALL_BOTTOM_Y + 100, RenderDataPointUtil.getYMin(shifted));
 		Assert.assertEquals(RenderDataPointUtil.getColor(dataPoint), RenderDataPointUtil.getColor(shifted));

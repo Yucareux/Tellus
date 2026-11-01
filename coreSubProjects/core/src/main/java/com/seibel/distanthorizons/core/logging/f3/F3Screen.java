@@ -138,8 +138,8 @@ public class F3Screen
 		{
 			// multi thread pools
 			messageList.add(PriorityTaskPicker.Executor.getThreadPoolStatString("World Gen/Import", ThreadPoolUtil.getWorldGenExecutor()));
-			messageList.add(PriorityTaskPicker.Executor.getThreadPoolStatString("Render Load", ThreadPoolUtil.getFileHandlerExecutor()));
-			messageList.add(PriorityTaskPicker.Executor.getThreadPoolStatString("File Handler", ThreadPoolUtil.getRenderLoadingExecutor()));
+			messageList.add(PriorityTaskPicker.Executor.getThreadPoolStatString("Render Load", ThreadPoolUtil.getRenderLoadingExecutor()));
+			messageList.add(PriorityTaskPicker.Executor.getThreadPoolStatString("File Handler", ThreadPoolUtil.getFileHandlerExecutor()));
 			messageList.add(PriorityTaskPicker.Executor.getThreadPoolStatString("Update Propagator", ThreadPoolUtil.getUpdatePropagatorExecutor()));
 			messageList.add(PriorityTaskPicker.Executor.getThreadPoolStatString("LOD Builder", ThreadPoolUtil.getChunkToLodBuilderExecutor()));
 			messageList.add(PriorityTaskPicker.Executor.getThreadPoolStatString("Networking", ThreadPoolUtil.getNetworkCompressionExecutor()));

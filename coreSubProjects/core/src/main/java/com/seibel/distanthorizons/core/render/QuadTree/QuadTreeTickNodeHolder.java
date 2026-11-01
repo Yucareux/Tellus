@@ -24,6 +24,12 @@ public class QuadTreeTickNodeHolder
 	private final HashSet<QuadNode<LodRenderSection>> nodesToEnable = new HashSet<>();
 	private final HashSet<QuadNode<LodRenderSection>> nodesToDisable = new HashSet<>();
 	private final ArrayList<QuadNode<LodRenderSection>> nodesToEnableDeleteChildrenList = new ArrayList<>();
+	/**
+	 * Nodes at their expected detail level, whether they end up rendering or not. <br>
+	 * A node that can't draw its whole area yet stays hidden behind its parent,
+	 * but still needs its data retrieved so it can replace that parent.
+	 */
+	private final ArrayList<QuadNode<LodRenderSection>> expectedDetailNodes = new ArrayList<>();
 	
 	/** 
 	 * not included in {@link #clear()} to allow for use on the {@link LodQuadTree}'s
@@ -50,6 +56,7 @@ public class QuadTreeTickNodeHolder
 		this.nodesToEnable.clear();
 		this.nodesToDisable.clear();
 		this.nodesToEnableDeleteChildrenList.clear();
+		this.expectedDetailNodes.clear();
 	}
 	
 	
@@ -119,14 +126,18 @@ public class QuadTreeTickNodeHolder
 		}
 	}
 	public ArrayList<QuadNode<LodRenderSection>> getEnableDeleteChildrenNodes() { return this.nodesToEnableDeleteChildrenList; }
+	
+	
+	// world gen
+	public void addExpectedDetailNode(QuadNode<LodRenderSection> node) { this.expectedDetailNodes.add(node); }
 	public ArrayList<QuadNode<LodRenderSection>> getWorldGenNodesNearToFar(DhBlockPos2D centerPos) 
 	{
 		this.quadNodeNearComparator.centerPos = centerPos;
-		this.nodesToEnableDeleteChildrenList.sort(this.quadNodeNearComparator);
+		this.expectedDetailNodes.sort(this.quadNodeNearComparator);
 		
 		// this 
 		this.nodesForWorldGen.clear();
-		this.nodesForWorldGen.addAll(this.nodesToEnableDeleteChildrenList);
+		this.nodesForWorldGen.addAll(this.expectedDetailNodes);
 		
 		return this.nodesForWorldGen;
 	}

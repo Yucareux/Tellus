@@ -1,8 +1,10 @@
-#version 330 core
+#version 330
+// needed for "layout(location = 0)" required as as of MC 26.3
+#extension GL_ARB_separate_shader_objects : require
 
-in vec2 TexCoord;
+layout(location = 0) in vec2 texCoord;
 
-out vec4 fragColor;
+layout(location = 0) out vec4 fragColor;
 
 uniform sampler2D uMcDepthTexture;
 uniform sampler2D uCombinedMcDhColorTexture;
@@ -22,7 +24,8 @@ layout (std140) uniform fragUniformBlock
     mat4 uDhInvMvmProj;
     mat4 uMcInvMvmProj;
 
-    bool uIsReverseZDepth;
+    bool uIsMcReverseZDepth;
+    bool uDepthIsZeroToPositiveOne;
 };
 
 
@@ -34,8 +37,8 @@ layout (std140) uniform fragUniformBlock
 vec3 calcViewPosition(float fragmentDepth, mat4 invMvmProj)
 {
     // normalized device coordinates
-    vec4 ndc = vec4(TexCoord.xy, fragmentDepth, 1.0);
-    if (uIsReverseZDepth)
+    vec4 ndc = vec4(texCoord.xy, fragmentDepth, 1.0);
+    if (uDepthIsZeroToPositiveOne)
     {
         // Z already in [0,1], don't remap
         ndc.xy = ndc.xy * 2.0 - 1.0;
@@ -58,9 +61,9 @@ vec3 calcViewPosition(float fragmentDepth, mat4 invMvmProj)
 void main() 
 {
     // includes both the vanilla chunks as well as DH
-    vec4 combinedMcDhColor = texture(uCombinedMcDhColorTexture, TexCoord);
+    vec4 combinedMcDhColor = texture(uCombinedMcDhColorTexture, texCoord);
     // just the DH render pass
-    vec4 dhColor = texture(uDhColorTexture, TexCoord);
+    vec4 dhColor = texture(uDhColorTexture, texCoord);
     
     // completely remove the MC render pass to only show LODs
     // useful for debugging/troubleshooting, but doesn't improve performance since MC is still rendering
@@ -78,13 +81,13 @@ void main()
         dhColor = combinedMcDhColor;
     }
     
-    float mcFragmentDepth = texture(uMcDepthTexture, TexCoord).r;
-    float dhFragmentDepth = texture(uDhDepthTexture, TexCoord).r;
+    float mcFragmentDepth = texture(uMcDepthTexture, texCoord).r;
+    float dhFragmentDepth = texture(uDhDepthTexture, texCoord).r;
     vec3 dhVertexWorldPos = calcViewPosition(dhFragmentDepth, uDhInvMvmProj);
 
     // we only want to fade vanilla rendered objects, not to the sky or LODs
     bool isGround;
-    if (uIsReverseZDepth)
+    if (uIsMcReverseZDepth)
     {
         isGround = (mcFragmentDepth > 0);
     }

@@ -82,12 +82,17 @@ public class TestPrimaryKeyRepo extends AbstractDhRepo<Integer, TestSingleKeyDto
 	}
 	
 	@Override
-	public PreparedStatement createInsertStatement(TestSingleKeyDto dto) throws SQLException
+	public PreparedStatement createUpsertStatement(TestSingleKeyDto dto) throws SQLException
 	{
 		String sql = 
 			"INSERT INTO "+this.getTableName()+" \n" +
-				"(Id, Value, LongValue, ByteValue) \n" +
-			"VALUES(?,?,?,?);";
+			"	(Id, Value, LongValue, ByteValue) \n" +
+			"VALUES(?,?,?,?) \n" +
+			"ON CONFLICT(Id) DO UPDATE SET\n" +
+			"     Value = excluded.Value \n" +
+			"    ,LongValue = excluded.LongValue \n" +
+			"    ,ByteValue = excluded.ByteValue \n" +
+			"";
 		PreparedStatement statement = this.createPreparedStatement(sql);
 		
 		int i = 1; // post-increment for the win!
@@ -100,26 +105,6 @@ public class TestPrimaryKeyRepo extends AbstractDhRepo<Integer, TestSingleKeyDto
 		return statement;
 	}
 	
-	@Override
-	public PreparedStatement createUpdateStatement(TestSingleKeyDto dto) throws SQLException
-	{
-		String sql =
-			"UPDATE "+this.getTableName()+" \n" +
-			"SET \n" +
-			"   Value = ? \n" +
-			"   ,LongValue = ? \n" +
-			"   ,ByteValue = ? \n" +
-			"WHERE Id = ?";
-		PreparedStatement statement = this.createPreparedStatement(sql);
-		
-		int i = 1;
-		statement.setObject(i++, dto.value);
-		statement.setObject(i++, dto.longValue);
-		statement.setObject(i++, dto.byteValue);
-		
-		statement.setObject(i++, dto.id);
-		
-		return statement;
-	}
+	
 	
 }

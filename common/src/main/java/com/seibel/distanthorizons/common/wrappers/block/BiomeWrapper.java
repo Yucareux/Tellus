@@ -26,6 +26,7 @@ import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 
+import com.seibel.distanthorizons.core.dependencyInjection.SingletonInjector;
 import com.seibel.distanthorizons.core.logging.DhLoggerBuilder;
 import com.seibel.distanthorizons.core.wrapperInterfaces.world.ILevelWrapper;
 import com.seibel.distanthorizons.core.logging.DhLogger;
@@ -48,7 +49,8 @@ import net.minecraft.core.Holder;
 import net.minecraft.core.registries.Registries;
 #endif
 
-#if MC_VER <= MC_1_12_2
+#if MC_VER <= MC_1_7_10
+#elif MC_VER <= MC_1_12_2
 import net.minecraft.util.ResourceLocation;
 #elif MC_VER <= MC_1_21_10
 import net.minecraft.resources.ResourceLocation;
@@ -57,7 +59,9 @@ import net.minecraft.resources.Identifier;
 import net.minecraft.core.component.DataComponentMap;
 #endif
 
-#if MC_VER <= MC_1_12_2
+#if MC_VER <= MC_1_7_10
+import net.minecraft.world.biome.BiomeGenBase;
+#elif MC_VER <= MC_1_12_2
 import net.minecraft.world.biome.Biome;
 #else
 import net.minecraft.world.level.biome.Biome;
@@ -75,8 +79,13 @@ public class BiomeWrapper implements IBiomeWrapper
 	// must be defined before AIR, otherwise a null pointer will be thrown
 	private static final DhLogger LOGGER = new DhLoggerBuilder().build();
 	
+	#if MC_VER <= MC_1_7_10
+	private static final IBiomeHandler BIOME_HANDLER = SingletonInjector.INSTANCE.get(IBiomeHandler.class);
+	#endif
 	
-	#if MC_VER < MC_1_18_2
+	#if MC_VER <= MC_1_7_10
+	public static final ConcurrentMap<BiomeGenBase, BiomeWrapper> WRAPPER_BY_BIOME = new ConcurrentHashMap<>();
+	#elif MC_VER < MC_1_18_2
 	public static final ConcurrentMap<Biome, BiomeWrapper> WRAPPER_BY_BIOME = new ConcurrentHashMap<>();
 	#else
 	public static final ConcurrentMap<Holder<Biome>, BiomeWrapper> WRAPPER_BY_BIOME = new ConcurrentHashMap<>();
@@ -87,7 +96,11 @@ public class BiomeWrapper implements IBiomeWrapper
 	public static final String EMPTY_BIOME_STRING = "EMPTY";
 	public static final BiomeWrapper EMPTY_WRAPPER = new BiomeWrapper(null, null);
 	
-	public static final String PLAINS_RESOURCE_LOCATION_STRING = "minecraft:plains";
+	public static final String PLAINS_RESOURCE_LOCATION_STRING = 
+		#if MC_VER <= MC_1_7_10 "biome:Plains"
+		#else "minecraft:plains" #endif;
+	
+	
 	
 	/** keep track of broken biomes so we don't log every time */
 	private static final HashSet<String> brokenResourceLocationStrings = new HashSet<>();
@@ -103,7 +116,9 @@ public class BiomeWrapper implements IBiomeWrapper
 	
 	// properties //
 	
-	#if MC_VER < MC_1_18_2
+	#if MC_VER <= MC_1_7_10
+	public final BiomeGenBase biome;
+	#elif MC_VER < MC_1_18_2
 	public final Biome biome;
 	#else
 	public final Holder<Biome> biome;
@@ -120,7 +135,9 @@ public class BiomeWrapper implements IBiomeWrapper
 	//==============//
 	//region
 	
-	#if MC_VER < MC_1_18_2
+	#if MC_VER <= MC_1_7_10
+	public static BiomeWrapper getBiomeWrapper(BiomeGenBase biome, ILevelWrapper levelWrapper)
+	#elif MC_VER < MC_1_18_2
 	public static BiomeWrapper getBiomeWrapper(Biome biome, ILevelWrapper levelWrapper)
 	#else
 	public static BiomeWrapper getBiomeWrapper(Holder<Biome> biome, ILevelWrapper levelWrapper)
@@ -145,7 +162,9 @@ public class BiomeWrapper implements IBiomeWrapper
 		}
 	}
 	
-	#if MC_VER < MC_1_18_2
+	#if MC_VER <= MC_1_7_10
+	private BiomeWrapper(BiomeGenBase biome, ILevelWrapper levelWrapper)
+	#elif MC_VER < MC_1_18_2
 	private BiomeWrapper(Biome biome, ILevelWrapper levelWrapper)
 	#else
 	private BiomeWrapper(Holder<Biome> biome, ILevelWrapper levelWrapper)
@@ -175,41 +194,35 @@ public class BiomeWrapper implements IBiomeWrapper
 			return EMPTY_BIOME_STRING;
 		}
 		
-        #if MC_VER < MC_1_18_2
-		return biome.toString();
+        #if MC_VER <= MC_1_7_10
+		return this.biome.biomeName;
+        #elif MC_VER < MC_1_18_2
+		return this.biome.toString();
         #else
 		return this.biome.unwrapKey().orElse(Biomes.THE_VOID).registry().toString();
         #endif
 	}
 	
 	@Override
-	public boolean equals(Object obj)
+	public boolean isColdBiome()
 	{
-		if (this == obj)
-		{
-			return true;
-		}
-		else if (obj == null || this.getClass() != obj.getClass())
-		{
-			return false;
-		}
-		
-		BiomeWrapper that = (BiomeWrapper) obj;
-		// the serialized value is used so we can test the contents instead of the references
-		return Objects.equals(this.getSerialString(), that.getSerialString());
+		// https://minecraft.wiki/w/Biome#Temperature
+		#if MC_VER <= MC_1_7_10
+		return this.biome.temperature < 0.1f;
+		#elif MC_VER <= MC_1_12_2
+		return this.biome.isSnowyBiome();
+		#elif MC_VER < MC_1_18_2
+		return this.biome.getBaseTemperature() < 0.1f;
+		#else
+		return this.biome.value().getBaseTemperature() < 0.1f;
+		#endif
 	}
-	
-	@Override
-	public int hashCode() { return this.hashCode; }
 	
 	@Override
 	public String getSerialString() { return this.serialString; }
 	
 	@Override
 	public Object getWrappedMcObject() { return this.biome; }
-	
-	@Override
-	public String toString() { return this.getSerialString(); }
 	
 	//endregion
 	
@@ -250,6 +263,9 @@ public class BiomeWrapper implements IBiomeWrapper
 		net.minecraft.core.RegistryAccess registryAccess = level.registryAccess();
 		#endif
 		
+		#if MC_VER <= MC_1_7_10
+		this.serialString = "biome:" + this.biome.biomeName;
+		#else
 		#if MC_VER <= MC_1_21_10
 		ResourceLocation resourceLocation;
 		#else
@@ -286,6 +302,7 @@ public class BiomeWrapper implements IBiomeWrapper
 		{
 			this.serialString = resourceLocation.getNamespace() + ":" + resourceLocation.getPath();
 		}
+		#endif
 		
 		return this.serialString;
 	}
@@ -373,6 +390,11 @@ public class BiomeWrapper implements IBiomeWrapper
 			throw new IOException("Unable to parse resource location string: [" + resourceLocationString + "].");
 		}
 		
+		#if MC_VER <= MC_1_7_10
+		String biomeName = resourceLocationString.substring(separatorIndex + 1);
+		BiomeGenBase biome = BIOME_HANDLER.getBiomeByName(biomeName);
+		boolean success = (biome != null);
+		#else
 		#if MC_VER < MC_1_21_11
 		ResourceLocation resourceLocation;
 		#else
@@ -438,6 +460,7 @@ public class BiomeWrapper implements IBiomeWrapper
 			biome = null;
 		}
 		#endif
+		#endif
 		
 		return new BiomeDeserializeResult(success, biome);
 	}
@@ -455,13 +478,17 @@ public class BiomeWrapper implements IBiomeWrapper
 	{
 		public final boolean success;
 		
-		#if MC_VER < MC_1_18_2
+		#if MC_VER <= MC_1_7_10
+		public final BiomeGenBase biome;
+		#elif MC_VER < MC_1_18_2
 		public final Biome biome;
 		#else
 		public final Holder<Biome> biome;
         #endif
 		
-		#if MC_VER < MC_1_18_2
+		#if MC_VER <= MC_1_7_10
+		public BiomeDeserializeResult(boolean success, BiomeGenBase biome)
+		#elif MC_VER < MC_1_18_2
 		public BiomeDeserializeResult(boolean success, Biome biome)
 		#else
 		public BiomeDeserializeResult(boolean success, Holder<Biome> biome)
@@ -474,6 +501,37 @@ public class BiomeWrapper implements IBiomeWrapper
 	
 	//endregion
 	
+	
+	
+	//================//
+	// base overrides //
+	//================//
+	//region
+	
+	@Override
+	public boolean equals(Object obj)
+	{
+		if (this == obj)
+		{
+			return true;
+		}
+		else if (obj == null || this.getClass() != obj.getClass())
+		{
+			return false;
+		}
+		
+		BiomeWrapper that = (BiomeWrapper) obj;
+		// the serialized value is used so we can test the contents instead of the references
+		return Objects.equals(this.getSerialString(), that.getSerialString());
+	}
+	
+	@Override
+	public int hashCode() { return this.hashCode; }
+	
+	@Override
+	public String toString() { return this.getSerialString(); }
+	
+	//endregion
 	
 	
 }

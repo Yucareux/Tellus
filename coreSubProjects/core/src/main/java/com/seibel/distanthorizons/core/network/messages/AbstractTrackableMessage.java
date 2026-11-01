@@ -19,7 +19,7 @@
 
 package com.seibel.distanthorizons.core.network.messages;
 
-import com.google.common.base.MoreObjects;
+import com.seibel.distanthorizons.core.util.MoreObjects;
 import com.seibel.distanthorizons.core.api.internal.SharedApi;
 import com.seibel.distanthorizons.core.network.messages.requests.ExceptionMessage;
 import com.seibel.distanthorizons.core.network.session.NetworkSession;

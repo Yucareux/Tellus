@@ -21,7 +21,6 @@ package com.seibel.distanthorizons.core.api.internal;
 
 import com.seibel.distanthorizons.api.DhApi;
 import com.seibel.distanthorizons.api.enums.config.EDhApiMcRenderingFadeMode;
-import com.seibel.distanthorizons.api.enums.config.EDhApiRenderingEngine;
 import com.seibel.distanthorizons.api.enums.rendering.EDhApiRenderPass;
 import com.seibel.distanthorizons.api.methods.events.abstractEvents.*;
 import com.seibel.distanthorizons.core.api.internal.rendering.DhRenderState;
@@ -32,11 +31,12 @@ import com.seibel.distanthorizons.core.logging.DhLoggerBuilder;
 import com.seibel.distanthorizons.core.logging.f3.F3Screen;
 import com.seibel.distanthorizons.core.network.messages.MessageRegistry;
 import com.seibel.distanthorizons.core.pos.DhChunkPos;
+import com.seibel.distanthorizons.core.render.CameraZoom;
 import com.seibel.distanthorizons.core.render.DhApiRenderProxy;
 import com.seibel.distanthorizons.core.render.RenderParams;
 import com.seibel.distanthorizons.core.render.RenderThreadTaskHandler;
 import com.seibel.distanthorizons.core.render.renderer.*;
-import com.seibel.distanthorizons.core.util.TimerUtil;
+import com.seibel.distanthorizons.core.util.KeyCodesUtil;
 import com.seibel.distanthorizons.core.util.math.DhVec3d;
 import com.seibel.distanthorizons.core.util.objects.Pair;
 import com.seibel.distanthorizons.core.util.objects.RollingAverage;
@@ -66,8 +66,6 @@ import com.seibel.distanthorizons.core.wrapperInterfaces.world.IClientLevelWrapp
 import com.seibel.distanthorizons.core.logging.DhLogger;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
-import org.lwjgl.glfw.GLFW;
-
 import java.io.File;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
@@ -95,10 +93,11 @@ public class ClientApi
 	private static class DelayedAccessors 
 	{
 		public static final IImmersivePortalsAccessor IMMERSIVE_PORTALS = ModAccessorInjector.INSTANCE.get(IImmersivePortalsAccessor.class);
+		public static final IIrisAccessor IRIS = ModAccessorInjector.INSTANCE.get(IIrisAccessor.class);
 	}
 	
 	/** this includes the is dev build message and low allocated memory warning */
-	private static final int MS_BETWEEN_STATIC_STARTUP_MESSAGES = 4_000;
+	private static final int MS_BETWEEN_WARNING_MESSAGES = 3_000;
 	
 	/** 
 	 * This isn't the cleanest way of storing variables before passing them to the LOD renderer, 
@@ -126,12 +125,12 @@ public class ClientApi
 	private boolean isDevBuildMessagePrinted = false;
 	private boolean lowMemoryWarningPrinted = false;
 	private boolean highVanillaRenderDistanceWarningPrinted = false;
-	private boolean deprecatedRendererWarningPrinted = false;
 	
-	private long lastStaticWarningMessageSentMsTime = 0L;
+	private long lastSlowChatMessageSentMsTime = 0L;
 	
-	private final Queue<String> chatMessageQueueForNextFrame = new LinkedBlockingQueue<>();
-	private final Queue<String> overlayMessageQueueForNextFrame = new LinkedBlockingQueue<>();
+	private final Queue<String> slowChatMessageQueue = new LinkedBlockingQueue<>();
+	private final Queue<String> fastChatMessageQueue = new LinkedBlockingQueue<>();
+	private final Queue<String> overlayMessageQueue = new LinkedBlockingQueue<>();
 	
 	public boolean rendererDisabledBecauseOfExceptions = false;
 	
@@ -245,7 +244,7 @@ public class ClientApi
 	//==============//
 	// level events //
 	//==============//
-	//region
+	//region level events
 	
 	public void loadWaitingChunksForLevel(IClientLevelWrapper level)
 	{
@@ -394,11 +393,11 @@ public class ClientApi
 					
 					
 					
-					//======================//
-					// GL Proxy queued jobs //
-					//======================//
+					//====================//
+					// Render Thread jobs //
+					//====================//
 					//region
-					
+
 					try
 					{
 						// these tasks always need to be called, regardless of whether the renderer is enabled or not to prevent memory leaks
@@ -408,7 +407,7 @@ public class ClientApi
 					{
 						LOGGER.error("Unexpected issue running render thread tasks, error: [" + e.getMessage() + "].", e);
 					}
-					
+
 					//endregion
 					
 					
@@ -442,16 +441,14 @@ public class ClientApi
 					
 					
 					
-					//====================//
-					// Iris data re-build //
-					//====================//
+					//================================//
+					// Iris LOD data re-build trigger //
+					//================================//
 					//region
 					
-					// delayed getter since ClientApi is created before this accessor is bound
-					IIrisAccessor irisAccessor = ModAccessorInjector.INSTANCE.get(IIrisAccessor.class);
-					if (irisAccessor != null)
+					if (DelayedAccessors.IRIS != null)
 					{
-						boolean shadersActive = irisAccessor.isShaderPackInUse();
+						boolean shadersActive = DelayedAccessors.IRIS.isShaderPackInUse();
 						if (this.irisShadersEnabledLastFrame != shadersActive)
 						{
 							this.irisShadersEnabledLastFrame = shadersActive;
@@ -460,6 +457,45 @@ public class ClientApi
 					}
 					
 					//endregion
+					
+					
+					
+					//=============//
+					// Camera Zoom //
+					//=============//
+					//region
+					
+					boolean updateCameraZoom = true;
+					if (DelayedAccessors.IRIS != null
+						&& DelayedAccessors.IRIS.isRenderingShadowPass())
+					{
+						// only update the zoom if we're rendering the player's camera
+						// if we update the zoom during the shadow pass it will cause flickering
+						// due to the conflicting zoom information.
+						updateCameraZoom = false;
+					}
+					
+					if (updateCameraZoom)
+					{
+						CameraZoom.INSTANCE.update(RENDER_STATE);
+					}
+					
+					//endregion
+					
+					
+					
+					//===============================//
+					// Immersive Portals Mixin Check //
+					//===============================//
+					//region
+					
+					if (DelayedAccessors.IMMERSIVE_PORTALS != null)
+					{
+						DelayedAccessors.IMMERSIVE_PORTALS.logWarningIfMixinNotRunRecently();
+					}
+					
+					//endregion
+					
 				}
 			}
 			
@@ -510,7 +546,14 @@ public class ClientApi
 			{
 				// store the error message so it can be seen on the F3 screen
 				this.lastRenderParamValidationMessage = validationMessage;
-				return;
+				
+				// Allow the debug triangle to render regardless of validation
+				// since the triangle just renders directly to the screen
+				// and doesn't care about any params
+				if (Config.Client.Advanced.Debugging.rendererMode.get() != EDhApiRendererMode.DEBUG_TRIANGLE)
+				{
+					return;
+				}
 			}
 			else
 			{
@@ -551,6 +594,8 @@ public class ClientApi
 				{
 					if (!renderingDeferredLayer)
 					{
+						// normal/opaque
+						
 						boolean renderingCancelled = ApiEventInjector.INSTANCE.fireAllEvents(DhApiBeforeRenderEvent.class, RENDER_PARAMS);
 						if (!renderingCancelled)
 						{
@@ -564,6 +609,8 @@ public class ClientApi
 					}
 					else
 					{
+						// deferred
+						
 						boolean renderingCancelled = ApiEventInjector.INSTANCE.fireAllEvents(DhApiBeforeDeferredRenderEvent.class, RENDER_PARAMS);
 						if (!renderingCancelled)
 						{
@@ -638,7 +685,7 @@ public class ClientApi
 		}
 		
 		// only fade when DH is rendering
-		if (Config.Client.Advanced.Debugging.rendererMode.get() != EDhApiRendererMode.DISABLED
+		if (Config.Client.Advanced.Debugging.rendererMode.get() == EDhApiRendererMode.DEFAULT
 			&&
 			(
 				// only fade when requested
@@ -666,7 +713,7 @@ public class ClientApi
 		}
 		
 		// only fade when DH is rendering
-		if (Config.Client.Advanced.Debugging.rendererMode.get() != EDhApiRendererMode.DISABLED)
+		if (Config.Client.Advanced.Debugging.rendererMode.get() == EDhApiRendererMode.DEFAULT)
 		{
 			boolean renderFade =
 				(
@@ -687,15 +734,15 @@ public class ClientApi
 	private static boolean shouldRenderFade()
 	{
 		// don't fade when Iris shaders are active, otherwise the rendering can get weird
-		if (DhApiRenderProxy.INSTANCE.getDeferTransparentRendering())
+		if (DelayedAccessors.IRIS != null
+			&& DelayedAccessors.IRIS.isShaderPackInUse())
 		{
 			return false;
 		}
 		
 		// Don't render fade through immersive portals, this causes the fade to apply incorrectly
-		IImmersivePortalsAccessor immersivePortals = ModAccessorInjector.INSTANCE.get(IImmersivePortalsAccessor.class);
-		if (immersivePortals != null 
-			&& immersivePortals.isRenderingPortal())
+		if (DelayedAccessors.IMMERSIVE_PORTALS != null 
+			&& DelayedAccessors.IMMERSIVE_PORTALS.isRenderingPortal())
 		{
 			return false;
 		}
@@ -722,17 +769,17 @@ public class ClientApi
 		}
 		
 		
-		if (glfwKey == GLFW.GLFW_KEY_F6)
+		if (glfwKey == KeyCodesUtil.F6)
 		{
 			Config.Client.Advanced.Debugging.rendererMode.set(EDhApiRendererMode.next(Config.Client.Advanced.Debugging.rendererMode.get()));
 			MC_CLIENT.sendChatMessage("F6: Set rendering to " + Config.Client.Advanced.Debugging.rendererMode.get());
 		}
-		else if (glfwKey == GLFW.GLFW_KEY_F7)
+		else if (glfwKey == KeyCodesUtil.F7)
 		{
 			Config.Client.Advanced.Debugging.lodOnlyMode.set(!Config.Client.Advanced.Debugging.lodOnlyMode.get());
 			MC_CLIENT.sendChatMessage("F7: Set LOD only mode to " + Config.Client.Advanced.Debugging.lodOnlyMode.get());
 		}
-		else if (glfwKey == GLFW.GLFW_KEY_F8)
+		else if (glfwKey == KeyCodesUtil.F8)
 		{
 			Config.Client.Advanced.Debugging.debugRenderingColors.set(EDhApiDebugRendering.next(Config.Client.Advanced.Debugging.debugRenderingColors.get()));
 			MC_CLIENT.sendChatMessage("F8: Set debug mode to " + Config.Client.Advanced.Debugging.debugRenderingColors.get());
@@ -754,30 +801,58 @@ public class ClientApi
 		// and configuration warnings (IE Java memory amount and MC settings)
 		this.detectAndSendBootTimeWarnings();
 		
-		// Don't send any generic messages until the static ones have been sent.
-		// This makes sure the more critical messages are seen first.
-		if (this.staticStartupMessageSentRecently())
-		{
-			return;
-		}
-			
 		
-		// chat messages
-		while (!this.chatMessageQueueForNextFrame.isEmpty())
+		// slow chat messages
 		{
-			String message = this.chatMessageQueueForNextFrame.poll();
-			if (message == null)
+			// if for some reason we end up with a lot of messages in the queue (world gen)
+			// show everything to prevent the queue from growing infinitely
+			boolean chatQueueBackedUp = this.slowChatMessageQueue.size() > 25;
+			
+			// chat messages
+			while (!this.slowChatMessageQueue.isEmpty())
 			{
-				// done to prevent potential null pointers
-				message = "";
+				// limit chat message rate so each one can be seen
+				// before being pushed off-screen
+				if (this.chatMessageSentRecently()
+					// unless the queue is backed up
+					&& !chatQueueBackedUp)
+				{
+					break;
+				}
+				
+				// last chat time is only tracked for slow messages
+				// to prevent ever sending any if a lot of fast messages are being sent
+				this.lastSlowChatMessageSentMsTime = System.currentTimeMillis();
+				
+				String message = this.slowChatMessageQueue.poll();
+				if (message == null)
+				{
+					// done to prevent potential null pointers
+					message = "";
+				}
+				MC_CLIENT.sendChatMessage(message);
 			}
-			MC_CLIENT.sendChatMessage(message);
+		}
+		
+		// fast chat messages
+		{
+			// chat messages
+			while (!this.fastChatMessageQueue.isEmpty())
+			{
+				String message = this.fastChatMessageQueue.poll();
+				if (message == null)
+				{
+					// done to prevent potential null pointers
+					message = "";
+				}
+				MC_CLIENT.sendChatMessage(message);
+			}
 		}
 		
 		// overlay messages
-		while (!this.overlayMessageQueueForNextFrame.isEmpty())
+		while (!this.overlayMessageQueue.isEmpty())
 		{
-			String message = this.overlayMessageQueueForNextFrame.poll();
+			String message = this.overlayMessageQueue.poll();
 			if (message == null)
 			{
 				// done to prevent potential null pointers
@@ -796,7 +871,7 @@ public class ClientApi
 			&& MC_CLIENT.playerExists())
 		{
 			this.isDevBuildMessagePrinted = true;
-			this.lastStaticWarningMessageSentMsTime = System.currentTimeMillis();
+			this.lastSlowChatMessageSentMsTime = System.currentTimeMillis();
 			
 			// remind the user that this is a development build
 			String message =
@@ -808,12 +883,12 @@ public class ClientApi
 		
 		
 		// memory
-		if (this.staticStartupMessageSentRecently()) return;
+		if (this.chatMessageSentRecently()) return;
 		if (!this.lowMemoryWarningPrinted 
 			&& Config.Common.Logging.Warning.showLowMemoryWarningOnStartup.get())
 		{
 			this.lowMemoryWarningPrinted = true;
-			this.lastStaticWarningMessageSentMsTime = System.currentTimeMillis();
+			this.lastSlowChatMessageSentMsTime = System.currentTimeMillis();
 			
 			// 4 GB
 			long minimumRecommendedMemoryInBytes = 4L * 1_000_000_000L;
@@ -834,7 +909,7 @@ public class ClientApi
 		
 		
 		// high vanilla render distance
-		if (this.staticStartupMessageSentRecently()) return;
+		if (this.chatMessageSentRecently()) return;
 		if (!this.highVanillaRenderDistanceWarningPrinted 
 			&& Config.Common.Logging.Warning.showHighVanillaRenderDistanceWarning.get())
 		{
@@ -843,7 +918,7 @@ public class ClientApi
 			// DH generally doesn't need a vanilla render distance above 12 
 			if (MC_RENDER.getRenderDistance() > 12)
 			{
-				this.lastStaticWarningMessageSentMsTime = System.currentTimeMillis();
+				this.lastSlowChatMessageSentMsTime = System.currentTimeMillis();
 				
 				String message =
 					MinecraftTextFormat.YELLOW + "Distant Horizons: High vanilla render distance detected." + MinecraftTextFormat.CLEAR_FORMATTING + "\n" +
@@ -856,54 +931,18 @@ public class ClientApi
 				MC_CLIENT.sendChatMessage(message);
 			}
 		}
-		
-		
-		
-		//==================//
-		// Rendering Engine //
-		//==================//
-		//region
-		if (this.staticStartupMessageSentRecently()) return;
-		if (!this.deprecatedRendererWarningPrinted)
-		{
-			this.deprecatedRendererWarningPrinted = true;
-			
-			// get the currently selected rendering API
-			EDhApiRenderingEngine activeRenderingEngine = Config.Client.Advanced.Graphics.Experimental.renderingEngine.get();
-			EDhApiRenderingEngine recommendedEngine = VERSION_CONSTANTS.getDefaultRenderingEngine();
-			
-			// complain when using OpenGL on newer MC versions
-			if (activeRenderingEngine == EDhApiRenderingEngine.OPEN_GL
-				&& recommendedEngine != EDhApiRenderingEngine.OPEN_GL)
-			{
-				if (Config.Common.Logging.Warning.showDeprecatedRendererWarningOnStartup.get())
-				{
-					IMinecraftClientWrapper mc = SingletonInjector.INSTANCE.get(IMinecraftClientWrapper.class);
-					String message =
-						MinecraftTextFormat.ORANGE + "Distant Horizons: Deprecated Rendering Engine." + MinecraftTextFormat.CLEAR_FORMATTING + "\n" +
-							"DH is currently rendering via raw OpenGL. \n" +
-							"Raw OpenGL is deprecated for this Minecraft version, \n" +
-							"meaning there may be visual issues. \n" +
-							"This warning can be disabled in DH's config under Advanced -> Logging. \n";
-					mc.sendChatMessage(message);
-				}
-			}
-		}
-		
-		//endregion
-		
 	}
-	/** done to prevent sending a bunch of startup messages all at once, causing some to be missed. */
-	private boolean staticStartupMessageSentRecently()
+	/** done to prevent sending a bunch of chat messages all at once, causing some to be missed. */
+	private boolean chatMessageSentRecently()
 	{
-		if (this.lastStaticWarningMessageSentMsTime == 0)
+		if (this.lastSlowChatMessageSentMsTime == 0)
 		{
 			// no static message has ever been sent
 			return false;
 		}
 		
-		long timeSinceLastMessage = System.currentTimeMillis() - this.lastStaticWarningMessageSentMsTime; 
-		return timeSinceLastMessage <= MS_BETWEEN_STATIC_STARTUP_MESSAGES;
+		long timeSinceLastMessage = System.currentTimeMillis() - this.lastSlowChatMessageSentMsTime; 
+		return timeSinceLastMessage <= MS_BETWEEN_WARNING_MESSAGES;
 	}
 	
 	
@@ -911,12 +950,21 @@ public class ClientApi
 	 * Queues the given message to appear in chat the next valid frame.
 	 * Useful for queueing up messages that may be triggered before the user has loaded into the world. 
 	 */
-	public void showChatMessageNextFrame(String chatMessage) { this.chatMessageQueueForNextFrame.add(chatMessage); }
+	public void queueSlowChatMessage(String chatMessage) { this.slowChatMessageQueue.add(chatMessage); }
+	
+	/** 
+	 * Similar to {@link ClientApi#queueSlowChatMessage(String)}
+	 * however any chat messages queued here will be shown immediately
+	 * instead of having a delay between messages. <br><br>
+	 * 
+	 * This is good for logging or alerts.
+	 */
+	public void queueFastChatMessage(String chatMessage) { this.fastChatMessageQueue.add(chatMessage); }
 	
 	/**
-	 * Similar to {@link ClientApi#showChatMessageNextFrame(String)} but appears above the toolbar.
+	 * Similar to {@link ClientApi#queueSlowChatMessage(String)} but appears above the toolbar.
 	 */
-	public void showOverlayMessageNextFrame(String message) { this.overlayMessageQueueForNextFrame.add(message); }
+	public void queueOverlayMessage(String message) { this.overlayMessageQueue.add(message); }
 	
 	//endregion
 	

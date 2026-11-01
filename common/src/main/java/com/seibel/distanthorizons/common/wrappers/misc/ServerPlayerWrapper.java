@@ -6,7 +6,11 @@ import com.seibel.distanthorizons.common.wrappers.world.ServerLevelWrapper;
 import com.seibel.distanthorizons.core.wrapperInterfaces.misc.IServerPlayerWrapper;
 import com.seibel.distanthorizons.core.wrapperInterfaces.world.IServerLevelWrapper;
 import com.seibel.distanthorizons.core.util.math.DhVec3d;
-#if MC_VER <= MC_1_12_2
+#if MC_VER <= MC_1_7_10
+import net.minecraft.entity.player.EntityPlayerMP;
+import net.minecraft.network.NetHandlerPlayServer;
+import net.minecraft.world.WorldServer;
+#elif MC_VER <= MC_1_12_2
 import net.minecraft.entity.player.EntityPlayerMP;
 import net.minecraft.network.NetHandlerPlayServer;
 import net.minecraft.server.MinecraftServer;
@@ -59,7 +63,15 @@ public class ServerPlayerWrapper implements IServerPlayerWrapper
 	#else
 	public static ServerPlayerWrapper getWrapper(ServerPlayer serverPlayer)
 	#endif
-	{ return serverPlayerWrapperMap.computeIfAbsent(serverPlayer.connection, ignored -> new ServerPlayerWrapper(serverPlayer.connection)); }
+	{
+		#if MC_VER <= MC_1_7_10
+		// 1.7.10's NetHandlerPlayServer is reached through `playerNetServerHandler`, not `connection`
+		NetHandlerPlayServer netHandler = serverPlayer.playerNetServerHandler;
+		return serverPlayerWrapperMap.computeIfAbsent(netHandler, ignored -> new ServerPlayerWrapper(netHandler));
+		#else
+		return serverPlayerWrapperMap.computeIfAbsent(serverPlayer.connection, ignored -> new ServerPlayerWrapper(serverPlayer.connection));
+		#endif
+	}
 	
 	#if MC_VER <= MC_1_12_2
 	private ServerPlayerWrapper(NetHandlerPlayServer connection)
@@ -82,12 +94,20 @@ public class ServerPlayerWrapper implements IServerPlayerWrapper
 	#else
 	private ServerPlayer getServerPlayer()
 	#endif
-	{ return this.connection.player; }
+	{
+		#if MC_VER <= MC_1_7_10
+		return this.connection.playerEntity;
+		#else
+		return this.connection.player;
+		#endif
+	}
 	
 	@Override
 	public String getName()
 	{
-		#if MC_VER <= MC_1_12_2
+		#if MC_VER <= MC_1_7_10
+		return this.getServerPlayer().getDisplayName();
+		#elif MC_VER <= MC_1_12_2
 		return this.getServerPlayer().getName();
 		#else
 		return this.getServerPlayer().getName().getString();
@@ -99,8 +119,9 @@ public class ServerPlayerWrapper implements IServerPlayerWrapper
 	{
 		#if MC_VER <= MC_1_12_2
 		WorldServer level = null;
-		if (this.getServerPlayer() instanceof IMixinServerPlayer mixinPlayer)
+		if (this.getServerPlayer() instanceof IMixinServerPlayer)
 		{
+			IMixinServerPlayer mixinPlayer = (IMixinServerPlayer) this.getServerPlayer();
 			level = mixinPlayer.distantHorizons$getDimensionChangeDestination();
 		}
 		#else
@@ -109,7 +130,9 @@ public class ServerPlayerWrapper implements IServerPlayerWrapper
 		
 		if (level == null)
 		{
-			#if MC_VER <= MC_1_12_2
+			#if MC_VER <= MC_1_7_10
+			level = (WorldServer) this.getServerPlayer().worldObj;
+			#elif MC_VER <= MC_1_12_2
 			MinecraftServer server = this.getServerPlayer().getServer();
 			level = (server != null) ? server.getWorld(this.getServerPlayer().dimension) : this.getServerPlayer().getServerWorld();
 			#elif MC_VER < MC_1_20_1
@@ -127,7 +150,10 @@ public class ServerPlayerWrapper implements IServerPlayerWrapper
 	@Override
 	public DhVec3d getPosition()
 	{
-		#if MC_VER <= MC_1_12_2
+		#if MC_VER <= MC_1_7_10
+		EntityPlayerMP player = this.getServerPlayer();
+		return new DhVec3d(player.posX, player.posY, player.posZ);
+		#elif MC_VER <= MC_1_12_2
 		BlockPos position = this.getServerPlayer().getPosition();
 		return new DhVec3d(position.getX(), position.getY(), position.getZ());
 		#else

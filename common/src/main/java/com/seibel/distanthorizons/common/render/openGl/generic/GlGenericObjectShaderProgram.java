@@ -159,7 +159,7 @@ public class GlGenericObjectShaderProgram extends GlShaderProgram implements IDh
 		
 		this.setUniform(this.instancedShaderProjectionModelViewMatrixUniform, projectionMvmMatrix);
 		
-		this.setUniform(this.lightMapUniform, LightMapWrapper.GL_BOUND_INDEX);
+		this.setUniform(this.lightMapUniform, LightMapWrapper.GL_DH_BOUND_INDEX);
 		this.setUniform(this.skyLightUniform, boxGroup.getSkyLight());
 		this.setUniform(this.blockLightUniform, boxGroup.getBlockLight());
 		
@@ -182,7 +182,7 @@ public class GlGenericObjectShaderProgram extends GlShaderProgram implements IDh
 			DhApiVec3d camPos)
 	{
 		
-		this.setUniform(this.lightMapUniform, LightMapWrapper.GL_BOUND_INDEX);
+		this.setUniform(this.lightMapUniform, LightMapWrapper.GL_DH_BOUND_INDEX);
 		this.setUniform(this.skyLightUniform, boxGroup.getSkyLight());
 		this.setUniform(this.blockLightUniform, boxGroup.getBlockLight());
 		

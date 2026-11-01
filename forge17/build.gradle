@@ -1,0 +1,72 @@
+plugins {
+    id 'unimined-forge17'
+}
+
+repositories {
+    mavenLocal()
+    maven {
+        name "GTNH Maven"
+        url "https://nexus.gtnewhorizons.com/repository/public/" // UniMixins
+    }
+    maven {
+        name = "mavenpattern"
+        url = "https://mvn.falsepattern.com/releases" // RPLE
+        content {
+            includeGroup "com.falsepattern"
+        }
+    }
+}
+
+// ==================== Mod Dependency Helper ====================
+
+def addMod(path, enabled) {
+    // GTNH dev jars use different MCP names from this project's stable mappings.
+    // Select the SRG release artifact explicitly for Unimined to remap at runtime;
+    // GTNH's default Gradle metadata otherwise selects the dev artifact.
+    if (enabled == "2")
+        dependencies { modImplementation("${path}@jar") { transitive = false } }
+    else if (enabled == "1")
+        dependencies { modCompileOnly("${path}:dev") { transitive = false } }
+}
+
+
+// ==================== Dependencies ====================
+
+dependencies {
+    modCompileOnly "com.github.GTNewHorizons:Hodgepodge:2.7.13:dev"
+    addMod("com.github.GTNewHorizons:GTNHLib:0.11.47", rootProject.enable_angelica == "2" ? "2" : "1")
+    modCompileOnly("com.github.GTNewHorizons:GT5-Unofficial:5.09.51.469:dev") { transitive = false }
+    addMod("com.github.GTNewHorizons:Angelica:2.2.12", rootProject.enable_angelica)
+    modCompileOnly "com.falsepattern:rple-mc1.7.10:2.1.0:api"
+    
+    modImplementation "io.github.legacymoddingmc:unimixins:0.2.1@jar"
+
+}
+
+// ==================== Tasks ====================
+
+task deleteResources(type: Delete) {
+    delete file("build/resources/main")
+}
+
+processResources {
+    dependsOn(copyCoreResources)
+    from(convertJsonToLang) { into 'assets/distanthorizons/lang' }
+    // dependsOn(copyCommonLoaderResources)
+
+    from(project(":common").file("src/main/resources/${gradle.ext.accessWidenerVersion}.distanthorizons_at.cfg")) {
+        into 'META-INF'
+    }
+}
+
+tasks.named('runClient') {
+    dependsOn(copyCoreResources)
+    // dependsOn(copyCommonLoaderResources)
+    finalizedBy(deleteResources)
+}
+
+sourcesJar {
+    def commonSources = project(":common").sourcesJar
+    dependsOn commonSources
+    from commonSources.archiveFile.map { zipTree(it) }
+}

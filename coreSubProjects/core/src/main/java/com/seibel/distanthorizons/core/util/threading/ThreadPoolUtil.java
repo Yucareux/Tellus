@@ -20,8 +20,12 @@
 package com.seibel.distanthorizons.core.util.threading;
 
 import com.seibel.distanthorizons.core.api.internal.ClientApi;
+import com.seibel.distanthorizons.core.config.Config;
+import com.seibel.distanthorizons.core.dependencyInjection.SingletonInjector;
+import com.seibel.distanthorizons.core.render.QuadTree.LodRenderSection;
 import com.seibel.distanthorizons.core.util.LodUtil;
 import com.seibel.distanthorizons.core.util.ThreadUtil;
+import com.seibel.distanthorizons.core.wrapperInterfaces.minecraft.IMinecraftSharedWrapper;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -34,6 +38,10 @@ import java.util.concurrent.*;
  */
 public class ThreadPoolUtil
 {
+	private static final IMinecraftSharedWrapper MC_SHARED = SingletonInjector.INSTANCE.get(IMinecraftSharedWrapper.class);
+	
+	
+	
 	//=========================//
 	// standalone thread pools //
 	//=========================//
@@ -112,11 +120,13 @@ public class ThreadPoolUtil
 		networkCompressionThreadPool = taskPicker.createExecutor("Network Compression");
 		networkClientHandlerThreadPool = ThreadUtil.makeSingleThreadPool("Network Client Handler");
 		fileHandlerThreadPool = taskPicker.createExecutor("IO");
-		renderSectionLoadThreadPool = taskPicker.createExecutor("Render Loader");
+		renderSectionLoadThreadPool = taskPicker.createExecutor("Render Loader", Thread.NORM_PRIORITY + 1, ThreadPoolUtil::renderLoaderThreadsCanRun) // higher priority since we want LODs to load in above all else to give the best impression of speed
+			// but not all threads: data updates (world gen, chunk updates near a moving player) keep queuing reloads,
+			// which would otherwise leave world gen and the update propagator without any threads
+			.limitThreadShareWhileOthersWait(0.5);
 		chunkToLodBuilderThreadPool = taskPicker.createExecutor("LOD Builder");
-		updatePropagatorThreadPool = taskPicker.createExecutor("Update Propagator", ThreadPoolUtil::worldGenThreadsCanRun); // the update propagator isn't necessary when moving through the world, so we'll pause it along with the world generator when moving fast
-		worldGenThreadPool = taskPicker.createExecutor("World Gen", ThreadPoolUtil::worldGenThreadsCanRun);
-		
+		updatePropagatorThreadPool = taskPicker.createExecutor("Update Propagator", Thread.NORM_PRIORITY, ThreadPoolUtil::updatePropagatorThreadsCanRun); // the update propagator isn't necessary when moving through the world, so we'll pause it along with the world generator when moving fast
+		worldGenThreadPool = taskPicker.createExecutor("World Gen", Thread.NORM_PRIORITY, ThreadPoolUtil::worldGenThreadsCanRun);
 		
 		
 		
@@ -170,24 +180,100 @@ public class ThreadPoolUtil
 	 */
 	public static boolean worldGenThreadsCanRun()
 	{
+		if (cameraMovingFast())
+		{
+			return false;
+		}
+		
+		if (chunkBuilderOverloaded())
+		{
+			return false;
+		}
+		
+		if (Config.Common.WorldGenerator.limitIfServerUnhealthy.get()
+			&& !MC_SHARED.isServerThreadHealthy())
+		{
+			return false;
+		}
+		
+		return true;
+	}
+	
+	public static boolean updatePropagatorThreadsCanRun()
+	{
+		if (cameraMovingFast())
+		{
+			return false;
+		}
+		
+		if (chunkBuilderOverloaded())
+		{
+			return false;
+		}
+		
+		PriorityTaskPicker.Executor lodBuilderExecutor = getChunkToLodBuilderExecutor();
+		if (lodBuilderExecutor != null
+			&& !lodBuilderExecutor.isTerminated())
+		{
+			// Don't run updates if there are chunks that need processing.
+			// This is especially important when running with Chunky.
+			int maxQueueSize = lodBuilderExecutor.getPoolSize() * 200;
+			if (lodBuilderExecutor.getQueueSize() > maxQueueSize)
+			{
+				return false;
+			}
+		}
+		
+		return true;
+	}
+	
+	
+	
+	/**
+	 * Built render data waits for the render thread to upload it,
+	 * which only uploads for part of each frame.
+	 * Pausing here once that backlog is a pool's worth deep keeps the number of
+	 * waiting staging buffers (and the memory they hold) bounded
+	 * and leaves the threads to the other executors in the meantime.
+	 */
+	public static boolean renderLoaderThreadsCanRun()
+	{
+		return LodRenderSection.getPendingUploadCount() < Config.Common.MultiThreading.numberOfThreads.get();
+	}
+	
+	private static boolean cameraMovingFast()
+	{
+		if (!Config.Common.WorldGenerator.pauseIfMovingQuickly.get())
+		{
+			return false;
+		}
+		
 		double cameraSpeed = ClientApi.INSTANCE.getAvgCameraSpeed();
 		// stop these threads if moving a little bit slower than max elytra speed
 		double maxAllowedSpeed = (LodUtil.ROCKET_ELYTRA_SPEED_IN_BLOCKS_PER_SEC - 10.0);
 		if (cameraSpeed > maxAllowedSpeed)
 		{
 			// pause if the user is moving too fast
-			return false;
+			return true;
 		}
 		
-		//PriorityTaskPicker.Executor executor = getRenderLoadingExecutor();
-		//if (executor != null
-		//	&& executor.getQueueSize() > 0)
-		//{
-		//	// pause if LODs are being loaded for rendering
-		//	return false;
-		//}
+		return false;
+	}
+	
+	private static boolean chunkBuilderOverloaded()
+	{
+		// rarely the builder executor can queue up
+		// thousands of tasks,
+		// if this happens we want to limit other executors
+		// so these tasks can be hanlded.
+		PriorityTaskPicker.Executor ex = getChunkToLodBuilderExecutor();
+		if (ex != null
+			&& ex.getQueueSize() > 1000)
+		{
+			return true;
+		}
 		
-		return true;
+		return false;
 	}
 	
 	///endregion

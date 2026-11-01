@@ -41,6 +41,7 @@ public class DhApiConfigTest
 		ConfigEntry<EDhApiRendererMode> coreConfig = new ConfigEntry.Builder<EDhApiRendererMode>()
 			.set(EDhApiRendererMode.DEBUG_TRIANGLE)
 			.build();
+		coreConfig.name = "test";
 		
 		DhApiConfigValue<EDhApiRendererMode, Boolean> apiConfig = new DhApiConfigValue<>(coreConfig, new RenderModeEnabledConverter());
 		

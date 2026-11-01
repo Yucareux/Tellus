@@ -35,7 +35,7 @@ public class MixinTracingExecutor
 }
 #else
 
-import com.seibel.distanthorizons.common.wrappers.worldGeneration.BatchGenerationEnvironment;
+import com.seibel.distanthorizons.api.DhApi;
 import com.seibel.distanthorizons.core.util.objects.RunOnThisThreadExecutorService;
 import net.minecraft.TracingExecutor;
 import org.spongepowered.asm.mixin.Mixin;
@@ -48,7 +48,7 @@ import java.util.concurrent.Executor;
 /**
  * This is needed for DH's world gen so we can run
  * world gen on our own threads instead of using MC thread pools.
- * 
+ *
  * @see MixinUtilBackgroundThread
  * @see RunOnThisThreadExecutorService
  */
@@ -62,12 +62,12 @@ public class MixinTracingExecutor
 	@Inject(method = "forName(Ljava/lang/String;)Ljava/util/concurrent/Executor;", at = @At("HEAD"), cancellable = true)
 	private void forName(String executorName, CallbackInfoReturnable<Executor> ci)
 	{
-		if (BatchGenerationEnvironment.isThisDhWorldGenThread())
+		if (DhApi.isDhThread())
 		{
 			// run this task on the current DH thread instead of a new MC thread
 			ci.setReturnValue(new RunOnThisThreadExecutorService());
 		}
-	}	
+	}
 	
 }
 #endif

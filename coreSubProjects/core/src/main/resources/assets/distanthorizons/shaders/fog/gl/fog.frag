@@ -1,14 +1,17 @@
 #version 330 core
 
-in vec2 TexCoord;
+in vec2 texCoord;
 
 out vec4 fragColor;
 
 
 
-uniform sampler2D uDepthMap;
+uniform sampler2D uDhDepthTexture;
 // inverted model view matrix and projection matrix
 uniform mat4 uInvMvmProj;
+
+uniform bool uIsReverseZDepth;
+uniform bool uDepthIsZeroToPositiveOne;
 
 // fog uniforms
 uniform vec4 uFogColor;
@@ -48,7 +51,7 @@ uniform float uCameraBlockYPos;
 // method definitions //
 //====================//
 
-vec3 calcViewPosition(float fragmentDepth);
+vec3 calcViewPosition(float fragmentDepth, mat4 invMvmProj);
 
 float getFarFogThickness(float dist);
 float getHeightFogThickness(float dist);
@@ -71,18 +74,28 @@ float exponentialSquaredFog(float x, float fogStart, float fogLength, float fogM
  */
 void main()
 {
-    float fragmentDepth = texture(uDepthMap, TexCoord).r;
+    float fragmentDepth = texture(uDhDepthTexture, texCoord).r;
     fragColor = vec4(uFogColor.rgb, 0.0);
 
-    // a fragment depth of "1" means the fragment wasn't drawn to,
-    // we only want to apply Fog to LODs, not to the sky outside the LODs
-    if (fragmentDepth < 1.0)
+    bool drawnTo;
+    if (uIsReverseZDepth)
+    {
+        drawnTo = (fragmentDepth > 0);
+    }
+    else
+    {
+        // a fragment depth of "1" means the fragment wasn't drawn to,
+        // we only want to apply Fog to LODs, not to the sky outside the LODs
+        drawnTo = (fragmentDepth < 1.0);
+    }
+    
+    if (drawnTo)
     {
         int fogDebugMode = uFogDebugMode;
         if (fogDebugMode == 0)
         {
             // render fog based on distance from the camera
-            vec3 vertexWorldPos = calcViewPosition(fragmentDepth);
+            vec3 vertexWorldPos = calcViewPosition(fragmentDepth, uInvMvmProj);
 
             float horizontalWorldDistance = length(vertexWorldPos.xz) * uFogScale;
             float worldDistance = length(vertexWorldPos.xyz) * uFogScale;
@@ -103,7 +116,7 @@ void main()
         else if (fogDebugMode == 1)
         {
             // test code
-            
+
             // render everything with the fog color
             fragColor.a = 1.0;
         }
@@ -117,7 +130,7 @@ void main()
             // a uniform we don't have to worry about GLSL optimizing away different
             // options when testing, causing a bunch of headaches if we just want to render the screen red.
 
-            float depthValue = textureLod(uDepthMap, TexCoord, 0).r;
+            float depthValue = textureLod(uDhDepthTexture, texCoord, 0).r;
             fragColor.rgb = vec3(depthValue); // Convert depth value to grayscale color
             fragColor.a = 1.0;
         }
@@ -130,12 +143,26 @@ void main()
 // helper methods //
 //================//
 
-vec3 calcViewPosition(float fragmentDepth)
+/** 
+ * this method is shared across several shaders,
+ * if updated, make sure to update the other versions as well.
+ */
+vec3 calcViewPosition(float fragmentDepth, mat4 invMvmProj)
 {
-    vec4 ndc = vec4(TexCoord.xy, fragmentDepth, 1.0);
-    ndc.xyz = ndc.xyz * 2.0 - 1.0;
+    // normalized device coordinates
+    vec4 ndc = vec4(texCoord.xy, fragmentDepth, 1.0);
+    if (uDepthIsZeroToPositiveOne)
+    {
+        // Z already in [0,1], don't remap
+        ndc.xy = ndc.xy * 2.0 - 1.0;
+    }
+    else
+    {
+        // UV [0,1] -> NDC [-1,+1]
+        ndc.xyz = ndc.xyz * 2.0 - 1.0;
+    }
 
-    vec4 eyeCoord = uInvMvmProj * ndc;
+    vec4 eyeCoord = invMvmProj * ndc;
     return eyeCoord.xyz / eyeCoord.w;
 }
 
@@ -261,31 +288,31 @@ float mixFogThickness(float far, float height)
     {
         case 0: // BASIC
         case 1: // IGNORE_HEIGHT 
-        return far;
+            return far;
 
         case 2: // MAX
-        return max(far, height);
+            return max(far, height);
 
         case 3: // ADDITION
-        return (far + height);
+            return (far + height);
 
         case 4: // MULTIPLY
-        return far * height;
+            return far * height;
 
         case 5: // INVERSE_MULTIPLY
-        return (1.0 - (1.0-far)*(1.0-height));
+            return (1.0 - (1.0-far)*(1.0-height));
 
         case 6: // LIMITED_ADDITION
-        return (far + max(far, height));
+            return (far + max(far, height));
 
         case 7: // MULTIPLY_ADDITION
-        return (far + far*height);
+            return (far + far*height);
 
         case 8: // INVERSE_MULTIPLY_ADDITION
-        return (far + 1.0 - (1.0-far)*(1.0-height));
+            return (far + 1.0 - (1.0-far)*(1.0-height));
 
         case 9: // AVERAGE
-        return (far*0.5 + height*0.5);
+            return (far*0.5 + height*0.5);
     }
 
     // shouldn't happen, but default to BASIC / IGNORE_HEIGHT

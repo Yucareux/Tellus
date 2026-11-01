@@ -49,10 +49,15 @@ import net.minecraft.client.entity.EntityPlayerSP;
 import net.minecraft.client.multiplayer.WorldClient;
 import net.minecraft.crash.CrashReport;
 import net.minecraft.profiler.Profiler;
+#if MC_VER <= MC_1_7_10
+import net.minecraft.util.ChatComponentText;
+import net.minecraft.util.MathHelper;
+#else
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.ChunkPos;
 import net.minecraft.util.text.TextComponentString;
 import net.minecraft.world.DimensionType;
+#endif
 import net.minecraft.world.WorldServer;
 import net.minecraftforge.common.DimensionManager;
 #else
@@ -171,7 +176,10 @@ public class MinecraftClientWrapper extends AbstractMinecraftSharedWrapper imple
 		}
 		else
 		{
-			#if MC_VER <= MC_1_12_2
+			#if MC_VER <= MC_1_7_10
+			ServerData server = MINECRAFT.getCurrentServerData();
+			return (server != null && server.serverName != null) ? server.serverName : "NULL";
+			#elif MC_VER <= MC_1_12_2
 			ServerData server = MINECRAFT.getCurrentServerData();
 			return (server != null) ? server.serverName : "NULL";
 			#else
@@ -238,14 +246,19 @@ public class MinecraftClientWrapper extends AbstractMinecraftSharedWrapper imple
 	//=================//
 	//region
 	
-	#if MC_VER <= MC_1_12_2
+	#if MC_VER <= MC_1_7_10
+	@Nullable
+	public EntityPlayerSP getPlayer() { return MINECRAFT.thePlayer; }
+	#elif MC_VER <= MC_1_12_2
+	@Nullable
 	public EntityPlayerSP getPlayer() { return MINECRAFT.player; }
 	#else
+	@Nullable
 	public LocalPlayer getPlayer() { return MINECRAFT.player; }
 	#endif
 	
 	@Override
-	public boolean playerExists() { return MINECRAFT.player != null; }
+	public boolean playerExists() { return this.getPlayer() != null; }
 	
 	@Override
 	public DhBlockPos getPlayerBlockPos()
@@ -269,12 +282,15 @@ public class MinecraftClientWrapper extends AbstractMinecraftSharedWrapper imple
 			}
 		}
 		
-		#if MC_VER <= MC_1_12_2
+		#if MC_VER <= MC_1_7_10
+		return new DhBlockPos(MathHelper.floor_double(player.posX), MathHelper.floor_double(player.posY), MathHelper.floor_double(player.posZ));
+		#elif MC_VER <= MC_1_12_2
 		BlockPos playerPos = player.getPosition();
+		return new DhBlockPos(playerPos.getX(), playerPos.getY(), playerPos.getZ());
 		#else
 		BlockPos playerPos = player.blockPosition();
-		#endif
 		return new DhBlockPos(playerPos.getX(), playerPos.getY(), playerPos.getZ());
+		#endif
 	}
 	
 	@Override
@@ -299,19 +315,21 @@ public class MinecraftClientWrapper extends AbstractMinecraftSharedWrapper imple
 			}
 		}
 		
-        #if MC_VER <= MC_1_12_2
+		#if MC_VER <= MC_1_7_10
+		return new DhChunkPos(player.chunkCoordX, player.chunkCoordZ);
+		#elif MC_VER <= MC_1_12_2
 		ChunkPos playerPos = new ChunkPos(player.getPosition());
+		return new DhChunkPos(playerPos.x, playerPos.z);
         #elif MC_VER < MC_1_17_1
         ChunkPos playerPos = new ChunkPos(player.blockPosition());
-        #else
+        return new DhChunkPos(playerPos.x, playerPos.z);
+        #elif MC_VER <= MC_1_21_11
 		ChunkPos playerPos = player.chunkPosition();
-        #endif
-		
-		#if MC_VER <= MC_1_21_11
 		return new DhChunkPos(playerPos.x, playerPos.z);
 		#else
+		ChunkPos playerPos = player.chunkPosition();
 		return new DhChunkPos(playerPos.x(), playerPos.z());
-		#endif
+        #endif
 	}
 	
 	//endregion
@@ -341,7 +359,9 @@ public class MinecraftClientWrapper extends AbstractMinecraftSharedWrapper imple
 			}
 		}
 		
-		#if MC_VER <= MC_1_12_2
+		#if MC_VER <= MC_1_7_10
+		WorldClient level = MINECRAFT.theWorld;
+		#elif MC_VER <= MC_1_12_2
 		WorldClient level = MINECRAFT.world;
 		#else
 		ClientLevel level = MINECRAFT.level;
@@ -376,7 +396,12 @@ public class MinecraftClientWrapper extends AbstractMinecraftSharedWrapper imple
 			return;
 		}
 		
-		#if MC_VER <= MC_1_12_2
+		#if MC_VER <= MC_1_7_10
+		String[] lines = string.split("\n");
+		for (String line : lines) {
+			player.addChatMessage(new ChatComponentText(line));
+		}
+		#elif MC_VER <= MC_1_12_2
 		player.sendMessage(new TextComponentString(string));
         #elif MC_VER < MC_1_19_2
 		player.sendMessage(new TextComponent(string), getPlayer().getUUID());
@@ -408,7 +433,9 @@ public class MinecraftClientWrapper extends AbstractMinecraftSharedWrapper imple
 			return;
 		}
 		
-		#if MC_VER <= MC_1_12_2
+		#if MC_VER <= MC_1_7_10
+		player.addChatMessage(new ChatComponentText(string));
+		#elif MC_VER <= MC_1_12_2
 		MINECRAFT.ingameGUI.setOverlayMessage(string, /*animateColor*/false);
         #elif MC_VER < MC_1_19_2
 		player.displayClientMessage(new TextComponent(string), /*isOverlay*/true);
@@ -432,7 +459,9 @@ public class MinecraftClientWrapper extends AbstractMinecraftSharedWrapper imple
 	{
 		LOGGER.info("Disabling vanilla clouds... This is done to prevent vanilla clouds from rendering on top of Distant Horizons LODs.");
 		
-		#if MC_VER <= MC_1_12_2
+		#if MC_VER <= MC_1_7_10
+		MINECRAFT.gameSettings.clouds = false;
+		#elif MC_VER <= MC_1_12_2
 		MINECRAFT.gameSettings.clouds = 0;
 		#elif MC_VER <= MC_1_18_2
 		MINECRAFT.options.renderClouds = CloudStatus.OFF;
@@ -521,7 +550,9 @@ public class MinecraftClientWrapper extends AbstractMinecraftSharedWrapper imple
 		ProfilerFiller profiler;
 		#endif
 		
-		#if MC_VER <= MC_1_12_2
+		#if MC_VER <= MC_1_7_10
+		profiler = MINECRAFT.mcProfiler;
+		#elif MC_VER <= MC_1_12_2
 		profiler = MINECRAFT.profiler;
 		#elif MC_VER < MC_1_21_3
 		profiler = MINECRAFT.getProfiler();
@@ -551,12 +582,16 @@ public class MinecraftClientWrapper extends AbstractMinecraftSharedWrapper imple
 		// cause a Blaze3D/UI error instead of the error we're trying to send.
 		executeOnRenderThread(() -> 
 		{
+			#if MC_VER <= MC_1_7_10
+			throw new RuntimeException(exception);
+			#elif MC_VER <= MC_1_12_2
 			CrashReport report = new CrashReport(errorMessage, exception);
-			#if MC_VER <= MC_1_12_2
 			MINECRAFT.crashed(report);
 			#elif MC_VER < MC_1_20_4
+			CrashReport report = new CrashReport(errorMessage, exception);
 			Minecraft.crash(report);
 			#else
+			CrashReport report = new CrashReport(errorMessage, exception);
 			MINECRAFT.delayCrash(report);
 			#endif
 		});
@@ -575,6 +610,9 @@ public class MinecraftClientWrapper extends AbstractMinecraftSharedWrapper imple
 	@Override
 	public void showDialog(String title, String message, String dialogType, String iconType)
 	{ NativeDialogUtil.showDialog(title, message, dialogType, iconType); }
+	
+	@Override
+	public boolean dialogNeedsAwtHeadless() { return NativeDialogUtil.needsAwtHeadless(); }
 	
 	//endregion
 	
@@ -610,7 +648,9 @@ public class MinecraftClientWrapper extends AbstractMinecraftSharedWrapper imple
 	@Override
 	public File getInstallationDirectory()
 	{
-		#if MC_VER <= MC_1_12_2
+		#if MC_VER <= MC_1_7_10
+		return MINECRAFT.mcDataDir;
+		#elif MC_VER <= MC_1_12_2
 		return MINECRAFT.gameDir;
 		#else
 		return MINECRAFT.gameDirectory;
@@ -649,17 +689,26 @@ public class MinecraftClientWrapper extends AbstractMinecraftSharedWrapper imple
 		}
 		
 		
-		#if  MC_VER <= MC_1_12_2
-		Integer dimensionKey = this.deserializeDimensionResourceKey(dimensionResourceLocation);
-		if (dimensionKey == null || MINECRAFT.getIntegratedServer() == null)
+		#if MC_VER <= MC_1_12_2
+		WorldServer mcLevel;
 		{
-			return null;
+			Integer dimensionKey = this.deserializeDimensionResourceKey(dimensionResourceLocation);
+			if (dimensionKey == null || MINECRAFT.getIntegratedServer() == null)
+			{
+				return null;
+			}
+			
+			#if MC_VER <= MC_1_7_10
+			mcLevel = DimensionManager.getWorld(dimensionKey);
+			#else
+			mcLevel = MINECRAFT.getIntegratedServer().getWorld(dimensionKey);
+			#endif
 		}
-		WorldServer mcLevel = MINECRAFT.getIntegratedServer().getWorld(dimensionKey);
 		#else
 		ResourceKey<Level> dimensionKey = this.deserializeDimensionResourceKey(dimensionResourceLocation);
 		ServerLevel mcLevel = MINECRAFT.getSingleplayerServer().getLevel(dimensionKey);
 		#endif
+		
 		return ServerLevelWrapper.getWrapper(mcLevel);
 	}
 	

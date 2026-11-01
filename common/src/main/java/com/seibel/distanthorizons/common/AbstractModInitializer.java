@@ -2,13 +2,16 @@ package com.seibel.distanthorizons.common;
 
 import com.seibel.distanthorizons.api.enums.config.EDhApiMcRenderingFadeMode;
 import com.seibel.distanthorizons.api.enums.config.EDhApiRenderingEngine;
+import com.seibel.distanthorizons.api.enums.config.quickOptions.EDhApiThreadPreset;
 import com.seibel.distanthorizons.api.enums.rendering.EDhApiTransparency;
 import com.seibel.distanthorizons.api.enums.worldGeneration.EDhApiDistantGeneratorMode;
+import com.seibel.distanthorizons.api.enums.worldGeneration.EDhApiGeneratorPlan;
 import com.seibel.distanthorizons.api.methods.events.abstractEvents.DhApiAfterDhInitEvent;
 import com.seibel.distanthorizons.api.methods.events.abstractEvents.DhApiBeforeDhInitEvent;
 import com.seibel.distanthorizons.common.commands.CommandInitializer;
 import com.seibel.distanthorizons.common.wrappers.DependencySetup;
 import com.seibel.distanthorizons.common.wrappers.gui.DhDebugScreenEntry;
+import com.seibel.distanthorizons.common.wrappers.minecraft.AbstractMinecraftSharedWrapper;
 import com.seibel.distanthorizons.common.wrappers.minecraft.MinecraftClientWrapper;
 import com.seibel.distanthorizons.common.wrappers.minecraft.MinecraftServerWrapper;
 import com.seibel.distanthorizons.core.Initializer;
@@ -26,17 +29,21 @@ import com.seibel.distanthorizons.core.render.renderer.AbstractDebugWireframeRen
 import com.seibel.distanthorizons.core.render.renderer.StubDebugWireframeRenderer;
 import com.seibel.distanthorizons.common.wrappers.gui.NativeDialogUtil;
 import com.seibel.distanthorizons.core.util.ThreadUtil;
+import com.seibel.distanthorizons.core.util.threading.ThreadPoolUtil;
 import com.seibel.distanthorizons.core.wrapperInterfaces.IVersionConstants;
 import com.seibel.distanthorizons.core.wrapperInterfaces.minecraft.IMinecraftClientWrapper;
+import com.seibel.distanthorizons.core.wrapperInterfaces.modAccessor.IC2meAccessor;
 import com.seibel.distanthorizons.core.wrapperInterfaces.modAccessor.IIrisAccessor;
 import com.seibel.distanthorizons.core.wrapperInterfaces.modAccessor.IModAccessor;
 import com.seibel.distanthorizons.core.wrapperInterfaces.modAccessor.IModChecker;
 import com.seibel.distanthorizons.coreapi.DependencyInjection.ApiEventInjector;
 import com.seibel.distanthorizons.coreapi.ModInfo;
+import com.seibel.distanthorizons.coreapi.util.MathUtil;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.dedicated.DedicatedServer;
 import com.seibel.distanthorizons.core.logging.DhLogger;
 
+import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
@@ -44,6 +51,8 @@ import java.util.function.Supplier;
 #if MC_VER > MC_1_12_2
 import com.mojang.brigadier.CommandDispatcher;
 import net.minecraft.commands.CommandSourceStack;
+#else
+import net.minecraft.command.ServerCommandManager;
 #endif
 
 /**
@@ -54,7 +63,10 @@ public abstract class AbstractModInitializer
 {
 	protected static final DhLogger LOGGER = new DhLoggerBuilder().build();
 	
+	#if MC_VER <= MC_1_12_2
+	#else
 	private CommandInitializer commandInitializer;
+	#endif
 	
 	
 	
@@ -141,7 +153,8 @@ public abstract class AbstractModInitializer
 		this.initializeModCompat();
 		
 		LOGGER.info(ModInfo.READABLE_NAME + " server Initialized, adding event subscribers...");
-		#if MC_VER > MC_1_12_2
+		#if MC_VER <= MC_1_12_2
+		#else
 		this.commandInitializer = new CommandInitializer();
 		this.subscribeRegisterCommandsEvent(dispatcher -> { this.commandInitializer.initCommands(dispatcher); });
 		#endif
@@ -151,17 +164,23 @@ public abstract class AbstractModInitializer
 			MinecraftServerWrapper.INSTANCE.dedicatedServer = (DedicatedServer)server;
 			
 			this.initConfig();
+			setUnsupportedConfigsBasedOnMcVersion();
 			Initializer.postConfigInit();
 			this.postInit();
 			this.postServerInit();
-			#if MC_VER > MC_1_12_2
+			
+			#if MC_VER <= MC_1_12_2
+			((ServerCommandManager) server.getCommandManager()).registerCommand(CommandInitializer.initCommands());
+			#else
 			this.commandInitializer.onServerReady();
 			#endif
 			
 			this.checkForUpdates();
 			
 			String serverFolderPath;
-			#if MC_VER <= MC_1_12_2
+			#if MC_VER <= MC_1_7_10
+			serverFolderPath = "."; // equivalent to new MC's "server.getDataDirectory()"
+			#elif MC_VER <= MC_1_12_2
 			serverFolderPath = server.getDataDirectory() + "";
 			#else
 			serverFolderPath = server.getServerDirectory() + "";
@@ -200,6 +219,23 @@ public abstract class AbstractModInitializer
 		}
 	}
 	
+	/** 
+	 * Adds the accessor if any of the given IDs are found. <br>
+	 * Can be used when a mod has multiple potential IDs. 
+	 */
+	protected <T extends IModAccessor> void tryCreateModCompatAccessor(String[] modIdArray, Class<? super T> accessorClass, Supplier<T> accessorConstructor)
+	{
+		IModChecker modChecker = SingletonInjector.INSTANCE.get(IModChecker.class);
+		if (modChecker.isModLoaded(modIdArray))
+		{
+			//noinspection unchecked
+			ModAccessorInjector.INSTANCE.bind((Class<? extends IModAccessor>) accessorClass, accessorConstructor.get());
+		}
+		else
+		{
+			LOGGER.debug("Skipping mod compatibility accessor for: ["+ String.join(", ", modIdArray)+"]");
+		}
+	}
 	protected <T extends IModAccessor> void tryCreateModCompatAccessor(String modId, Class<? super T> accessorClass, Supplier<T> accessorConstructor)
 	{
 		IModChecker modChecker = SingletonInjector.INSTANCE.get(IModChecker.class);
@@ -212,6 +248,12 @@ public abstract class AbstractModInitializer
 		{
 			LOGGER.debug("Skipping mod compatibility accessor for: ["+modId+"]");
 		}
+	}
+	@SuppressWarnings("unchecked")
+	protected <T extends IModAccessor> void addModCompatAccessor(Class<? super T> accessorClass, Supplier<T> accessorConstructor)
+	{
+		// logging is done internally
+		ModAccessorInjector.INSTANCE.bind((Class<? extends IModAccessor>) accessorClass, accessorConstructor.get());
 	}
 	
 	private void initConfig()
@@ -326,7 +368,7 @@ public abstract class AbstractModInitializer
 				String message =
 					MinecraftTextFormat.ORANGE + "Distant Horizons: Alex's Cave detected." + MinecraftTextFormat.CLEAR_FORMATTING +
 								"You may have to change Alex's config for DH to render. ";
-				ClientApi.INSTANCE.showChatMessageNextFrame(message);
+				ClientApi.INSTANCE.queueSlowChatMessage(message);
 			}
 			
 			LOGGER.warn(startingString + "[Alex's Caves] may require some config changes in order to render Distant Horizons correctly.");
@@ -356,7 +398,7 @@ public abstract class AbstractModInitializer
 				String message =
 					MinecraftTextFormat.ORANGE + "Distant Horizons: WWOO detected." + MinecraftTextFormat.CLEAR_FORMATTING + "\n" +
 								wwooWarning;
-				ClientApi.INSTANCE.showChatMessageNextFrame(message);
+				ClientApi.INSTANCE.queueSlowChatMessage(message);
 			}
 			
 			LOGGER.warn(startingString + "[WWOO] "+ wwooWarning);
@@ -393,10 +435,13 @@ public abstract class AbstractModInitializer
 				String message =
 					MinecraftTextFormat.ORANGE + "Distant Horizons: Chunky detected." + MinecraftTextFormat.CLEAR_FORMATTING + "\n" +
 								chunkyWarning;
-				ClientApi.INSTANCE.showChatMessageNextFrame(message);
+				ClientApi.INSTANCE.queueSlowChatMessage(message);
 			}
 			
 			LOGGER.warn(startingString + "[Chunky] "+ chunkyWarning);
+			
+			// don't allow for the possibility of DH and chunky to generate chunks at the same time
+			Config.Common.LodBuilding.disableUnchangedChunkCheck.setApiValue(true, ModInfo.READABLE_NAME + " / Chunky");
 		}
 		
 		//endregion
@@ -428,13 +473,69 @@ public abstract class AbstractModInitializer
 			}
 			else if (renderEngine == EDhApiRenderingEngine.AUTO)
 			{
-				Config.Client.Advanced.Graphics.Experimental.renderingEngine.setApiValue(EDhApiRenderingEngine.OPEN_GL);
+				Config.Client.Advanced.Graphics.Experimental.renderingEngine.setApiValue(EDhApiRenderingEngine.OPEN_GL, ModInfo.READABLE_NAME + " / " + IIrisAccessor.READABLE_NAME);
 				
 				EDhApiRenderingEngine recommendedEngine = versionConstants.getDefaultRenderingEngine();
 				if (recommendedEngine != EDhApiRenderingEngine.OPEN_GL)
 				{
 					LOGGER.warn("Changing Distant Horizons' rendering engine to [" + EDhApiRenderingEngine.OPEN_GL + "] to allow for Iris rendering. This renderer will be unavailable once Minecraft moves to Vulkan and must be fixed on Iris' end.");
 				}
+			}
+		}
+		
+		//endregion
+		
+		
+		
+		//======//
+		// C2ME //
+		//======//
+		//region
+		
+		IC2meAccessor c2me = ModAccessorInjector.INSTANCE.get(IC2meAccessor.class);
+		if (c2me != null)
+		{
+			// find how many C2ME worker threads are active (they should be created by this point)
+			int numberOfC2meThreads = 0;
+			Set<Thread> threads = Thread.getAllStackTraces().keySet();
+			
+			
+			// check for the worker threads first 
+			// (there may be other threads for things like OpenCL or file IO)
+			for (Thread thread : threads)
+			{
+				if (thread.getName().toLowerCase().contains("c2me-worker"))
+				{
+					numberOfC2meThreads++;
+				}
+			}
+			
+			// if C2ME changes how their threads are named, cast our net a little wider
+			if (numberOfC2meThreads == 0)
+			{
+				for (Thread thread : threads)
+				{
+					if (thread.getName().toLowerCase().contains("c2me"))
+					{
+						numberOfC2meThreads++;
+					}
+				}
+			}
+			
+			
+			int cpuThreadCount = Runtime.getRuntime().availableProcessors();
+			int expectedC2meThreadCount = Math.max(cpuThreadCount / 2, 1); // if no C2ME threads were found, default to 50%, C2ME's default
+			int newDhThreadCount = MathUtil.clamp(expectedC2meThreadCount, numberOfC2meThreads, cpuThreadCount);
+			
+			LOGGER.info("Found ["+numberOfC2meThreads+"] C2ME threads. DH needs to use at least the same number of threads as C2ME to prevent issues with Chunky.");
+			
+			if (chunkyPresent)
+			{
+				Config.Common.MultiThreading.numberOfThreads.setApiValue(numberOfC2meThreads, "Chunky");
+				Config.Common.MultiThreading.threadRunTimeRatio.setApiValue(1.0, "Chunky"); // C2ME threads have 100% uptime, so should we
+				Config.Client.threadPresetSetting.setApiValue(EDhApiThreadPreset.CUSTOM, "Chunky");
+				
+				LOGGER.info("Set DH thread count to: ["+newDhThreadCount+"] to match C2ME.");
 			}
 		}
 		
@@ -449,14 +550,28 @@ public abstract class AbstractModInitializer
 	 */
 	private static void setUnsupportedConfigsBasedOnMcVersion()
 	{
-		
+		// graphics/rendering
 		#if MC_VER <= MC_1_12_2
 		Config.Client.Advanced.Graphics.Experimental.renderingEngine.setMcVersionOverrideValue(EDhApiRenderingEngine.OPEN_GL);
-		Config.Client.Advanced.Graphics.Quality.vanillaFadeMode.setMcVersionOverrideValue(EDhApiMcRenderingFadeMode.NONE);
-		Config.Common.WorldGenerator.distantGeneratorMode.setMcVersionOverrideValue(EDhApiDistantGeneratorMode.INTERNAL_SERVER);
+		Config.Common.WorldGenerator.chunkGeneratorMode.setMcVersionOverrideValue(EDhApiDistantGeneratorMode.INTERNAL_SERVER);
+		
+		// Disabled since it prevents the JVM from exiting in 1.7.10
+		Config.Client.Advanced.Debugging.OpenGl.overrideVanillaGLLogger.setMcVersionOverrideValue(false);
 		#elif MC_VER <= MC_1_21_10
 		Config.Client.Advanced.Graphics.Experimental.renderingEngine.setMcVersionOverrideValue(EDhApiRenderingEngine.OPEN_GL);
 		#else
+		#endif
+		
+		// worldgen
+		#if MC_VER <= MC_1_18_2
+		AbstractMinecraftSharedWrapper.supportsSurfaceGeneration = false;
+		EDhApiGeneratorPlan genPlan = Config.Common.WorldGenerator.generatorPlan.getTrueValue();
+		if (genPlan.surfaceGenEnabled)
+		{
+			Config.Common.WorldGenerator.generatorPlan.set(EDhApiGeneratorPlan.CHUNKS_ONLY);
+		}
+		#else
+		AbstractMinecraftSharedWrapper.supportsSurfaceGeneration = true;
 		#endif
 	}
 	
@@ -473,7 +588,7 @@ public abstract class AbstractModInitializer
 			// rendering will not work properly.
 			// Note: this fix doesn't prevent disabling transparency
 			// due to a lack of vertical LOD slices, so that may still cause issues.
-			Config.Client.Advanced.Graphics.Quality.transparency.setApiValue(EDhApiTransparency.COMPLETE);
+			Config.Client.Advanced.Graphics.Quality.transparency.setApiValue(EDhApiTransparency.COMPLETE, ModInfo.READABLE_NAME + " / " + IIrisAccessor.READABLE_NAME);
 		}
 	}
 	

@@ -24,6 +24,10 @@ public abstract class AbstractImmersivePortalsAccessorCommon {}
 
 #else
 import com.seibel.distanthorizons.common.wrappers.world.ClientLevelWrapper;
+import com.seibel.distanthorizons.core.api.internal.ClientApi;
+import com.seibel.distanthorizons.core.enums.MinecraftTextFormat;
+import com.seibel.distanthorizons.core.logging.DhLogger;
+import com.seibel.distanthorizons.core.logging.DhLoggerBuilder;
 import com.seibel.distanthorizons.core.pos.DhChunkPos;
 import com.seibel.distanthorizons.core.pos.blockPos.DhBlockPos;
 import com.seibel.distanthorizons.core.util.math.DhVec3d;
@@ -42,33 +46,68 @@ import java.lang.reflect.Field;
 
 public abstract class AbstractImmersivePortalsAccessorCommon extends AbstractImmersivePortalsAccessor
 {
+	private static final DhLogger LOGGER = new DhLoggerBuilder().build();
+	
+	public static final long MS_BEFORE_WARNING_LOG = 5_000L;
+	
+	private static volatile boolean mixinWarningLogged = false;
+	public static volatile long lastUpdatedMsTime = -1L;
+	
+	
+	
 	// We don't use the fields in RenderStates because they are not volatile.
 	@Nullable
-	public static volatile ClientLevel actualLevel;
-	@Nullable
 	public static volatile DhBlockPos actualBlockPos;
-	@Nullable
-	public static volatile DhChunkPos actualChunkPos;
-	@Nullable
-	public static volatile DhVec3d actualCameraPos;
-	
-	
-	
 	@Override
 	@Nullable
 	public DhBlockPos getActualPlayerBlockPos() { return actualBlockPos; }
 	
+	@Nullable
+	public static volatile DhChunkPos actualChunkPos;
 	@Override
 	@Nullable
 	public DhChunkPos getActualPlayerChunkPos() { return actualChunkPos; }
 	
+	@Nullable
+	public static volatile ClientLevel actualLevel;
 	@Override
 	@Nullable
 	public IClientLevelWrapper getActualClientLevelWrapper() { return ClientLevelWrapper.getWrapper(actualLevel, false); }
 	
+	@Nullable
+	public static volatile DhVec3d actualCameraPos;
 	@Override
 	@Nullable
 	public DhVec3d getActualCameraPos() { return actualCameraPos; }
+	
+	
+	
+	@Override
+	public void logWarningIfMixinNotRunRecently()
+	{
+		// if the variables haven't been updated recently, assume the mixin hasn't been applied properly and complain
+		long timeSinceLastUpdatedMs = System.currentTimeMillis() - lastUpdatedMsTime;
+		if (timeSinceLastUpdatedMs < MS_BEFORE_WARNING_LOG)
+		{
+			return;
+		}
+		
+		if (!mixinWarningLogged)
+		{
+			mixinWarningLogged = true;
+			
+			String message =
+				MinecraftTextFormat.ORANGE + "Distant Horizons: Immersive Portals Mixin Fail." + MinecraftTextFormat.CLEAR_FORMATTING + "\n" +
+					"Distant Horizons' mixin into Immersive Portals\n" +
+					"hasn't run, Disant Horizons rendering may\n" +
+					"fail or look corrupted.\n";
+			ClientApi.INSTANCE.queueSlowChatMessage(message);
+			
+			LOGGER.warn("Immersive Portals mixin run within the expected time period, rendering may fail or look corrupted.");
+		}
+	}
+	
+	
 	
 }
 

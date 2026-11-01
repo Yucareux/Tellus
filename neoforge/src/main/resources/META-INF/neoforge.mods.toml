@@ -10,11 +10,12 @@ issueTrackerURL = "${issues}"
     modId = "distanthorizons" #//mandatory
     version = "${version}" #//mandatory, gets the version number from jar populated by the build.gradle script
     displayName = "${mod_name}" #//mandatory
-    authors = ["James Seibel", "Leonardo Amato", "Cola", "coolGi", "Ran", "Leetom", "pshsh"] # Should be done with `$authors`, but architectury complains
+    authors = ${authors}
     #//updateJSONURL="https://change.me.example.invalid/updates.json" # A URL to query for updates for this mod. See the JSON update specification https://mcforge.readthedocs.io/en/latest/gettingstarted/autoupdate/
     displayURL = "${homepage}"
     description = "${description}" #//mandatory. The description text for the mod
     logoFile = "assets/distanthorizons/logo.png"
+    iconFile = "assets/distanthorizons/logo.png" #// needed for MC 26.3 and newer
     catalogueImageIcon = "assets/distanthorizons/icon.png"
     credits = "Massive thanks to all the developers for their hard work to bring Distant Horizons to where it is today. - James"
     #// if not set defaults to "false"
@@ -31,7 +32,7 @@ issueTrackerURL = "${issues}"
 [[dependencies.distanthorizons]]
     modId = "minecraft"
     type = "required"
-    versionRange = "${compatible_forgemc_versions}" # Where we set what version of mc it is avalible for
+    versionRange = "${compatible_forgemc_versions}" # Where we set what version of mc it is available for
     ordering = "NONE"
     side = "BOTH"
 
@@ -41,3 +42,5 @@ issueTrackerURL = "${issues}"
     versionRange = "${neoforge_version_range}" 
     ordering = "NONE"
     side = "BOTH"
+
+${neoforge_dependencies}

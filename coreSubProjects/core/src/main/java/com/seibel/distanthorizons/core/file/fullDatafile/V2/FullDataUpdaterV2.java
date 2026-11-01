@@ -4,19 +4,21 @@ import com.seibel.distanthorizons.api.enums.config.EDhApiDataCompressionMode;
 import com.seibel.distanthorizons.core.config.Config;
 import com.seibel.distanthorizons.core.dataObjects.fullData.sources.FullDataSourceV2;
 import com.seibel.distanthorizons.core.file.fullDatafile.IDataSourceUpdateListenerFunc;
+import com.seibel.distanthorizons.core.generation.DhLightingEngine;
 import com.seibel.distanthorizons.core.logging.DhLogger;
 import com.seibel.distanthorizons.core.logging.DhLoggerBuilder;
 import com.seibel.distanthorizons.core.pos.DhSectionPos;
 import com.seibel.distanthorizons.core.render.renderer.AbstractDebugWireframeRenderer;
 import com.seibel.distanthorizons.core.render.renderer.IDebugRenderable;
 import com.seibel.distanthorizons.core.sql.dto.FullDataSourceV2DTO;
+import com.seibel.distanthorizons.core.util.LodUtil;
 import com.seibel.distanthorizons.core.util.threading.PositionalLockProvider;
 import com.seibel.distanthorizons.core.util.threading.ThreadPoolUtil;
 import org.jetbrains.annotations.NotNull;
 
 import java.awt.*;
 import java.io.IOException;
-import java.util.ArrayList;
+import java.util.Collections;
 import java.util.Set;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -35,7 +37,7 @@ public class FullDataUpdaterV2 implements IDebugRenderable, AutoCloseable
 	public final Set<Long> lockedPosSet = ConcurrentHashMap.newKeySet();
 	private final ConcurrentHashMap<Long, AtomicInteger> queuedUpdateCountsByPos = new ConcurrentHashMap<>();
 	
-	public final ArrayList<IDataSourceUpdateListenerFunc<FullDataSourceV2>> dateSourceUpdateListeners = new ArrayList<>();
+	private final Set<IDataSourceUpdateListenerFunc<FullDataSourceV2>> dateSourceUpdateListenerSet = Collections.newSetFromMap(new ConcurrentHashMap<>());
 	
 	private final String levelId;
 	private final AtomicBoolean isShutdownRef = new AtomicBoolean(false);
@@ -47,6 +49,7 @@ public class FullDataUpdaterV2 implements IDebugRenderable, AutoCloseable
 	//=============//
 	// constructor //
 	//=============//
+	//region
 	
 	public FullDataUpdaterV2(FullDataSourceProviderV2 provider, String levelId)
 	{
@@ -55,11 +58,14 @@ public class FullDataUpdaterV2 implements IDebugRenderable, AutoCloseable
 		
 	}
 	
+	//endregion
+	
 	
 	
 	//===============//
 	// data updating //
 	//===============//
+	//region
 	
 	/**
 	 * Can be used if you don't want to lock the current thread
@@ -135,25 +141,34 @@ public class FullDataUpdaterV2 implements IDebugRenderable, AutoCloseable
 					boolean dataModified = recipientDataSource.updateFromDataSource(inputData);
 					if (dataModified)
 					{
-		// save the updated data to the database
+						// Only update sky lighting at the lowest level,
+						// everything above that gets that generated lighting for free
+						// via downsampling.
+						if (DhSectionPos.getDetailLevel(updatePos) == DhSectionPos.SECTION_BLOCK_DETAIL_LEVEL)
+						{
+							// Block lights should have been populated at the chunkWrapper stage.
+							// Sky lights must be re-calculated at this stage in order to prevent an issue
+							// where overhangs (specifically floating islands) have 0 sky light when they shouldn't.
+							DhLightingEngine.INSTANCE.bakeDataSourceSkyLight(recipientDataSource, this.provider.levelWrapper.hasSkyLight() ? LodUtil.MAX_MC_LIGHT : LodUtil.MIN_MC_LIGHT);
+						}
+						
+						
+						// save the updated data to the database
 						try (FullDataSourceV2DTO dto = this.createDtoFromDataSource(recipientDataSource))
-		{
-			if (dto != null)
-			{
-				this.provider.repo.save(dto);
-			}
-		}
-
-
-		synchronized (this.dateSourceUpdateListeners)
-		{
-			for (IDataSourceUpdateListenerFunc<FullDataSourceV2> listener : this.dateSourceUpdateListeners)
-			{
-				if (listener != null)
-				{
-									listener.OnDataSourceUpdated(recipientDataSource);
-				}
-			}
+						{
+							if (dto != null)
+							{
+								this.provider.repo.save(dto);
+							}
+						}
+						
+						
+						for (IDataSourceUpdateListenerFunc<FullDataSourceV2> listener : this.dateSourceUpdateListenerSet)
+						{
+							if (listener != null)
+							{
+								listener.OnDataSourceUpdated(recipientDataSource);
+							}
 						}
 					}
 				}
@@ -169,7 +184,7 @@ public class FullDataUpdaterV2 implements IDebugRenderable, AutoCloseable
 			this.lockedPosSet.remove(updatePos);
 		}
 	}
-
+	
 	private FullDataSourceV2DTO createDtoFromDataSource(FullDataSourceV2 dataSource)
 	{
 		try
@@ -185,12 +200,28 @@ public class FullDataUpdaterV2 implements IDebugRenderable, AutoCloseable
 		}
 	}
 	
+	//endregion
+	
+	
+	
+	//========//
+	// events //
+	//========//
+	//region
+	
+	public void addDataSourceUpdateListener(IDataSourceUpdateListenerFunc<FullDataSourceV2> listener)
+	{ this.dateSourceUpdateListenerSet.add(listener); }
+	public void removeDataSourceUpdateListener(IDataSourceUpdateListenerFunc<FullDataSourceV2> listener)
+	{ this.dateSourceUpdateListenerSet.remove(listener); }
+	
+	//endregion
 	
 	
 	
 	//==================//
 	// debugger methods //
 	//==================//
+	//region
 	
 	/** used for debugging to track which positions are queued for updating */
 	private void markUpdateStart(long dataSourcePos)
@@ -218,11 +249,14 @@ public class FullDataUpdaterV2 implements IDebugRenderable, AutoCloseable
 		});
 	}
 	
+	//endregion
+	
 	
 	
 	//===========//
 	// overrides //
 	//===========//
+	//region
 	
 	@Override
 	public void debugRender(AbstractDebugWireframeRenderer renderer)
@@ -236,6 +270,8 @@ public class FullDataUpdaterV2 implements IDebugRenderable, AutoCloseable
 	
 	@Override
 	public void close() { this.isShutdownRef.set(true); }
+	
+	//endregion
 	
 	
 	

@@ -22,7 +22,7 @@ package com.seibel.distanthorizons.common.render.openGl.glObject.vertexAttribute
 import com.seibel.distanthorizons.core.config.Config;
 import com.seibel.distanthorizons.core.logging.DhLogger;
 import com.seibel.distanthorizons.core.logging.DhLoggerBuilder;
-import org.lwjgl.opengl.GL43;
+import static com.seibel.distanthorizons.lwjgl.LWJGLServiceProvider.LWJGL;
 
 /**
  * In OpenGL 4.3 and later, Vertex Attribute got a make-over.
@@ -68,7 +68,7 @@ public final class GlVertexAttributePostGL43 extends GlAbstractVertexAttribute
 	{
 		for (int i = 0; i < this.numberOfBindingPoints; i++)
 		{
-			GL43.glBindVertexBuffer(i, buffer, 0, this.strideSize);
+			LWJGL.glBindVertexBuffer(i, buffer, 0, this.strideSize);
 		}
 	}
 	
@@ -76,7 +76,7 @@ public final class GlVertexAttributePostGL43 extends GlAbstractVertexAttribute
 	@Override
 	public void bindBufferToBindingPoint(int buffer, int bindingPoint)
 	{
-		GL43.glBindVertexBuffer(bindingPoint, buffer, 0, this.strideSize);
+		LWJGL.glBindVertexBuffer(bindingPoint, buffer, 0, this.strideSize);
 	}
 	
 	
@@ -91,7 +91,7 @@ public final class GlVertexAttributePostGL43 extends GlAbstractVertexAttribute
 	{
 		for (int i = 0; i < this.numberOfBindingPoints; i++)
 		{
-			GL43.glBindVertexBuffer(i, 0, 0, 0);
+			LWJGL.glBindVertexBuffer(i, 0, 0, 0);
 		}
 	}
 	
@@ -99,7 +99,7 @@ public final class GlVertexAttributePostGL43 extends GlAbstractVertexAttribute
 	@Override
 	public void unbindBuffersFromBindingPoint(int bindingPoint)
 	{
-		GL43.glBindVertexBuffer(bindingPoint, 0, 0, 0);
+		LWJGL.glBindVertexBuffer(bindingPoint, 0, 0, 0);
 	}
 	
 	
@@ -114,11 +114,11 @@ public final class GlVertexAttributePostGL43 extends GlAbstractVertexAttribute
 	{
 		if (attribute.useInteger)
 		{
-			GL43.glVertexAttribIFormat(attributeIndex, attribute.elementCount, attribute.glType, this.strideSize);
+			LWJGL.glVertexAttribIFormat(attributeIndex, attribute.elementCount, attribute.glType, this.strideSize);
 		}
 		else
 		{
-			GL43.glVertexAttribFormat(attributeIndex, attribute.elementCount, attribute.glType,
+			LWJGL.glVertexAttribFormat(attributeIndex, attribute.elementCount, attribute.glType,
 					attribute.normalized, this.strideSize); // Here strideSize is new attrib offset
 		}
 		
@@ -127,8 +127,8 @@ public final class GlVertexAttributePostGL43 extends GlAbstractVertexAttribute
 		{
 			this.numberOfBindingPoints = bindingPoint + 1;
 		}
-		GL43.glVertexAttribBinding(attributeIndex, bindingPoint);
-		GL43.glEnableVertexAttribArray(attributeIndex);
+		LWJGL.glVertexAttribBinding(attributeIndex, bindingPoint);
+		LWJGL.glEnableVertexAttribArray(attributeIndex);
 	}
 	
 	

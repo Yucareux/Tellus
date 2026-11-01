@@ -33,6 +33,7 @@ import java.awt.*;
 import java.util.*;
 import java.util.List;
 import java.util.concurrent.*;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
 public abstract class AbstractFullDataNetworkRequestQueue implements IDebugRenderable, AutoCloseable
@@ -57,7 +58,7 @@ public abstract class AbstractFullDataNetworkRequestQueue implements IDebugRende
 	
 	private volatile CompletableFuture<Void> closingFuture = null;
 	
-	protected final ConcurrentMap<Long, NetRequestTask> waitingTasksBySectionPos = new ConcurrentHashMap<>();
+	protected final ConcurrentHashMap<Long, NetRequestTask> waitingTasksBySectionPos = new ConcurrentHashMap<>();
 	/**
 	 * This semaphore prevents a given thread from accidentally locking on the same group
 	 * multiple times, as the semaphore is tied to the given thread. <br>
@@ -98,7 +99,6 @@ public abstract class AbstractFullDataNetworkRequestQueue implements IDebugRende
 	
 	protected abstract int getRequestRateLimit();
 	protected abstract boolean sectionInAllowedGenerationRadius(long sectionPos, DhBlockPos2D targetPos);
-	protected abstract boolean onBeforeRequest(long sectionPos, CompletableFuture<DataSourceRetrievalResult> future);
 	
 	protected abstract String getQueueName();
 	
@@ -202,12 +202,6 @@ public abstract class AbstractFullDataNetworkRequestQueue implements IDebugRende
 			return;
 		}
 		
-		if (!this.onBeforeRequest(requestPos, requestTask.future))
-		{
-			this.pendingTasksSemaphore.release();
-			return;
-		}
-		
 		Long offsetEntryTimestamp = requestTask.updateTimestamp != null
 				? requestTask.updateTimestamp + this.networkState.getServerTimeOffset()
 				: null;
@@ -244,6 +238,7 @@ public abstract class AbstractFullDataNetworkRequestQueue implements IDebugRende
 			if (response.payload == null)
 			{
 				LodUtil.assertTrue(this.changedOnly, "Received empty data source response for not changes-only request");
+				requestTask.future.cancel(false);
 				return;
 			}
 			
@@ -313,7 +308,7 @@ public abstract class AbstractFullDataNetworkRequestQueue implements IDebugRende
 	// IFullDataSourceRetrievalQueue overrides //
 	//=========================================//
 	
-	public void removeRetrievalRequestIf(DhSectionPos.ICancelablePrimitiveLongConsumer removeIf)
+	public void removeRetrievalRequestIf(DhSectionPos.IPrimitiveLongConsumer removeIf)
 	{
 		// remove tasks furthest
 		Iterator<Map.Entry<Long, NetRequestTask>> farestTaskIterator = this.waitingTasksBySectionPos
@@ -341,6 +336,21 @@ public abstract class AbstractFullDataNetworkRequestQueue implements IDebugRende
 				entry.future.cancel(false);
 			}
 		}
+	}
+	
+	public boolean requestPosExistsWhere(DhSectionPos.IPrimitiveLongConsumer returnTrueIf)
+	{
+		AtomicBoolean taskFound = new AtomicBoolean(false);
+		
+		this.waitingTasksBySectionPos.forEachKey(100, (genPos) ->
+		{
+			if (returnTrueIf.accept(genPos))
+			{
+				taskFound.set(true);
+			}
+		});
+		
+		return taskFound.get();
 	}
 	
 	public void addDebugMenuStringsToList(List<String> messageList)

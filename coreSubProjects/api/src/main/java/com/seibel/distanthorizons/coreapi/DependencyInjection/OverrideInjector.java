@@ -30,7 +30,7 @@ import java.util.HashMap;
  * This is done so other mods can override our methods to improve features down the line.
  *
  * @author James Seibel
- * @version 2024-1-30
+ * @version 2026-8-6
  */
 public class OverrideInjector implements IOverrideInjector<IDhApiOverrideable>
 {
@@ -50,6 +50,7 @@ public class OverrideInjector implements IOverrideInjector<IDhApiOverrideable>
 	//==============//
 	// constructors //
 	//==============//
+	//region
 	
 	public OverrideInjector()
 	{
@@ -61,16 +62,19 @@ public class OverrideInjector implements IOverrideInjector<IDhApiOverrideable>
 	
 	public OverrideInjector(String newCorePackagePath) { this.corePackagePath = newCorePackagePath; }
 	
+	//endregion
+	
 	
 	
 	//=========//
 	// binding //
  	//=========//
+	//region
 	
 	@Override
 	public void bind(Class<? extends IDhApiOverrideable> dependencyInterface, IDhApiOverrideable dependencyImplementation) throws IllegalStateException, IllegalArgumentException
 	{
-		// make sure a override container exists
+		// make sure an override container exists
 		OverridePriorityListContainer overrideContainer = this.overrideContainerByInterface.get(dependencyInterface);
 		if (overrideContainer == null)
 		{
@@ -102,7 +106,13 @@ public class OverrideInjector implements IOverrideInjector<IDhApiOverrideable>
 		IDhApiOverrideable existingOverride = overrideContainer.getOverrideWithPriority(dependencyImplementation.getPriority());
 		if (existingOverride != null)
 		{
-			throw new IllegalStateException("An override already exists with the priority [" + dependencyImplementation.getPriority() + "].");
+			// Iris + Immersive Portals causes this to happen a bunch due to Iris trying to un-bind the wrong objects.
+			// I don't really want to change this API behavior (silently overriding old dependencies), 
+			// but for Iris + Immersive Portals to work properly this path should run.
+			overrideContainer.removeOverride(existingOverride);
+			
+			// can be un-commented if we want to go back to throwing exceptions for duplicate bindings
+			//throw new IllegalStateException("An override for ["+dependencyInterface.getSimpleName()+"] already exists with the priority [" + dependencyImplementation.getPriority() + "].");
 		}
 		
 		
@@ -120,11 +130,24 @@ public class OverrideInjector implements IOverrideInjector<IDhApiOverrideable>
 		}
 	}
 	
+	@Override
+	public void unbindAll(Class<? extends IDhApiOverrideable> dependencyInterface)
+	{
+		OverridePriorityListContainer overrideContainer = this.overrideContainerByInterface.get(dependencyInterface);
+		if (overrideContainer != null)
+		{
+			overrideContainer.clear();
+		}
+	}
+	
+	//endregion
+	
 	
 	
 	//=========//
 	// getters //
 	//=========//
+	//region
 	
 	@Override
 	@SuppressWarnings("unchecked")
@@ -142,14 +165,19 @@ public class OverrideInjector implements IOverrideInjector<IDhApiOverrideable>
 		return overrideContainer != null ? (T) overrideContainer.getOverrideWithPriority(priority) : null;
 	}
 	
+	//endregion
+	
 	
 	
 	//==========//
 	// clearing //
 	//==========//
+	//region
 	
 	@Override
 	public void clear() { this.overrideContainerByInterface.clear(); }
+	
+	//endregion
 	
 	
 	

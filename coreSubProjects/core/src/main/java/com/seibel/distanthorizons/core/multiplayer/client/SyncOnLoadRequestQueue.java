@@ -40,8 +40,6 @@ public class SyncOnLoadRequestQueue extends AbstractFullDataNetworkRequestQueue
 	{
 		return DhSectionPos.getChebyshevSignedBlockDistance(sectionPos, targetPos) <= this.networkState.sessionConfig.getMaxSyncOnLoadDistance() * 16;
 	}
-	@Override
-	protected boolean onBeforeRequest(long sectionPos, CompletableFuture<DataSourceRetrievalResult> future) { return true; }
 	
 	@Override
 	protected String getQueueName() { return "Sync On Login Queue"; }

@@ -1,0 +1,51 @@
+
+The following is short tutorial to setup and register a gitlab runner in a docker container on windows.
+Docker can be installed via an installer from their website and these instructions assume that has already been done.
+
+longer tutorials can be found at the following links:
+https://faun.pub/gitlab-runner-setup-run-in-docker-container-on-windows-44fee102d02e
+https://datawookie.dev/blog/2021/03/install-gitlab-runner-with-docker/
+
+
+1. install the gitlab runner
+run the following command in powershell, changing the config file location if need be
+Note: This will NOT work in git bash, only powershell
+
+docker run -d --name gitlab-runner --restart always -v C:\DistantHorizonsWorkspace\Docker\config:/etc/gitlab-runner -v /var/run/docker.sock:/var/run/docker.sock gitlab/gitlab-runner:latest
+
+
+2. to make sure the docker container was set up correctly run:
+docker container list
+
+it will display the docker containers that have been created
+
+
+3. start and register the runner
+run the following command in powershell. change the <ITEM>'s to whatever they should be for the runner you are creating.
+
+docker run --rm -t -i -v C:\gitlab-runner\config:/etc/gitlab-runner gitlab/gitlab-runner register --non-interactive --executor "docker" --docker-image alpine:latest --url "https://gitlab.com/" --registration-token "<TOKEN>" --description "<DESCRIPTION THAT SHOWS UP ON GITLAB>" --run-untagged="true" --locked="false"
+
+
+4. done
+at this point the runner should be up and running, to confirm this go to your:
+gitlab project -> settings (on the left menu bar) -> CI/CD -> Runners
+and you should see the newly registered runner (the description should show up under the runner's auto generated ID)
+
+
+5. optional config
+Open Docker Desktop -> Containers -> Files, go to the file "etc/gitlab-runner/config.toml"
+concurrent can be changed to allow for concurrent builds.
+
+
+
+Additional commands:
+
+manual registering (shouldn't be needed)
+docker exec -it gitlab-runner gitlab-runner register
+
+list gitlab runner info
+docker exec -it gitlab-runner gitlab-runner list
+
+list all commands the runner can use
+(replace "help" with whatever command you want to use)
+docker exec -it gitlab-runner gitlab-runner help

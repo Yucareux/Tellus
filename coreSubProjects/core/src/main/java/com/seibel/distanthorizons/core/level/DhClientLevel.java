@@ -50,6 +50,7 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 import javax.annotation.CheckForNull;
+import java.io.Closeable;
 import java.io.File;
 import java.io.IOException;
 import java.sql.SQLException;
@@ -78,6 +79,8 @@ public class DhClientLevel extends AbstractDhLevel implements IDhClientLevel
 	private final ClientNetworkState networkState;
 	@Nullable
 	private final ScopedNetworkEventSource networkEventSource;
+	@Nullable
+	private final Closeable sessionConfigListener;
 	
 	/** used when connected to a DH supported server so we don't process the same chunks multiple times */
 	private final Set<DhChunkPos> loadedOnceChunks = Collections.newSetFromMap(
@@ -147,10 +150,13 @@ public class DhClientLevel extends AbstractDhLevel implements IDhClientLevel
 			this.syncOnLoadRequestQueue = null;
 		}
 		
-		this.remoteDataSourceProvider = new RemoteFullDataSourceProvider(this, saveStructure, fullDataSaveDirOverride, this.syncOnLoadRequestQueue);
+		this.remoteDataSourceProvider = new RemoteFullDataSourceProvider(this, saveStructure, fullDataSaveDirOverride, this.syncOnLoadRequestQueue, this.networkState);
 		this.lodRequestModule = new LodRequestModule(this,this, this.remoteDataSourceProvider, () -> new LodRequestState(this, networkState));
 		
 		this.clientside = new ClientLevelModule(this);
+		this.sessionConfigListener = this.networkState != null
+			? this.networkState.addSessionConfigListener(this.clientside::onGeneratorPlanChanged)
+			: null;
 		
 		this.createAndSetSupportingRepos(this.remoteDataSourceProvider.repo.databaseFile);
 		this.runRepoReliantSetup();
@@ -260,7 +266,7 @@ public class DhClientLevel extends AbstractDhLevel implements IDhClientLevel
 		}
 		
 		return isClientUsable
-				&& networkState.sessionConfig.isDistantGenerationEnabled()
+				&& networkState.sessionConfig.getGeneratorPlan().generationEnabled
 				&& isAllowedDimension
 				&& this.clientside.isRendering();
 	}
@@ -398,6 +404,15 @@ public class DhClientLevel extends AbstractDhLevel implements IDhClientLevel
 		if (this.networkEventSource != null)
 		{
 			this.networkEventSource.close();
+		}
+		
+		if (this.sessionConfigListener != null)
+		{
+			try
+			{
+				this.sessionConfigListener.close();
+			}
+			catch (Exception ignored) { }
 		}
 		
 		this.levelWrapper.setDhLevel(null);

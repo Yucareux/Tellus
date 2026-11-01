@@ -19,6 +19,8 @@
 
 package com.seibel.distanthorizons.neoforge;
 
+import com.mojang.blaze3d.platform.InputConstants;
+import com.seibel.distanthorizons.api.enums.config.EDhApiRenderingApi;
 import com.seibel.distanthorizons.common.AbstractModInitializer;
 import com.seibel.distanthorizons.common.util.ProxyUtil;
 import com.seibel.distanthorizons.common.wrappers.minecraft.MinecraftRenderWrapper;
@@ -30,6 +32,7 @@ import com.seibel.distanthorizons.core.logging.DhLoggerBuilder;
 import com.seibel.distanthorizons.core.util.threading.ThreadPoolUtil;
 
 import com.seibel.distanthorizons.core.wrapperInterfaces.minecraft.IMinecraftClientWrapper;
+import com.seibel.distanthorizons.core.wrapperInterfaces.render.AbstractDhRenderApiDefinition;
 import com.seibel.distanthorizons.core.wrapperInterfaces.world.ILevelWrapper;
 import net.minecraft.world.level.LevelAccessor;
 
@@ -41,7 +44,6 @@ import net.neoforged.neoforge.event.entity.player.PlayerInteractEvent;
 import net.minecraft.world.level.chunk.ChunkAccess;
 
 import com.seibel.distanthorizons.core.logging.DhLogger;
-import org.lwjgl.glfw.GLFW;
 
 import com.seibel.distanthorizons.common.wrappers.chunk.ChunkWrapper;
 
@@ -52,12 +54,28 @@ import org.lwjgl.opengl.GL33;
 
 import java.util.concurrent.AbstractExecutorService;
 
+#if MC_VER <= MC_26_2_0
+import org.lwjgl.glfw.GLFW;
+#else
+#endif
 
 public class NeoforgeClientProxy implements AbstractModInitializer.IEventProxy
 {
 	private static final IMinecraftClientWrapper MC = SingletonInjector.INSTANCE.get(IMinecraftClientWrapper.class);
 	private static final DhLogger LOGGER = new DhLoggerBuilder().build();
-
+	
+	private AbstractDhRenderApiDefinition renderDef = null;
+	/** delayed get due to this class being created before the {@link AbstractDhRenderApiDefinition} is bound */
+	private AbstractDhRenderApiDefinition getRenderDef()
+	{
+		if (this.renderDef == null)
+		{
+			this.renderDef = SingletonInjector.INSTANCE.get(AbstractDhRenderApiDefinition.class);
+		}
+		
+		return this.renderDef;
+	}
+	
 	
 	
 	@Override
@@ -68,6 +86,7 @@ public class NeoforgeClientProxy implements AbstractModInitializer.IEventProxy
 	//==============//
 	// chunk events //
 	//==============//
+	//region
 	
 	@SubscribeEvent
 	public void rightClickBlockEvent(PlayerInteractEvent.RightClickBlock event)
@@ -137,11 +156,14 @@ public class NeoforgeClientProxy implements AbstractModInitializer.IEventProxy
 		);
 	}
 	
+	//endregion
+	
 	
 	
 	//==============//
 	// key bindings //
 	//==============//
+	//region
 	
 	@SubscribeEvent
 	public void registerKeyBindings(InputEvent.Key event)
@@ -150,19 +172,30 @@ public class NeoforgeClientProxy implements AbstractModInitializer.IEventProxy
 		{
 			return;
 		}
+		
+		#if MC_VER <= MC_26_2_0
 		if (event.getAction() != GLFW.GLFW_PRESS)
 		{
 			return;
 		}
+		#else
+		if (event.getAction() != InputConstants.PRESS)
+		{
+			return;
+		}
+		#endif
 		
 		ClientApi.INSTANCE.keyPressedEvent(event.getKey());
 	}
+	
+	//endregion
 	
 	
 	
 	//===========//
 	// rendering //
 	//===========//
+	//region
 	
 	#if MC_VER < MC_1_21_6
 	@SubscribeEvent
@@ -202,7 +235,12 @@ public class NeoforgeClientProxy implements AbstractModInitializer.IEventProxy
 		// handled via the same mixin as fabric for consistency
 		#endif
 		
+		#if MC_VER <= MC_26_2_0
 		ClientApi.INSTANCE.renderFadeOpaque();
+		#else
+		// needs to be handled via a mixin to allow for Blaze3D render passes to function correctly
+		// handled in MixinLevelRenderer
+		#endif
 	}
 	
 	
@@ -228,13 +266,16 @@ public class NeoforgeClientProxy implements AbstractModInitializer.IEventProxy
 		#else
 		// handled via the same mixin as fabric for consistency
 		#endif
-
+		
 		try
 		{
-			// should generally only need to be set once per game session
-			// allows DH to render directly to Optifine's level frame buffer,
-			// allowing better shader support
-			MinecraftRenderWrapper.INSTANCE.finalLevelFrameBufferId = GL33.glGetInteger(GL33.GL_FRAMEBUFFER_BINDING);
+			if (this.getRenderDef().getRenderApi() == EDhApiRenderingApi.OPEN_GL)
+			{
+				// should generally only need to be set once per game session
+				// allows DH to render directly to Optifine's level frame buffer,
+				// allowing better shader support
+				MinecraftRenderWrapper.INSTANCE.finalLevelFrameBufferId = GL33.glGetInteger(GL33.GL_FRAMEBUFFER_BINDING);
+			}
 		}
 		catch (Exception | Error e)
 		{
@@ -242,10 +283,18 @@ public class NeoforgeClientProxy implements AbstractModInitializer.IEventProxy
 		}
 		
 		
+		
+		#if MC_VER <= MC_26_2_0
 		ClientApi.INSTANCE.renderFadeTransparent();
+		#else
+		// needs to be handled via a mixin to allow for Blaze3D render passes to function correctly
+		// handled in MixinLevelRenderer
+		#endif
 	}
 	
 	#endif
+	
+	//endregion
 	
 	
 	

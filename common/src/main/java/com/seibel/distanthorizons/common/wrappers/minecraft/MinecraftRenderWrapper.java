@@ -22,7 +22,9 @@ package com.seibel.distanthorizons.common.wrappers.minecraft;
 import java.awt.Color;
 import java.util.concurrent.ConcurrentHashMap;
 
+import com.seibel.distanthorizons.api.enums.config.EDhApiDepthDirection;
 import com.seibel.distanthorizons.core.render.RenderThreadTaskHandler;
+import com.seibel.distanthorizons.core.wrapperInterfaces.modAccessor.IAngelicaAccessor;
 import org.jetbrains.annotations.Nullable;
 
 #if MC_VER > MC_1_12_2
@@ -30,8 +32,6 @@ import com.mojang.blaze3d.pipeline.RenderTarget;
 import com.mojang.blaze3d.platform.NativeImage;
 import com.mojang.blaze3d.systems.RenderSystem;
 #endif
-import com.seibel.distanthorizons.api.enums.config.EDhApiLodShading;
-import com.seibel.distanthorizons.common.wrappers.McObjectConverter;
 import com.seibel.distanthorizons.common.wrappers.misc.LightMapWrapper;
 import com.seibel.distanthorizons.core.api.internal.ClientApi;
 
@@ -55,9 +55,16 @@ import net.minecraft.client.renderer.fog.FogData;
 import net.minecraft.client.renderer.fog.FogRenderer;
 #endif
 
+#if MC_VER <= MC_1_12_2
+#elif MC_VER <= MC_1_19_2
+import net.minecraft.tags.FluidTags;
+import net.minecraft.world.level.material.FluidState;
+import net.minecraft.core.Registry;
+#else
+import net.minecraft.core.registries.BuiltInRegistries;
+#endif
+
 #if MC_VER < MC_1_19_4
-import org.joml.Matrix4f;
-import org.joml.Vector3f;
 #else
 #endif
 
@@ -68,14 +75,27 @@ import com.seibel.distanthorizons.core.util.math.DhVec3d;
 import com.seibel.distanthorizons.core.util.math.DhVec3f;
 import com.seibel.distanthorizons.core.wrapperInterfaces.minecraft.IMinecraftRenderWrapper;
 import com.seibel.distanthorizons.core.wrapperInterfaces.modAccessor.IImmersivePortalsAccessor;
+import com.seibel.distanthorizons.core.wrapperInterfaces.modAccessor.IIrisAccessor;
 import com.seibel.distanthorizons.core.wrapperInterfaces.modAccessor.IOptifineAccessor;
 
 #if MC_VER <= MC_1_12_2
+import com.seibel.distanthorizons.common.commonMixins.IFramebufferDepthTexture;
+import net.minecraft.client.renderer.entity.RenderManager;
+import net.minecraft.client.shader.Framebuffer;
+#if MC_VER <= MC_1_7_10
+import com.seibel.distanthorizons.common.backports.Camera;
+import net.minecraft.block.Block;
+import net.minecraft.potion.Potion;
+import net.minecraft.util.MathHelper;
+import net.minecraft.util.Vec3;
+import net.minecraftforge.fluids.IFluidBlock;
+import org.joml.Vector3d;
+#else
 import net.minecraft.block.state.IBlockState;
 import net.minecraft.util.math.BlockPos;
 import net.minecraftforge.fluids.IFluidBlock;
 import net.minecraft.init.MobEffects;
-import net.minecraft.client.renderer.entity.RenderManager;
+#endif
 #else
 import net.minecraft.client.Camera;
 import net.minecraft.core.BlockPos;
@@ -87,28 +107,35 @@ import net.minecraft.world.phys.Vec3;
 import net.minecraft.client.Minecraft;
 import com.seibel.distanthorizons.core.logging.DhLogger;
 import org.jetbrains.annotations.NotNull;
+import org.joml.Vector3fc;
 import org.joml.Vector4f;
+import org.lwjgl.opengl.GL11;
 
 #if MC_VER <= MC_1_12_2
-import org.lwjgl.opengl.GL15;
+import static com.seibel.distanthorizons.lwjgl.LWJGLServiceProvider.LWJGL;
 #elif MC_VER < MC_1_17_1
 import net.minecraft.tags.FluidTags;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.level.material.FluidState;
-import org.lwjgl.opengl.GL15;
+import static com.seibel.distanthorizons.lwjgl.LWJGLServiceProvider.LWJGL;
 #else
 import net.minecraft.world.level.material.FogType;
 #endif
 
-#if MC_VER >= MC_1_21_5
+#if MC_VER <= MC_1_21_4
+#elif MC_VER <= MC_26_2_0
 import com.mojang.blaze3d.opengl.GlTexture;
 #else
+import com.mojang.renderpearl.backend.opengl.GlTexture;
 #endif
 
 #if MC_VER <= MC_1_21_10
-#else
+#elif MC_VER <= MC_26_2_0
 import net.minecraft.world.attribute.EnvironmentAttributes;
 import com.mojang.blaze3d.textures.GpuTexture;
+#else
+import net.minecraft.world.attribute.EnvironmentAttributes;
+import com.mojang.renderpearl.api.textures.GpuTexture;
 #endif
 
 /**
@@ -119,8 +146,9 @@ public class MinecraftRenderWrapper implements IMinecraftRenderWrapper
 {
 	public static final MinecraftRenderWrapper INSTANCE = new MinecraftRenderWrapper();
 	
-	private static final IOptifineAccessor OPTIFINE_ACCESSOR = ModAccessorInjector.INSTANCE.get(IOptifineAccessor.class);
 	private static final IMinecraftClientWrapper MC_CLIENT = SingletonInjector.INSTANCE.get(IMinecraftClientWrapper.class);
+	
+	private static final IOptifineAccessor OPTIFINE_ACCESSOR = ModAccessorInjector.INSTANCE.get(IOptifineAccessor.class);
 	
 	private static final DhLogger LOGGER = new DhLoggerBuilder().build();
 	
@@ -131,18 +159,20 @@ public class MinecraftRenderWrapper implements IMinecraftRenderWrapper
 	#endif
 	
 	/** Delayed accessing is necessary since this object will be created before the mod accessors are bound. */
-	private static class DelayedAccessors 
+	private static class DelayedAccessors
 	{
 		public static final IImmersivePortalsAccessor IMMERSIVE_PORTALS = ModAccessorInjector.INSTANCE.get(IImmersivePortalsAccessor.class);
+		private static final IIrisAccessor IRIS = ModAccessorInjector.INSTANCE.get(IIrisAccessor.class);
+		private static final IAngelicaAccessor ANGELICA = ModAccessorInjector.INSTANCE.get(IAngelicaAccessor.class);
 	}
 	
-	/** 
-	 * In the case of immersive portals multiple levels may be active at once, causing conflicting lightmaps. <br> 
+	/**
+	 * In the case of immersive portals multiple levels may be active at once, causing conflicting lightmaps. <br>
 	 * Requiring the use of multiple {@link LightMapWrapper}.
 	 */
 	public ConcurrentHashMap<IDimensionTypeWrapper, LightMapWrapper> lightmapByDimensionType = new ConcurrentHashMap<>();
 	
-	/** 
+	/**
 	 * Holds the render buffer that should be used when displaying levels to the screen.
 	 * This is used for Optifine shader support so we can render directly to Optifine's level frame buffer.
 	 */
@@ -165,7 +195,10 @@ public class MinecraftRenderWrapper implements IMinecraftRenderWrapper
 	@Override
 	public DhVec3f getLookAtVector()
 	{
-		#if MC_VER <= MC_1_12_2
+		#if MC_VER <= MC_1_7_10
+		Vec3 lookVector = MC.renderViewEntity.getLookVec();
+		return new DhVec3f((float) lookVector.xCoord, (float) lookVector.yCoord, (float) lookVector.zCoord);
+		#elif MC_VER <= MC_1_12_2
 		net.minecraft.util.math.Vec3d lookVector = (MC.getRenderViewEntity().getLook(MC.getRenderPartialTicks()));
 		return new DhVec3f((float) lookVector.x, (float) lookVector.y, (float) lookVector.z);
 		#elif MC_VER <= MC_1_21_10
@@ -180,19 +213,27 @@ public class MinecraftRenderWrapper implements IMinecraftRenderWrapper
 		#endif
 	}
 	
-	/** 
-	 * Unless you really need to know if the player is blind, 
-	 * use {@link MinecraftRenderWrapper#isFogStateSpecial()} or {@link IMinecraftRenderWrapper#isFogStateSpecial()} instead 
+	/**
+	 * Unless you really need to know if the player is blind,
+	 * use {@link MinecraftRenderWrapper#isFogStateSpecial()} or {@link IMinecraftRenderWrapper#isFogStateSpecial()} instead
 	 */
 	@Override
 	public boolean playerHasBlindingEffect()
 	{
+		#if MC_VER <= MC_1_7_10
+		if (MC.thePlayer == null)
+		#else
 		if (MC.player == null)
+		#endif
 		{
 			return false;
 		}
 		
-		#if MC_VER <= MC_1_12_2
+		
+		
+		#if MC_VER <= MC_1_7_10
+		return MC.thePlayer.getActivePotionEffect(Potion.blindness) != null;
+		#elif MC_VER <= MC_1_12_2
 		if (MC.player.getActivePotionMap() == null)
 		{
 			return false;
@@ -207,9 +248,9 @@ public class MinecraftRenderWrapper implements IMinecraftRenderWrapper
 		
 		return MC.player.getActiveEffectsMap().get(MobEffects.BLINDNESS) != null
 			#if MC_VER >= MC_1_19_2
-				|| MC.player.getActiveEffectsMap().get(MobEffects.DARKNESS) != null // Deep dark effect
+			|| MC.player.getActiveEffectsMap().get(MobEffects.DARKNESS) != null // Deep dark effect
 			#endif
-				;
+			;
 		#endif
 		
 	}
@@ -234,29 +275,37 @@ public class MinecraftRenderWrapper implements IMinecraftRenderWrapper
 			}
 		}
 		
-		#if MC_VER <= MC_1_12_2
-		RenderManager rm = MC.getRenderManager();
-		return new DhVec3d(rm.viewerPosX, rm.viewerPosY, rm.viewerPosZ);
-		#else
-		#if MC_VER <= MC_26_1_2
-		Camera camera = MC.gameRenderer.getMainCamera();
-		#else
-		Camera camera = MC.gameRenderer.mainCamera();
-		#endif
 		
-		#if MC_VER <= MC_1_21_10
-		Vec3 projectedView = camera.getPosition();
+		
+		#if MC_VER <= MC_1_7_10
+			float frameTime = Minecraft.getMinecraft().timer.renderPartialTicks;
+			Camera.INSTANCE.update(MC.renderViewEntity, frameTime);
+			Vector3d projectedView = Camera.INSTANCE.getPos();
+			return new DhVec3d(projectedView.x, projectedView.y, projectedView.z);
+		#elif MC_VER <= MC_1_12_2
+			RenderManager rm = MC.getRenderManager();
+			return new DhVec3d(rm.viewerPosX, rm.viewerPosY, rm.viewerPosZ);
+		#elif MC_VER <= MC_1_21_10
+			Camera camera = MC.gameRenderer.getMainCamera();
+			Vec3 projectedView = camera.getPosition();
+			return new DhVec3d(projectedView.x, projectedView.y, projectedView.z);
+		#elif MC_VER <= MC_26_1_2
+			Camera camera = MC.gameRenderer.getMainCamera();
+			Vec3 projectedView = camera.position();
+			return new DhVec3d(projectedView.x, projectedView.y, projectedView.z);
 		#else
-		Vec3 projectedView = camera.position();
-		#endif
-		return new DhVec3d(projectedView.x, projectedView.y, projectedView.z);
+			Camera camera = MC.gameRenderer.mainCamera();
+			Vec3 projectedView = camera.position();
+			return new DhVec3d(projectedView.x, projectedView.y, projectedView.z);
 		#endif
 	}
 	
 	@Override
 	public float getPartialTickTime()
 	{
-		#if MC_VER <= MC_1_12_2
+		#if MC_VER <= MC_1_7_10
+		return Minecraft.getMinecraft().timer.renderPartialTicks;
+		#elif MC_VER <= MC_1_12_2
 		return MC.getRenderPartialTicks();
 		#elif MC_VER < MC_1_21_1
 		return MC.getFrameTime();
@@ -273,22 +322,30 @@ public class MinecraftRenderWrapper implements IMinecraftRenderWrapper
 	public Color getFogColor(float partialTicks)
 	{
 		#if MC_VER < MC_1_17_1
+		
+		#if MC_VER <= MC_1_7_10
+		if (DelayedAccessors.ANGELICA != null)
+		{
+			return DelayedAccessors.ANGELICA.getFogColor();
+		}
+		#endif
+		
 		float[] colorValues = new float[4];
-		GL15.glGetFloatv(GL15.GL_FOG_COLOR, colorValues);
+		LWJGL.glGetFloatv(GL11.GL_FOG_COLOR, colorValues);
 		return new Color(
-				Math.max(0f, Math.min(colorValues[0], 1f)), // r
-				Math.max(0f, Math.min(colorValues[1], 1f)), // g
-				Math.max(0f, Math.min(colorValues[2], 1f)), // b
-				Math.max(0f, Math.min(colorValues[3], 1f))  // a
+			Math.max(0f, Math.min(colorValues[0], 1f)), // r
+			Math.max(0f, Math.min(colorValues[1], 1f)), // g
+			Math.max(0f, Math.min(colorValues[2], 1f)), // b
+			Math.max(0f, Math.min(colorValues[3], 1f))  // a
 		);
 		#elif MC_VER < MC_1_21_3
 		FogRenderer.setupColor(MC.gameRenderer.getMainCamera(), partialTicks, MC.level, 1, MC.gameRenderer.getDarkenWorldAmount(partialTicks));
 		float[] colorValues = RenderSystem.getShaderFogColor();
 		return new Color(
-				Math.max(0f, Math.min(colorValues[0], 1f)), // r
-				Math.max(0f, Math.min(colorValues[1], 1f)), // g
-				Math.max(0f, Math.min(colorValues[2], 1f)), // b
-				Math.max(0f, Math.min(colorValues[3], 1f))  // a
+			Math.max(0f, Math.min(colorValues[0], 1f)), // r
+			Math.max(0f, Math.min(colorValues[1], 1f)), // g
+			Math.max(0f, Math.min(colorValues[2], 1f)), // b
+			Math.max(0f, Math.min(colorValues[3], 1f))  // a
 		);
 		#elif MC_VER < MC_1_21_6
 		Vector4f colorValues = FogRenderer.computeFogColor(MC.gameRenderer.getMainCamera(), partialTicks, MC.level, 1, MC.gameRenderer.getDarkenWorldAmount(partialTicks));
@@ -380,13 +437,19 @@ public class MinecraftRenderWrapper implements IMinecraftRenderWrapper
 	@Override
 	public Color getSkyColor()
 	{
-		#if MC_VER <= MC_1_12_2
+		#if MC_VER <= MC_1_7_10
+		if (!MC.theWorld.provider.hasNoSky)
+		#elif MC_VER <= MC_1_12_2
 		if (MC.world.provider.hasSkyLight())
-		#else	
+		#else
 		if (MC.level.dimensionType().hasSkyLight())
 		#endif
 		{
-			#if MC_VER <= MC_1_12_2
+			#if MC_VER <= MC_1_7_10
+			float frameTime = this.getPartialTickTime();
+			Vec3 colorValues = MC.theWorld.provider.getSkyColor(MC.renderViewEntity, frameTime);
+			return new Color((float) colorValues.xCoord, (float) colorValues.yCoord, (float) colorValues.zCoord);
+			#elif MC_VER <= MC_1_12_2
 			float frameTime = this.getPartialTickTime();
 			net.minecraft.util.math.Vec3d colorValues = MC.world.getSkyColor(MC.getRenderViewEntity(), frameTime);
 			return new Color((float) colorValues.x, (float) colorValues.y, (float) colorValues.z);
@@ -405,9 +468,12 @@ public class MinecraftRenderWrapper implements IMinecraftRenderWrapper
 			#elif MC_VER <= MC_26_1_2
 			int argbColor = MC.level.environmentAttributes().getValue(EnvironmentAttributes.SKY_COLOR, MC.gameRenderer.getMainCamera().position());
 			return new Color(ColorUtil.getRed(argbColor), ColorUtil.getGreen(argbColor), ColorUtil.getBlue(argbColor), 255 /* ignore alpha since DH clouds don't render correctly with transparency */);
-			#else
+			#elif MC_VER <= MC_26_2_0
 			int argbColor = MC.level.environmentAttributes().getValue(EnvironmentAttributes.SKY_COLOR, MC.gameRenderer.mainCamera().position());
 			return new Color(ColorUtil.getRed(argbColor), ColorUtil.getGreen(argbColor), ColorUtil.getBlue(argbColor), 255 /* ignore alpha since DH clouds don't render correctly with transparency */);
+			#else
+			Vector3fc argbColor = MC.level.environmentAttributes().getValue(EnvironmentAttributes.SKY_COLOR, MC.gameRenderer.mainCamera().position());
+			return new Color(argbColor.x(), argbColor.y(), argbColor.z(), 1.0f /* ignore alpha since DH clouds don't render correctly with transparency */);
 			#endif
 		}
 		else
@@ -455,7 +521,7 @@ public class MinecraftRenderWrapper implements IMinecraftRenderWrapper
 	}
 	
 	#if MC_VER > MC_1_12_2
-	public RenderTarget getRenderTarget() 
+	public RenderTarget getRenderTarget()
 	{
 		#if MC_VER <= MC_26_1_2
 		return MC.getMainRenderTarget();
@@ -508,6 +574,28 @@ public class MinecraftRenderWrapper implements IMinecraftRenderWrapper
 		return this.renderApi;
 	}
 	
+	@Override 
+	public EDhApiDepthDirection getMcDepthDirection()
+	{
+		if (DelayedAccessors.IRIS != null
+			&& DelayedAccessors.IRIS.isShaderPackInUse())
+		{
+			if (DelayedAccessors.IRIS.isReverseZDuringShaders())
+			{
+				return EDhApiDepthDirection.REVERSE_Z;
+			}
+			else
+			{
+				return EDhApiDepthDirection.FORWARD_Z;
+			}
+		}
+		
+		#if MC_VER <= MC_26_1_2
+		return EDhApiDepthDirection.FORWARD_Z;
+		#else
+		return EDhApiDepthDirection.REVERSE_Z;
+		#endif
+	}
 	
 	@Override
 	public int getTargetFramebuffer()
@@ -535,9 +623,24 @@ public class MinecraftRenderWrapper implements IMinecraftRenderWrapper
 	@Override
 	public int getGlDepthTextureId()
 	{
-		#if MC_VER <= MC_1_12_2
-		//1.12.2 is using renderbuffer instead of framebuffer for depth texture
-		return -1;
+		#if MC_VER <= MC_1_7_10
+		if (DelayedAccessors.ANGELICA != null)
+		{
+			return DelayedAccessors.ANGELICA.getDepthTextureId();
+		}
+		
+		final Framebuffer framebuffer = Minecraft.getMinecraft().getFramebuffer();
+		return framebuffer.depthBuffer;
+		#elif MC_VER <= MC_1_12_2
+		final Framebuffer framebuffer = MC.getFramebuffer();
+		if (DelayedAccessors.IRIS != null)
+		{
+			return DelayedAccessors.IRIS.getFramebufferDepthTextureId(framebuffer);
+		}
+		else
+		{
+			return ((IFramebufferDepthTexture) framebuffer).distantHorizons$getDistantHorizonsDepthTexture();
+		}
 		#elif MC_VER < MC_1_21_5
 		return this.getRenderTarget().getDepthTextureId();
 		#else
@@ -566,7 +669,7 @@ public class MinecraftRenderWrapper implements IMinecraftRenderWrapper
 		#endif
 	}
 	@Override
-	public int getGlColorTextureId() 
+	public int getGlColorTextureId()
 	{
 		#if MC_VER <= MC_1_12_2
 		return MC.getFramebuffer().framebufferTexture;
@@ -624,24 +727,110 @@ public class MinecraftRenderWrapper implements IMinecraftRenderWrapper
 	@Override
 	public boolean isFogStateSpecial()
 	{
-		#if MC_VER <= MC_1_12_2
+		#if MC_VER <= MC_1_7_10
+		DhVec3d cameraPos = this.getCameraExactPosition();
+		
+		Block fluidBlock = MC.renderViewEntity.worldObj.getBlock(
+			MathHelper.floor_double(cameraPos.x),
+			MathHelper.floor_double(cameraPos.y),
+			MathHelper.floor_double(cameraPos.z));
+		
+		return this.playerHasBlindingEffect() 
+			|| fluidBlock.getMaterial().isLiquid() 
+			|| fluidBlock instanceof IFluidBlock;
+		#elif MC_VER <= MC_1_12_2
 		BlockPos blockPos = new BlockPos(MC.getRenderViewEntity().getPositionEyes(MC.getRenderPartialTicks()));
 		IBlockState fluidState = MC.getRenderViewEntity().world.getBlockState(blockPos);
-		return this.playerHasBlindingEffect() || fluidState.getMaterial().isLiquid() || fluidState.getBlock() instanceof IFluidBlock;
+		return this.playerHasBlindingEffect()
+			|| fluidState.getMaterial().isLiquid()
+			|| fluidState.getBlock() instanceof IFluidBlock;
+		
 		#elif MC_VER < MC_1_17_1
-		Camera camera = Minecraft.getInstance().gameRenderer.getMainCamera();
-		FluidState fluidState = camera.getFluidInCamera();
-		Entity entity = camera.getEntity();
+		Camera camera = MC.gameRenderer.getMainCamera();
+		FluidState fluidState=camera.getFluidInCamera();
+		boolean cameraNotInFluid =! (fluidState.is(FluidTags.WATER) || fluidState.is(FluidTags.LAVA));
+	    if(cameraNotInFluid)
+	    {	
+			String fluidAtCamera= Registry.FLUID.getKey(MC.level.getFluidState(MC.gameRenderer.getMainCamera().getBlockPosition()).getType()).toString();	
+			boolean isNotAtVanillaFluid =! 
+				(
+					fluidAtCamera.equals("minecraft:water") 
+					|| fluidAtCamera.equals("minecraft:lava")
+				) 
+				&& !fluidAtCamera.equals("minecraft:empty");
+			cameraNotInFluid =! (cameraNotInFluid && isNotAtVanillaFluid);
+		}
 		boolean isBlind = this.playerHasBlindingEffect();
-			isBlind |= fluidState.is(FluidTags.WATER);
-			isBlind |= fluidState.is(FluidTags.LAVA);
-		return isBlind;
+		return !cameraNotInFluid || isBlind;
+		
+		#elif MC_VER <= MC_1_19_2
+		boolean cameraNotInFluid=MC.gameRenderer.getMainCamera().getFluidInCamera() == FogType.NONE;	
+	    if(cameraNotInFluid)
+	    {	
+			String fluidAtCamera= Registry.FLUID.getKey(MC.level.getFluidState(MC.gameRenderer.getMainCamera().getBlockPosition()).getType()).toString();	
+			boolean isNotAtVanillaFluid =! 
+				(
+					fluidAtCamera.equals("minecraft:water")
+					|| fluidAtCamera.equals("minecraft:lava")
+				)
+				&& !fluidAtCamera.equals("minecraft:empty");
+			cameraNotInFluid =! (cameraNotInFluid && isNotAtVanillaFluid);
+		}
+		boolean isBlind = this.playerHasBlindingEffect();
+		return !cameraNotInFluid || isBlind;
+
+		#elif MC_VER <= MC_1_21_10
+		boolean cameraNotInFluid = MC.gameRenderer.getMainCamera().getFluidInCamera() == FogType.NONE;
+		if(cameraNotInFluid)
+		{
+			String fluidAtCamera = BuiltInRegistries.FLUID.getKey(MC.level.getFluidState(MC.gameRenderer.getMainCamera().getBlockPosition()).getType()).toString();
+			boolean isNotAtVanillaFluid =! 
+				(
+					fluidAtCamera.equals("minecraft:water")
+					|| fluidAtCamera.equals("minecraft:lava")
+				)
+				&& !fluidAtCamera.equals("minecraft:empty");
+			cameraNotInFluid =! (cameraNotInFluid && isNotAtVanillaFluid);
+		}
+		boolean isBlind = this.playerHasBlindingEffect();
+		return !cameraNotInFluid || isBlind;
+		
 		#elif MC_VER <= MC_26_1_2
+		boolean cameraNotInFluid=MC.gameRenderer.getMainCamera().getFluidInCamera() == FogType.NONE;	
+		if(cameraNotInFluid)
+		{	
+			String fluidAtCamera=BuiltInRegistries.FLUID.getKey(MC.level.getFluidState(MC.gameRenderer.getMainCamera().blockPosition()).getType()).toString();
+			boolean isNotAtVanillaFluid = 
+				!(
+					fluidAtCamera.equals("minecraft:water")
+					|| fluidAtCamera.equals("minecraft:lava")
+				)
+				&& !fluidAtCamera.equals("minecraft:empty");
+			cameraNotInFluid =! (cameraNotInFluid && isNotAtVanillaFluid);
+		}
 		boolean isBlind = this.playerHasBlindingEffect();
-		return MC.gameRenderer.getMainCamera().getFluidInCamera() != FogType.NONE || isBlind;
+		return !cameraNotInFluid || isBlind;
+		
 		#else
+		boolean cameraNotInFluid = MC.gameRenderer.mainCamera().getFluidInCamera() == FogType.NONE;
+		if(cameraNotInFluid)
+		{
+			String fluidAtCamera = BuiltInRegistries.FLUID.getKey(
+				MC.level.getFluidState(
+					MC.gameRenderer.mainCamera().blockPosition()
+				).getType())
+				.toString();
+			boolean isNotAtVanillaFluid =! 
+				(
+					fluidAtCamera.equals("minecraft:water")
+					|| fluidAtCamera.equals("minecraft:lava")
+				)
+				&& !fluidAtCamera.equals("minecraft:empty");
+			cameraNotInFluid =! (cameraNotInFluid && isNotAtVanillaFluid);
+		}
 		boolean isBlind = this.playerHasBlindingEffect();
-		return MC.gameRenderer.mainCamera().getFluidInCamera() != FogType.NONE || isBlind;
+		return !cameraNotInFluid || isBlind;
+		
 		#endif
 	}
 	
@@ -653,9 +842,17 @@ public class MinecraftRenderWrapper implements IMinecraftRenderWrapper
 	//region
 	
 	@Override
+	#if MC_VER <= MC_1_7_10
+	// No mixin populates the map on 1.7.10 
+	// (LightMapWrapper.getOpenGlId() queries MC
+	// directly there, so the wrapper instance is effectively stateless). 
+	// Lazy-create one per dimension to keep the same map semantics as the other loaders.
+	public ILightMapWrapper getLightmapWrapper(@NotNull ILevelWrapper level) { return this.lightmapByDimensionType.computeIfAbsent(level.getDimensionType(), k -> new LightMapWrapper()); }
+	#else
 	public ILightMapWrapper getLightmapWrapper(@NotNull ILevelWrapper level) { return this.lightmapByDimensionType.get(level.getDimensionType()); }
+	#endif
 	
-	/** 
+	/**
 	 * It's better to use {@link MinecraftRenderWrapper#setLightmapId(int)} if possible,
 	 * however old MC versions don't support it.
 	 */
@@ -677,7 +874,6 @@ public class MinecraftRenderWrapper implements IMinecraftRenderWrapper
 		wrapper.uploadLightmap(lightPixels);
 	}
 	#endif
-	
 	public void setLightmapId(int textureId)
 	{
 		IClientLevelWrapper clientLevel = getLightmapClientLevelWrapper();
@@ -690,7 +886,7 @@ public class MinecraftRenderWrapper implements IMinecraftRenderWrapper
 		// object for the same MC level and/or the same hash,
 		// so this will have to do for now
 		IDimensionTypeWrapper dimensionType = clientLevel.getDimensionType();
-
+		
 		LightMapWrapper wrapper = this.lightmapByDimensionType.computeIfAbsent(dimensionType, (dimType) -> new LightMapWrapper());
 		wrapper.setLightmapId(textureId);
 	}

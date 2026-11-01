@@ -105,13 +105,13 @@ public class DhApiTerrainDataPoint
 	@Override 
 	public String toString()
 	{
-		return "[Block:" + this.blockStateWrapper.getSerialString() + 
-				",Biome:" + this.biomeWrapper.getName() + 
-				",TopY:" + this.topYBlockPos + 
-				",BottomY:" + this.bottomYBlockPos + 
-				",BlockLight:" + this.blockLightLevel +
-				",SkyLight:" + this.skyLightLevel + 
-				"]";
+		return "Block:" + this.blockStateWrapper.getSerialString() + 
+			",Biome:" + this.biomeWrapper.getSerialString() +
+			",BottomY:" + this.bottomYBlockPos +
+			",TopY:" + this.topYBlockPos + 
+			",BlockLight:" + this.blockLightLevel +
+			",SkyLight:" + this.skyLightLevel
+			;
 	}
 	
 	

@@ -9,10 +9,11 @@ import it.unimi.dsi.fastutil.longs.LongSet;
 import org.jetbrains.annotations.Nullable;
 
 import java.lang.ref.SoftReference;
+import java.util.concurrent.locks.ReentrantLock;
 
 public class DhApiTerrainDataCache implements IDhApiTerrainDataCache
 {
-	private final Object modificationLock = new Object();
+	private final ReentrantLock modificationLock = new ReentrantLock();
 	private final Long2ReferenceOpenHashMap<SoftReference<FullDataSourceV2>> posToFullDataRef = new Long2ReferenceOpenHashMap<>();
 	
 	private static final DhLogger LOGGER = new DhLoggerBuilder().build();
@@ -26,17 +27,24 @@ public class DhApiTerrainDataCache implements IDhApiTerrainDataCache
 	
 	public void add(long pos, FullDataSourceV2 dataSource)
 	{
-		synchronized (this.modificationLock)
+		try
 		{
+			modificationLock.lock();
 			this.posToFullDataRef.put(pos, new SoftReference<>(dataSource));
+		}
+		finally
+		{
+			modificationLock.unlock();
 		}
 	}
 	
 	@Nullable
 	public FullDataSourceV2 get(long pos)
 	{
-		synchronized (this.modificationLock)
+		try
 		{
+			modificationLock.lock();
+			
 			SoftReference<FullDataSourceV2> ref = this.posToFullDataRef.get(pos);
 			if (ref != null)
 			{
@@ -46,6 +54,10 @@ public class DhApiTerrainDataCache implements IDhApiTerrainDataCache
 			{
 				return null;
 			}
+		}
+		finally
+		{
+			modificationLock.unlock();
 		}
 	}
 	
@@ -61,12 +73,15 @@ public class DhApiTerrainDataCache implements IDhApiTerrainDataCache
 	@Override 
 	public void clear()
 	{
-		synchronized (this.modificationLock)
+		try
 		{
+			modificationLock.lock();
+			
 			LongSet keySet = this.posToFullDataRef.keySet();
 			for (long pos : keySet)
 			{
-				SoftReference<FullDataSourceV2> dataRef = this.posToFullDataRef.remove(pos);
+				// we can't call remove() here because that can cause inconsistent issues
+				SoftReference<FullDataSourceV2> dataRef = this.posToFullDataRef.get(pos);
 				if (dataRef != null)
 				{
 					FullDataSourceV2 dataSource = dataRef.get();
@@ -83,6 +98,13 @@ public class DhApiTerrainDataCache implements IDhApiTerrainDataCache
 					}
 				}
 			}
+			
+			// clearing can only be done after all the data sources have been closed
+			this.posToFullDataRef.clear();
+		}
+		finally
+		{
+			modificationLock.unlock();
 		}
 	}
 	

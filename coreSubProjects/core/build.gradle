@@ -28,29 +28,15 @@ project.ext.lwjglNatives = "natives-" + os.toFamilyName()
 dependencies {
     // API project dependency
     implementation project(":api")
-
-    // MC-provided libraries (available at runtime via Minecraft)
-    compileOnly platform("org.lwjgl:lwjgl-bom:${rootProject.lwjgl_version}")
-    compileOnly "org.lwjgl:lwjgl"
-    compileOnly "org.lwjgl:lwjgl-assimp"
-    compileOnly "org.lwjgl:lwjgl-glfw"
-    compileOnly "org.lwjgl:lwjgl-stb"
-    compileOnly "org.lwjgl:lwjgl-tinyfd"
-    testRuntimeOnly platform("org.lwjgl:lwjgl-bom:${rootProject.lwjgl_version}")
-    testRuntimeOnly "org.lwjgl:lwjgl::$lwjglNatives"
-    testRuntimeOnly "org.lwjgl:lwjgl-assimp::$lwjglNatives"
-    testRuntimeOnly "org.lwjgl:lwjgl-glfw::$lwjglNatives"
-    testRuntimeOnly "org.lwjgl:lwjgl-stb::$lwjglNatives"
-    testRuntimeOnly "org.lwjgl:lwjgl-tinyfd::$lwjglNatives"
-
+    
     compileOnly("org.apache.logging.log4j:log4j-api:${rootProject.log4j_version}")
     compileOnly("org.apache.logging.log4j:log4j-core:${rootProject.log4j_version}")
     compileOnly("it.unimi.dsi:fastutil:${rootProject.fastutil_version}")
     compileOnly("org.joml:joml:${rootProject.joml_version}")
     compileOnly("io.netty:netty-buffer:${rootProject.netty_version}")
-    compileOnly("org.jetbrains:annotations:16.0.2")
+    compileOnly("org.jetbrains:annotations:26.1.0")
     compileOnly("com.google.code.findbugs:jsr305:3.0.2")
-    compileOnly("com.google.guava:guava:31.1-jre")
+    compileOnly("com.google.guava:guava:31.1-jre") // TODO we should remove/shade this library since we're pulling it from vanilla MC
 
     // DH's bundled libraries (shadowed + relocated in loader jars)
     implementation("com.github.luben:zstd-jni:${rootProject.zstd_version}")
@@ -61,7 +47,7 @@ dependencies {
     implementation("com.electronwill.night-config:json:${rootProject.nightconfig_version}")
 
     // JUnit (core tests only)
-    compileOnly("junit:junit:4.13")
+    compileOnly("junit:junit:4.13.2")
     compileOnly("org.junit.jupiter:junit-jupiter:5.8.2")
     compileOnly("org.junit.jupiter:junit-jupiter-engine:5.8.2")
 }
@@ -81,3 +67,4 @@ test {
     // need more than the default 512 MB of RAM
     jvmArgs '-Xmx4096m'
 }
+

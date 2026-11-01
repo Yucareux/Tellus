@@ -20,10 +20,12 @@ public class MixinImmersivePortalsRenderStatesCommon
 	 */
 	public static void saveVolatileOriginals()
 	{
+		AbstractImmersivePortalsAccessorCommon.lastUpdatedMsTime = System.currentTimeMillis();
+		
+		
 		Minecraft mc = Minecraft.getInstance();
 		
 		AbstractImmersivePortalsAccessorCommon.actualLevel = mc.level;
-		
 		
 		// clear everything if the player is missing
 		// (ie the world hasn't loaded yet)

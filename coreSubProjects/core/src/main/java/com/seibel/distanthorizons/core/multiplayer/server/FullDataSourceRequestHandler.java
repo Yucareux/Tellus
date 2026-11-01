@@ -152,7 +152,7 @@ public class FullDataSourceRequestHandler implements AutoCloseable
 	
 	public void queueWorldGenForRequestMessage(ServerPlayerState serverPlayerState, FullDataSourceRequestMessage message, ServerPlayerState.RateLimiterSet rateLimiterSet)
 	{
-		if (!serverPlayerState.sessionConfig.isDistantGenerationEnabled())
+		if (!Config.Common.WorldGenerator.generatorPlan.get().generationEnabled)
 		{
 			message.sendResponse(new RequestRejectedException("Operation is disabled in config."));
 			return;
@@ -252,7 +252,7 @@ public class FullDataSourceRequestHandler implements AutoCloseable
 			
 			fullDataSource.close();
 			
-			if (DhSectionPos.getDetailLevel(pos) > (Config.Common.WorldGenerator.distantGeneratorMode.get() == EDhApiDistantGeneratorMode.INTERNAL_SERVER
+			if (DhSectionPos.getDetailLevel(pos) > (Config.Common.WorldGenerator.chunkGeneratorMode.get() == EDhApiDistantGeneratorMode.INTERNAL_SERVER
 					? DhSectionPos.SECTION_MINIMUM_DETAIL_LEVEL
 					: this.serverLevel.serverside.fullDataFileHandler.lowestDataDetailLevel()))
 			{

@@ -110,14 +110,14 @@ public class DhClientWorld extends AbstractDhWorld implements IDhClientWorld
 		IClientLevelWrapper clientLevelWrapper = (IClientLevelWrapper) wrapper;
 		clientLevelWrapper.markAccessed();
 		DhClientLevel storedLevel = this.clientLevelByDhId.computeIfAbsent(wrapper.getDhIdentifier(),
-			(key) -> createClientLevel(clientLevelWrapper)
+			(key) -> this.createClientLevel(clientLevelWrapper)
 		);
 		
 		if (storedLevel != null 
 			&& storedLevel.getClientLevelWrapper() != wrapper) 
 		{
-			unloadLevel(storedLevel.getLevelWrapper());
-			storedLevel = createClientLevel(clientLevelWrapper);
+			this.unloadLevel(storedLevel.getLevelWrapper());
+			storedLevel = this.createClientLevel(clientLevelWrapper);
 			if (storedLevel != null)
 			{
 				this.clientLevelByDhId.put(wrapper.getDhIdentifier(), storedLevel);
@@ -135,7 +135,7 @@ public class DhClientWorld extends AbstractDhWorld implements IDhClientWorld
 			}
 			
 			DhClientLevel level = new DhClientLevel(this.saveStructure, clientLevelWrapper, this.networkState);
-			clientLevelWrapperSetByDhId.computeIfAbsent(clientLevelWrapper.getDhIdentifier(), (dhId) -> Collections.synchronizedSet(new HashSet<>())).add(clientLevelWrapper);
+			this.clientLevelWrapperSetByDhId.computeIfAbsent(clientLevelWrapper.getDhIdentifier(), (dhId) -> Collections.synchronizedSet(new HashSet<>())).add(clientLevelWrapper);
 			
 			ApiEventInjector.INSTANCE.fireAllEvents(DhApiLevelLoadEvent.class, new DhApiLevelLoadEvent.EventParam(clientLevelWrapper));
 			ClientApi.INSTANCE.loadWaitingChunksForLevel(clientLevelWrapper);
@@ -150,7 +150,7 @@ public class DhClientWorld extends AbstractDhWorld implements IDhClientWorld
 			String y = MinecraftTextFormat.YELLOW;
 			String cf = MinecraftTextFormat.CLEAR_FORMATTING;
 			
-			ClientApi.INSTANCE.showChatMessageNextFrame(
+			ClientApi.INSTANCE.queueSlowChatMessage(
 				r + "Distant Horizons: Client level loading failed." + cf + "\n" +
 				"Unable to load level ["+y+clientLevelWrapper.getDhIdentifier()+cf+"], LODs may not appear. See log for more information. \n" +
 				"");

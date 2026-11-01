@@ -7,7 +7,9 @@ import com.seibel.distanthorizons.core.logging.DhLoggerBuilder;
 import com.seibel.distanthorizons.core.render.renderer.RenderableBoxGroup;
 import com.seibel.distanthorizons.core.util.LodUtil;
 import com.seibel.distanthorizons.core.wrapperInterfaces.render.objects.IDhGenericObjectVertexBufferContainer;
-import org.lwjgl.opengl.GL33;
+import org.lwjgl.opengl.GL15;
+
+import static com.seibel.distanthorizons.lwjgl.LWJGLServiceProvider.LWJGL;
 
 import java.awt.*;
 import java.util.List;
@@ -113,20 +115,20 @@ public class GlGenericObjectVertexContainer implements IDhGenericObjectVertexBuf
 		this.tryCreateBuffers();
 		
 		// Upload transformation matrices
-		GL33.glBindBuffer(GL33.GL_ARRAY_BUFFER, this.chunkPos);
-		GL33.glBufferData(GL33.GL_ARRAY_BUFFER, this.chunkPosData, GL33.GL_DYNAMIC_DRAW);
-		GL33.glBindBuffer(GL33.GL_ARRAY_BUFFER, this.subChunkPos);
-		GL33.glBufferData(GL33.GL_ARRAY_BUFFER, this.subChunkPosData, GL33.GL_DYNAMIC_DRAW);
-		GL33.glBindBuffer(GL33.GL_ARRAY_BUFFER, this.scale);
-		GL33.glBufferData(GL33.GL_ARRAY_BUFFER, this.scalingData, GL33.GL_DYNAMIC_DRAW);
+		LWJGL.glBindBuffer(GL15.GL_ARRAY_BUFFER, this.chunkPos);
+		LWJGL.glBufferData(GL15.GL_ARRAY_BUFFER, this.chunkPosData, GL15.GL_DYNAMIC_DRAW);
+		LWJGL.glBindBuffer(GL15.GL_ARRAY_BUFFER, this.subChunkPos);
+		LWJGL.glBufferData(GL15.GL_ARRAY_BUFFER, this.subChunkPosData, GL15.GL_DYNAMIC_DRAW);
+		LWJGL.glBindBuffer(GL15.GL_ARRAY_BUFFER, this.scale);
+		LWJGL.glBufferData(GL15.GL_ARRAY_BUFFER, this.scalingData, GL15.GL_DYNAMIC_DRAW);
 		
 		// Upload colors
-		GL33.glBindBuffer(GL33.GL_ARRAY_BUFFER, this.color);
-		GL33.glBufferData(GL33.GL_ARRAY_BUFFER, this.colorData, GL33.GL_DYNAMIC_DRAW);
+		LWJGL.glBindBuffer(GL15.GL_ARRAY_BUFFER, this.color);
+		LWJGL.glBufferData(GL15.GL_ARRAY_BUFFER, this.colorData, GL15.GL_DYNAMIC_DRAW);
 		
 		// Upload materials
-		GL33.glBindBuffer(GL33.GL_ARRAY_BUFFER, this.material);
-		GL33.glBufferData(GL33.GL_ARRAY_BUFFER, this.materialData, GL33.GL_DYNAMIC_DRAW);
+		LWJGL.glBindBuffer(GL15.GL_ARRAY_BUFFER, this.material);
+		LWJGL.glBufferData(GL15.GL_ARRAY_BUFFER, this.materialData, GL15.GL_DYNAMIC_DRAW);
 	}
 	/** needs to be done on the render thread */
 	private void tryCreateBuffers()

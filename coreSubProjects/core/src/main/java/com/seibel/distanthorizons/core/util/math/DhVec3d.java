@@ -95,6 +95,13 @@ public class DhVec3d extends DhApiVec3d
 		this.z = MathUtil.clamp(min, this.z, max);
 	}
 	
+	public void set(DhVec3d that)
+	{
+		this.x = that.x;
+		this.y = that.y;
+		this.z = that.z;
+	}
+	
 	public void set(double x, double y, double z)
 	{
 		this.x = x;

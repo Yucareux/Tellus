@@ -163,6 +163,9 @@ public class DhBlockPos implements INetworkObject
 	 */
 	public int getManhattanDistance(DhBlockPos otherPos)
 	{ return Math.abs(this.x - otherPos.x) + Math.abs(this.y - otherPos.y) + Math.abs(this.z - otherPos.z); }
+	/** @see DhBlockPos#getManhattanDistance(DhBlockPos) */
+	public int getManhattanDistance(DhBlockPos2D otherPos)
+	{ return Math.abs(this.x - otherPos.x) + Math.abs(this.z - otherPos.z); }
 	
 	
 	

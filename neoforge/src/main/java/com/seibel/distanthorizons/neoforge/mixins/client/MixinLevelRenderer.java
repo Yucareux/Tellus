@@ -19,71 +19,83 @@
 
 package com.seibel.distanthorizons.neoforge.mixins.client;
 
-#if MC_VER < MC_1_21_6
-import net.minecraft.client.Minecraft;
-import net.minecraft.client.multiplayer.ClientLevel;
-import net.minecraft.client.renderer.LevelRenderer;
+#if MC_VER < MC_1_19_4
+import com.seibel.distanthorizons.core.util.math.DhMat4f;
+import com.seibel.distanthorizons.core.util.math.DhVec3f;
 import net.minecraft.client.renderer.RenderType;
-import net.neoforged.neoforge.client.event.RenderLevelStageEvent;
+import com.mojang.blaze3d.vertex.PoseStack;
+import com.mojang.math.Matrix4f;
+import org.lwjgl.opengl.GL33;
+import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
+#elif MC_VER < MC_1_21_6
+import com.seibel.distanthorizons.core.util.math.DhMat4f;
+import net.minecraft.client.renderer.RenderType;
+import com.mojang.blaze3d.vertex.PoseStack;
 import org.joml.Matrix4f;
+import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
+#elif MC_VER < MC_1_21_9
+import com.mojang.blaze3d.buffers.GpuBufferSlice;
+import com.mojang.blaze3d.framegraph.FrameGraphBuilder;
+import com.mojang.blaze3d.resource.GraphicsResourceAllocator;
+import com.seibel.distanthorizons.core.util.math.DhMat4f;
+import net.minecraft.client.Camera;
+import net.minecraft.client.DeltaTracker;
+import net.minecraft.client.renderer.chunk.ChunkSectionsToRender;
+import net.minecraft.client.renderer.culling.Frustum;
+import net.minecraft.util.profiling.ProfilerFiller;
+import org.joml.Matrix4f;
+import org.joml.Matrix4fc;
+import org.joml.Vector4f;
+import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
+import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 #elif MC_VER <= MC_1_21_11
-import com.seibel.distanthorizons.common.wrappers.minecraft.MinecraftRenderWrapper;
-import net.minecraft.client.Minecraft;
-import net.minecraft.client.renderer.chunk.ChunkSectionsToRender;
+import com.mojang.blaze3d.buffers.GpuBufferSlice;
+import com.mojang.blaze3d.resource.GraphicsResourceAllocator;
 import net.minecraft.client.Camera;
 import net.minecraft.client.DeltaTracker;
-import net.minecraft.client.multiplayer.ClientLevel;
-import net.minecraft.client.renderer.LevelRenderer;
-
+import net.minecraft.client.renderer.chunk.ChunkSectionsToRender;
 import org.joml.Matrix4f;
 import org.joml.Matrix4fc;
 import org.joml.Vector4f;
-	
+import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
+import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
+#elif MC_VER <= MC_26_2_0
 import com.mojang.blaze3d.buffers.GpuBufferSlice;
 import com.mojang.blaze3d.resource.GraphicsResourceAllocator;
-
-import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
-#else
-import com.mojang.blaze3d.textures.GpuSampler;
-import com.seibel.distanthorizons.common.wrappers.minecraft.MinecraftRenderWrapper;
-import net.minecraft.client.Minecraft;
-import net.minecraft.client.renderer.chunk.ChunkSectionLayerGroup;
-import net.minecraft.client.renderer.chunk.ChunkSectionsToRender;
-import net.minecraft.client.Camera;
 import net.minecraft.client.DeltaTracker;
-import net.minecraft.client.multiplayer.ClientLevel;
-import net.minecraft.client.renderer.LevelRenderer;
-
+import net.minecraft.client.renderer.chunk.ChunkSectionsToRender;
+import org.joml.Matrix4fc;
+import org.joml.Vector4f;
+import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
+import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 import net.minecraft.client.renderer.state.level.CameraRenderState;
-import org.joml.Matrix4f;
-import org.joml.Matrix4fc;
-import org.joml.Vector4f;
-	
-import com.mojang.blaze3d.buffers.GpuBufferSlice;
-import com.mojang.blaze3d.resource.GraphicsResourceAllocator;
-
-import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
+#elif MC_VER <= MC_26_3_0
+import net.minecraft.client.renderer.chunk.ChunkSectionsToRender;
+import net.minecraft.client.renderer.feature.FeatureRenderDispatcher;
 #endif
 
 
-
-import com.seibel.distanthorizons.core.logging.DhLogger;
-
+import com.mojang.blaze3d.systems.RenderSystem;
+import com.seibel.distanthorizons.common.wrappers.minecraft.MinecraftRenderWrapper;
 import com.seibel.distanthorizons.common.wrappers.McObjectConverter;
 import com.seibel.distanthorizons.common.wrappers.world.ClientLevelWrapper;
-import com.seibel.distanthorizons.common.wrappers.minecraft.MinecraftRenderWrapper;
 import com.seibel.distanthorizons.core.api.internal.ClientApi;
-import com.seibel.distanthorizons.core.logging.DhLoggerBuilder;
 import com.seibel.distanthorizons.coreapi.ModInfo;
-import com.seibel.distanthorizons.common.wrappers.minecraft.MinecraftRenderWrapper;
-import com.seibel.distanthorizons.core.util.math.DhMat4f;
+import com.seibel.distanthorizons.core.logging.DhLoggerBuilder;
+
+import net.minecraft.client.multiplayer.ClientLevel;
 import net.minecraft.client.renderer.LevelRenderer;
+
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Shadow;
 import org.spongepowered.asm.mixin.Unique;
-import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.At;
+import org.spongepowered.asm.mixin.injection.Inject;
+
+import com.seibel.distanthorizons.core.logging.DhLogger;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
+
+
 
 @Mixin(LevelRenderer.class)
 public class MixinLevelRenderer
@@ -197,20 +209,20 @@ public class MixinLevelRenderer
 	
 	
 	
-	//============//
-	// post MC 26 //
-	//============//
+	//===========//
+	// MC 26.1.2 //
+	//===========//
 	//region
 	
 	#if MC_VER <= MC_1_21_11
-	#else
-	
-	#if MC_VER <= MC_26_1_2
+	// see code above
+	#elif MC_VER <= MC_26_1_2
 	@Inject(at = @At("HEAD"), method = "prepareChunkRenders")
 	private void prepareChunkRenders(final Matrix4fc modelViewMatrix, CallbackInfoReturnable<ChunkSectionsToRender> callback)
 	{
 		ClientApi.RENDER_STATE.clientLevelWrapper = ClientLevelWrapper.getWrapperIfDifferent(ClientApi.RENDER_STATE.clientLevelWrapper, this.level);
 	}
+	
 	
 	@Inject(at = @At("HEAD"), method = "renderLevel")
 	public void renderLevel(
@@ -227,11 +239,53 @@ public class MixinLevelRenderer
 		
 	}
 	
-    #else
 	#endif
 	
-	#endif
 	//endregion
+	
+	
+	
+	//==============//
+	// MC 26.3 plus //
+	//==============//
+	//region
+	
+	#if MC_VER <= MC_26_2_0
+	// handled in game renderer
+	#else
+	
+	@Inject(at = @At("HEAD"), method = "prepareTranslucents")
+	private void prepareTranslucents(
+		CallbackInfo callback)
+	
+	{
+		ClientApi.RENDER_STATE.mcModelViewMatrix = McObjectConverter.convert(RenderSystem.getModelViewStack());
+		
+		ClientApi.RENDER_STATE.canRenderOrThrow();
+		ClientApi.INSTANCE.renderLods();
+	}
+	
+	@Inject(at = @At("HEAD"), method = "executeOutline")
+	private void executeOutline(
+		final FeatureRenderDispatcher.PreparedFrame featureFrame,
+		CallbackInfo callback)
+	{
+		ClientApi.INSTANCE.renderDeferredLodsForShaders();
+		ClientApi.INSTANCE.renderFadeOpaque();
+	}
+	
+	// improved transparency is necessary since the normal transparent pass is in the same renderPass
+	// preventing us from adding our own render pass inbetween
+	@Inject(at = @At("HEAD"), method = "executeOit")
+	private void executeOit(
+		final ChunkSectionsToRender chunkSectionsToRender, final FeatureRenderDispatcher.PreparedFrame featureFrame,
+		CallbackInfo callback)
+	{ ClientApi.INSTANCE.renderFadeTransparent(); }
+	
+	#endif
+	
+	//endregion
+	
 	
 	
 	

@@ -19,7 +19,10 @@
 
 package com.seibel.distanthorizons.common.render.openGl.glObject.buffer;
 
-import org.lwjgl.opengl.GL33;
+import org.lwjgl.opengl.GL11;
+import org.lwjgl.opengl.GL15;
+
+import static com.seibel.distanthorizons.lwjgl.LWJGLServiceProvider.LWJGL;
 
 /**
  * AKA the GLElementBuffer
@@ -34,7 +37,7 @@ public class GLIndexBuffer extends GLBuffer
 	 * bigger than the upload payload
 	 */
 	protected int indicesCount = 0;
-	protected int glType = GL33.GL_UNSIGNED_INT;
+	protected int glType = GL11.GL_UNSIGNED_INT;
 	public int getGlType() { return this.glType; }
 	
 	
@@ -51,6 +54,6 @@ public class GLIndexBuffer extends GLBuffer
 	}
 	
 	@Override
-	public int getBufferBindingTarget() { return GL33.GL_ELEMENT_ARRAY_BUFFER; }
+	public int getBufferBindingTarget() { return GL15.GL_ELEMENT_ARRAY_BUFFER; }
 	
 }

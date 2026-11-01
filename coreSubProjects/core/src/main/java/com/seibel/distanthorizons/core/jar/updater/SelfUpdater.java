@@ -75,7 +75,7 @@ public class SelfUpdater
 	 */
 	public static boolean onStart()
 	{
-		if (!Config.Client.Advanced.AutoUpdater.enableAutoUpdater.get())
+		if (ModInfo.VERSION.contains("tellus") || !Config.Client.Advanced.AutoUpdater.enableAutoUpdater.get())
 		{
 			LOGGER.info("Distant Horizons auto update disabled.");
 			return false;

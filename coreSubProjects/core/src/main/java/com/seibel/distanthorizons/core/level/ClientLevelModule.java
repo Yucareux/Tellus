@@ -219,6 +219,15 @@ public class ClientLevelModule implements Closeable, IDataSourceUpdateListenerFu
 			clientRenderState.quadtree.queuePosToReload(pos);
 		}
 	}
+
+	public void onGeneratorPlanChanged()
+	{
+		ClientRenderState clientRenderState = this.ClientRenderStateRef.get();
+		if (clientRenderState != null)
+		{
+			clientRenderState.quadtree.onConfigValueSet();
+		}
+	}
 	
 	
 	

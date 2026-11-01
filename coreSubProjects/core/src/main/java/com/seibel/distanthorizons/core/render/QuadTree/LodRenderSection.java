@@ -20,6 +20,7 @@
 package com.seibel.distanthorizons.core.render.QuadTree;
 
 import com.seibel.distanthorizons.api.enums.rendering.EDhApiTransparency;
+import com.seibel.distanthorizons.api.enums.worldGeneration.EDhApiWorldGenerationStep;
 import com.seibel.distanthorizons.core.config.Config;
 import com.seibel.distanthorizons.core.dataObjects.fullData.sources.FullDataSourceV2;
 import com.seibel.distanthorizons.core.dataObjects.render.ColumnRenderSource;
@@ -44,6 +45,7 @@ import com.seibel.distanthorizons.core.util.threading.PriorityTaskPicker;
 import com.seibel.distanthorizons.core.util.threading.ThreadPoolUtil;
 import com.seibel.distanthorizons.core.wrapperInterfaces.minecraft.IMinecraftClientWrapper;
 import com.seibel.distanthorizons.core.wrapperInterfaces.world.IClientLevelWrapper;
+import it.unimi.dsi.fastutil.bytes.ByteArrayList;
 import org.jetbrains.annotations.Nullable;
 
 import javax.annotation.WillNotClose;
@@ -51,6 +53,7 @@ import java.awt.*;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.concurrent.*;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
 /**
@@ -63,12 +66,16 @@ public class LodRenderSection implements IDebugRenderable, AutoCloseable
 	private static final IMinecraftClientWrapper MC = SingletonInjector.INSTANCE.get(IMinecraftClientWrapper.class);
 	private static final AbstractDebugWireframeRenderer DEBUG_RENDERER = SingletonInjector.INSTANCE.get(AbstractDebugWireframeRenderer.class);
 	
+	/** render data built and waiting for the render thread to upload it */
+	private static final AtomicInteger PENDING_UPLOAD_COUNT = new AtomicInteger(0);
+	public static int getPendingUploadCount() { return PENDING_UPLOAD_COUNT.get(); }
+	
 	
 	
 	public final long pos;
 	
 	private final IDhClientLevel clientLevel;
-	private final IClientLevelWrapper levelWrapper;
+	private final IClientLevelWrapper clientLevelWrapper;
 	@WillNotClose
 	private final FullDataSourceProviderV2 fullDataSourceProvider;
 	private final LodQuadTree quadTree;
@@ -88,6 +95,16 @@ public class LodRenderSection implements IDebugRenderable, AutoCloseable
 	
 	/** this reference is necessary so we can determine what VBO to render */
 	public LodBufferContainer renderBufferContainer; 
+	
+	/**
+	 * True when the uploaded render data was built from LOD data covering this section's whole area. <br>
+	 * Sections that haven't been generated yet (or were only partially filled from their children)
+	 * still upload, but with nothing (or only part of the area) to draw. {@link LodQuadTree} uses
+	 * this to keep drawing a neighboring detail level over those areas instead of leaving a hole.
+	 */
+	private volatile boolean renderDataComplete = false;
+	/** set by {@link #getRenderSourceForPos} while building, applied when that build's buffers are uploaded */
+	private boolean builtDataComplete = false;
 	
 	
 	/** 
@@ -117,7 +134,7 @@ public class LodRenderSection implements IDebugRenderable, AutoCloseable
 		this.pos = pos;
 		this.quadTree = quadTree;
 		this.clientLevel = clientLevel;
-		this.levelWrapper = clientLevel.getClientLevelWrapper();
+		this.clientLevelWrapper = clientLevel.getClientLevelWrapper();
 		this.fullDataSourceProvider = fullDataSourceProvider;
 		
 		DEBUG_RENDERER.register(this, Config.Client.Advanced.Debugging.DebugWireframe.showRenderSectionStatus);
@@ -181,6 +198,7 @@ public class LodRenderSection implements IDebugRenderable, AutoCloseable
 							future.complete(null);
 							return;
 						}
+						boolean dataComplete = this.builtDataComplete;
 						
 						// 3 because that's generally the max needed
 						PhantomArrayListCheckout opaqueCheckout = LodQuadBuilder.ARRAY_LIST_POOL.checkoutByteBuffers(3);
@@ -190,23 +208,51 @@ public class LodRenderSection implements IDebugRenderable, AutoCloseable
 						ArrayList<ByteBuffer> opaqueBuffers = lodQuadBuilder.makeOpaqueVertexBuffers(opaqueCheckout);
 						ArrayList<ByteBuffer> transparentBuffers = lodQuadBuilder.makeTransparentVertexBuffers(transparentCheckout);
 						
-						// uploading will primarily happen on the render thread
-						this.uploadToGpuAsync(future, opaqueBuffers, transparentBuffers)
-							// Join is used to prevent queuing up potentially thousands of
-							// upload tasks (each requiring their own staging buffer)
-							// causing an explosion of pooled memory use.
-							// This may slow down loading times slightly,
-							// but in James' testing CPU usage was still quite high
-							// so it shouldn't be a big speed loss for the lower memory cost.
-							.join();
+						// Uploading will primarily happen on the render thread.
+						// This thread doesn't wait for it: the render thread only uploads for part of each frame,
+						// so at low frame rates every loader thread sat waiting here and world generation
+						// and the update propagator got no threads at all.
+						// Queuing up potentially thousands of upload tasks (each requiring their own staging buffer)
+						// is prevented by pausing the render loader instead while too many uploads are waiting,
+						// see ThreadPoolUtil#renderLoaderThreadsCanRun.
+						PENDING_UPLOAD_COUNT.incrementAndGet();
+						CompletableFuture<LodBufferContainer> uploadFuture;
+						try
 						{
+							uploadFuture = this.uploadToGpuAsync(future, opaqueBuffers, transparentBuffers, dataComplete);
+						}
+						catch (RuntimeException e)
+						{
+							PENDING_UPLOAD_COUNT.decrementAndGet();
+							opaqueCheckout.close();
+							transparentCheckout.close();
+							throw e;
+						}
+							
+						uploadFuture.whenComplete((bufferContainer, throwable) ->
+						{
+							PENDING_UPLOAD_COUNT.decrementAndGet();
 							opaqueCheckout.close();
 							transparentCheckout.close();
 							
 							// the future is passed in separately (IE not using the local var) 
 							// to prevent any possible race condition null pointers
-							future.complete(null);
-						}
+							if (throwable != null)
+							{
+								future.completeExceptionally(throwable);
+							}
+							else
+							{
+								future.complete(null);
+							}
+							
+							// render loading may have been paused waiting for this upload
+							PriorityTaskPicker.Executor renderLoadExecutor = ThreadPoolUtil.getRenderLoadingExecutor();
+							if (renderLoadExecutor != null)
+							{
+								renderLoadExecutor.wakeUp();
+							}
+						});
 					}
 				}
 				catch (Exception e)
@@ -248,7 +294,7 @@ public class LodRenderSection implements IDebugRenderable, AutoCloseable
 			
 			
 			boolean enableTransparency = Config.Client.Advanced.Graphics.Quality.transparency.get() == EDhApiTransparency.COMPLETE;
-			LodQuadBuilder lodQuadBuilder = LodQuadBuilder.getBuilder(enableTransparency, this.clientLevel.getClientLevelWrapper());
+			LodQuadBuilder lodQuadBuilder = LodQuadBuilder.getBuilder(enableTransparency, this.clientLevelWrapper);
 			
 			
 			// get the adjacent positions
@@ -271,7 +317,7 @@ public class LodRenderSection implements IDebugRenderable, AutoCloseable
 
 				// the render sources are only needed by this synchronous method,
 				// then they can be closed
-				ColumnRenderBufferBuilder.makeLodRenderData(lodQuadBuilder, thisRenderSource, this.clientLevel, adjacentRenderSections, adjIsSameDetailLevel);
+				ColumnRenderBufferBuilder.makeLodRenderData(lodQuadBuilder, thisRenderSource, this.clientLevelWrapper, adjacentRenderSections, adjIsSameDetailLevel);
 				return lodQuadBuilder;
 			}
 			catch (Exception e)
@@ -305,7 +351,12 @@ public class LodRenderSection implements IDebugRenderable, AutoCloseable
 				? this.fullDataSourceProvider.get(finalPos)
 				: this.fullDataSourceProvider.getAdjForDirection(finalPos, direction.opposite()))
 		{
-			ColumnRenderSource columnRenderSource = FullDataToRenderDataTransformer.transformFullDataToRenderSource(fullDataSource, this.levelWrapper);
+			if (direction == null)
+			{
+				this.builtDataComplete = coversWholeSection(fullDataSource);
+			}
+			
+			ColumnRenderSource columnRenderSource = FullDataToRenderDataTransformer.transformFullDataToRenderSource(fullDataSource, this.clientLevelWrapper);
 			return columnRenderSource;
 		}
 		catch (Exception e)
@@ -313,6 +364,24 @@ public class LodRenderSection implements IDebugRenderable, AutoCloseable
 			LOGGER.error("Unexpected issue creating render data for pos: ["+DhSectionPos.toString(finalPos)+"], error: ["+e.getMessage()+"].", e);
 			return null;
 		}
+	}
+	/** @return true if every column has LOD data, generated at this detail level or down sampled from finer ones */
+	private static boolean coversWholeSection(@Nullable FullDataSourceV2 fullDataSource)
+	{
+		if (fullDataSource == null || fullDataSource.isEmpty)
+		{
+			return false;
+		}
+		
+		ByteArrayList columnGenerationSteps = fullDataSource.columnGenerationSteps;
+		for (int i = 0; i < columnGenerationSteps.size(); i++)
+		{
+			if (columnGenerationSteps.getByte(i) == EDhApiWorldGenerationStep.EMPTY.value)
+			{
+				return false;
+			}
+		}
+		return true;
 	}
 	private boolean isAdjacentPosSameDetailLevel(EDhDirection direction)
 	{
@@ -328,13 +397,15 @@ public class LodRenderSection implements IDebugRenderable, AutoCloseable
 	private synchronized CompletableFuture<LodBufferContainer> uploadToGpuAsync(
 		CompletableFuture<Void> parentFuture,
 		ArrayList<ByteBuffer> opaqueBuffers,
-		ArrayList<ByteBuffer> transparentBuffers)
+		ArrayList<ByteBuffer> transparentBuffers,
+		boolean dataComplete)
 	{
 		CompletableFuture<LodBufferContainer> uploadFuture = LodBufferContainer.tryMakeAndUploadBuffersAsync(
-			this.pos, this.clientLevel, 
+			this.pos, this.clientLevelWrapper, 
 			opaqueBuffers, 
 			transparentBuffers);
-		uploadFuture.whenComplete((bufferContainer, e) ->
+		// returning the chained future lets callers act once the new buffers are in place
+		return uploadFuture.whenComplete((bufferContainer, e) ->
 		{
 			try
 			{
@@ -356,6 +427,7 @@ public class LodRenderSection implements IDebugRenderable, AutoCloseable
 				
 				// close the old container
 				LodBufferContainer oldContainer = this.renderBufferContainer;
+				this.renderDataComplete = dataComplete;
 				this.renderBufferContainer = bufferContainer.buffersUploaded ? bufferContainer : null;
 				if (oldContainer != null)
 				{
@@ -380,8 +452,6 @@ public class LodRenderSection implements IDebugRenderable, AutoCloseable
 				LOGGER.error("Unexpected buffer finish exception: ["+finishEx.getMessage()+"]", finishEx);
 			}
 		});
-		
-		return uploadFuture;
 	}
 	
 	//endregion render data uploading
@@ -394,6 +464,8 @@ public class LodRenderSection implements IDebugRenderable, AutoCloseable
 	//region
 	
 	public boolean canRender() { return this.renderBufferContainer != null; }
+	/** @return true if this section can render and its render data covers its whole area */
+	public boolean canRenderWholeArea() { return this.renderDataComplete && this.canRender(); }
 	public boolean gpuUploadComplete() 
 	{ 
 		return this.renderBufferContainer != null
@@ -435,8 +507,8 @@ public class LodRenderSection implements IDebugRenderable, AutoCloseable
 			return;
 		}
 		
-		int levelMinY = this.clientLevel.getLevelWrapper().getMinHeight();
-		int levelMaxY = this.clientLevel.getLevelWrapper().getMaxHeight();
+		int levelMinY = this.clientLevelWrapper.getMinHeight();
+		int levelMaxY = this.clientLevelWrapper.getMaxHeight();
 		
 		// show the wireframe a bit lower than world max height,
 		// since most worlds don't render all the way up to the max height
@@ -450,8 +522,8 @@ public class LodRenderSection implements IDebugRenderable, AutoCloseable
 	public String toString()
 	{
 		return  "pos=[" + DhSectionPos.toString(this.pos) + "] " +
-				"enabled=[" + this.renderingEnabled + "] " +
-				"canRender=[" + (this.renderBufferContainer != null) + "] " +	
+				"enabled=[" + this.getRenderingEnabled() + "] " +
+				"canRender=[" + this.canRender() + "] " +	
 				"uploading=[" + this.gpuUploadInProgress() + "] "
 				;
 	}

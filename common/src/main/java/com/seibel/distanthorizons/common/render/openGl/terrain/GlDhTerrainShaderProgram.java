@@ -19,6 +19,7 @@ import com.seibel.distanthorizons.core.config.Config;
 import com.seibel.distanthorizons.core.dataObjects.render.bufferBuilding.LodBufferContainer;
 import com.seibel.distanthorizons.core.dataObjects.render.bufferBuilding.LodQuadBuilder;
 import com.seibel.distanthorizons.core.dependencyInjection.ModAccessorInjector;
+import com.seibel.distanthorizons.core.dependencyInjection.SingletonInjector;
 import com.seibel.distanthorizons.core.logging.DhLogger;
 import com.seibel.distanthorizons.core.logging.DhLoggerBuilder;
 import com.seibel.distanthorizons.core.render.RenderParams;
@@ -27,11 +28,15 @@ import com.seibel.distanthorizons.core.util.math.DhMat4f;
 import com.seibel.distanthorizons.core.util.math.DhVec3d;
 import com.seibel.distanthorizons.core.util.math.DhVec3f;
 import com.seibel.distanthorizons.core.util.objects.SortedArraySet;
+import com.seibel.distanthorizons.core.wrapperInterfaces.minecraft.IMinecraftRenderWrapper;
 import com.seibel.distanthorizons.core.wrapperInterfaces.minecraft.IProfilerWrapper;
 import com.seibel.distanthorizons.core.wrapperInterfaces.modAccessor.IIrisAccessor;
 import com.seibel.distanthorizons.core.wrapperInterfaces.render.objects.IVertexBufferWrapper;
 import com.seibel.distanthorizons.coreapi.DependencyInjection.ApiEventInjector;
-import org.lwjgl.opengl.GL33;
+import org.lwjgl.opengl.GL11;
+import org.lwjgl.opengl.GL14;
+
+import static com.seibel.distanthorizons.lwjgl.LWJGLServiceProvider.LWJGL;
 
 /**
  * Handles rendering the normal LOD terrain.
@@ -43,6 +48,7 @@ public class GlDhTerrainShaderProgram extends GlShaderProgram implements IDhApiS
 		.fileLevelConfig(Config.Common.Logging.logRendererEventToFile)
 		.build();
 	
+	private static final IMinecraftRenderWrapper MC_RENDER = SingletonInjector.INSTANCE.get(IMinecraftRenderWrapper.class);
 	private static final MinecraftGLWrapper GLMC = MinecraftGLWrapper.INSTANCE;
 	private static final IIrisAccessor IRIS_ACCESSOR = ModAccessorInjector.INSTANCE.get(IIrisAccessor.class);
 	
@@ -56,6 +62,11 @@ public class GlDhTerrainShaderProgram extends GlShaderProgram implements IDhApiS
 	
 	public GlAbstractVertexAttribute vao;
 	
+	/** used for TAA jitter, the 8 represents how many jitter points are available */
+	private int frameIndexMod8 = 0;
+	
+	
+	
 	// uniforms //
 	//region 
 	
@@ -65,6 +76,11 @@ public class GlDhTerrainShaderProgram extends GlShaderProgram implements IDhApiS
 	
 	public int uMircoOffset = -1;
 	public int uEarthRadius = -1;
+	
+	public int uFrameMod8 = -1;
+	public int uViewWidth = -1;
+	public int uViewHeight = -1;
+	
 	public int uLightMap = -1;
 	public int uBlockAtlas = -1;
 	
@@ -113,6 +129,10 @@ public class GlDhTerrainShaderProgram extends GlShaderProgram implements IDhApiS
 		this.uDitherDhRendering = this.getUniformLocation("uDitherDhRendering");
 		this.uMircoOffset = this.getUniformLocation("uMircoOffset");
 		this.uEarthRadius = this.getUniformLocation("uEarthRadius");
+		
+		this.uFrameMod8 = this.getUniformLocation("uFrameMod8");
+		this.uViewWidth = this.getUniformLocation("uViewWidth");
+		this.uViewHeight = this.getUniformLocation("uViewHeight");
 		
 		this.uLightMap = this.getUniformLocation("uLightMap");
 		this.uBlockAtlas = this.getUniformLocation("uBlockAtlas");
@@ -210,7 +230,7 @@ public class GlDhTerrainShaderProgram extends GlShaderProgram implements IDhApiS
 		this.setUniform(this.uCombinedMatrix, combinedMatrix);
 		this.setUniform(this.uMircoOffset, 0.01f); // 0.01 block offset
 		
-		this.setUniform(this.uLightMap, LightMapWrapper.GL_BOUND_INDEX);
+		this.setUniform(this.uLightMap, LightMapWrapper.GL_DH_BOUND_INDEX);
 		
 		boolean texturedLodsEnabled = Config.Client.Advanced.Graphics.Texture.enableTexturedLods.get();
 		if (texturedLodsEnabled)
@@ -233,6 +253,29 @@ public class GlDhTerrainShaderProgram extends GlShaderProgram implements IDhApiS
 			curveRatio = 0.0f;
 		}
 		this.setUniform(this.uEarthRadius, curveRatio);
+		
+		
+		if (Config.Client.Advanced.Graphics.enableAntiAliasing.get()
+			&&
+			(
+				IRIS_ACCESSOR == null
+				|| !IRIS_ACCESSOR.isShaderPackInUse()
+			)
+		)
+		{
+			this.frameIndexMod8++;
+			this.frameIndexMod8 %= 8;
+		}
+		else
+		{
+			this.frameIndexMod8 = -1;
+		}
+		this.setUniform(this.uFrameMod8, (float)this.frameIndexMod8);
+		
+		int width = MC_RENDER.getTargetFramebufferViewportWidth();
+		int height = MC_RENDER.getTargetFramebufferViewportHeight();
+		this.setUniform(this.uViewWidth, (float) width);
+		this.setUniform(this.uViewHeight, (float) height);
 		
 		// Noise Uniforms
 		this.setUniform(this.uNoiseEnabled, Config.Client.Advanced.Graphics.NoiseTexture.enableNoiseTexture.get());
@@ -281,12 +324,12 @@ public class GlDhTerrainShaderProgram extends GlShaderProgram implements IDhApiS
 		boolean renderWireframe = Config.Client.Advanced.Debugging.renderWireframe.get();
 		if (renderWireframe)
 		{
-			GL33.glPolygonMode(GL33.GL_FRONT_AND_BACK, GL33.GL_LINE);
+			LWJGL.glPolygonMode(GL11.GL_FRONT_AND_BACK, GL11.GL_LINE);
 			GLMC.disableFaceCulling();
 		}
 		else
 		{
-			GL33.glPolygonMode(GL33.GL_FRONT_AND_BACK, GL33.GL_FILL);
+			LWJGL.glPolygonMode(GL11.GL_FRONT_AND_BACK, GL11.GL_FILL);
 			GLMC.enableFaceCulling();
 		}
 		
@@ -294,8 +337,8 @@ public class GlDhTerrainShaderProgram extends GlShaderProgram implements IDhApiS
 		{
 			GLMC.enableBlend();
 			GLMC.enableDepthTest();
-			GL33.glBlendEquation(GL33.GL_FUNC_ADD);
-			GLMC.glBlendFuncSeparate(GL33.GL_SRC_ALPHA, GL33.GL_ONE_MINUS_SRC_ALPHA, GL33.GL_ONE, GL33.GL_ONE_MINUS_SRC_ALPHA);
+			LWJGL.glBlendEquation(GL14.GL_FUNC_ADD);
+			GLMC.glBlendFuncSeparate(GL11.GL_SRC_ALPHA, GL11.GL_ONE_MINUS_SRC_ALPHA, GL11.GL_ONE, GL11.GL_ONE_MINUS_SRC_ALPHA);
 		}
 		else
 		{
@@ -304,7 +347,7 @@ public class GlDhTerrainShaderProgram extends GlShaderProgram implements IDhApiS
 		
 		// needs to be explicitly called since Iris may disable color rendering and not re-enable it
 		// when boats are rendered in the scene (due to rendering out water inside the boat)
-		GL33.glColorMask(true, true, true, true);
+		LWJGL.glColorMask(true, true, true, true);
 		
 		// needs to be triggered after DH attempts to set the GL state so that Iris 
 		// can override it as needed
@@ -388,8 +431,8 @@ public class GlDhTerrainShaderProgram extends GlShaderProgram implements IDhApiS
 						vbo.getQuadIBO().bind();
 						
 						GlDhMetaRenderer.INSTANCE.shaderProgramForThisFrame.bindVertexBuffer(vbo.getId());
-						GL33.glDrawElements(
-							GL33.GL_TRIANGLES,
+						LWJGL.glDrawElements(
+							GL11.GL_TRIANGLES,
 							indexCount,
 							vbo.getQuadIBO().getGlType(), 0);
 						
@@ -414,7 +457,7 @@ public class GlDhTerrainShaderProgram extends GlShaderProgram implements IDhApiS
 		if (renderWireframe)
 		{
 			// default back to GL_FILL since all other rendering uses it 
-			GL33.glPolygonMode(GL33.GL_FRONT_AND_BACK, GL33.GL_FILL);
+			LWJGL.glPolygonMode(GL11.GL_FRONT_AND_BACK, GL11.GL_FILL);
 			GLMC.enableFaceCulling();
 		}
 		
@@ -423,7 +466,7 @@ public class GlDhTerrainShaderProgram extends GlShaderProgram implements IDhApiS
 		if (!opaquePass)
 		{
 			GLMC.disableBlend();
-			GLMC.glBlendFuncSeparate(GL33.GL_SRC_ALPHA, GL33.GL_ONE, GL33.GL_ONE, GL33.GL_ZERO);
+			GLMC.glBlendFuncSeparate(GL11.GL_SRC_ALPHA, GL11.GL_ONE, GL11.GL_ONE, GL11.GL_ZERO);
 		}
 		#endif
 	}

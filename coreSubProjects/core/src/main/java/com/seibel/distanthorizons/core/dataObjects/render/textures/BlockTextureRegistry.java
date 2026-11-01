@@ -24,6 +24,7 @@ import com.seibel.distanthorizons.core.enums.EDhDirection;
 import com.seibel.distanthorizons.core.wrapperInterfaces.block.IBlockStateFaceTextureProvider;
 import com.seibel.distanthorizons.core.wrapperInterfaces.block.IBlockStateWrapper;
 import com.seibel.distanthorizons.coreapi.util.ColorUtil;
+import com.seibel.distanthorizons.coreapi.util.TextureUtil;
 import org.jetbrains.annotations.Nullable;
 
 import java.util.ArrayList;
@@ -47,13 +48,8 @@ public class BlockTextureRegistry
 {
 	private static final IBlockStateFaceTextureProvider TEXTURE_PROVIDER = SingletonInjector.INSTANCE.get(IBlockStateFaceTextureProvider.class);
 	
-	
-	public static final BlockTextureRegistry INSTANCE = new BlockTextureRegistry();
-	
-	/** measured in pixels */
-	public static final int TILE_HEIGHT_AND_WIDTH = 16;
 	/** RGBA */
-	public static final int TILE_BYTE_COUNT = TILE_HEIGHT_AND_WIDTH * TILE_HEIGHT_AND_WIDTH * 4;
+	public static final int TILE_BYTE_COUNT = TextureUtil.TEXTURE_WIDTH_AND_HEIGHT * TextureUtil.TEXTURE_WIDTH_AND_HEIGHT * 4;
 	
 	/**
 	 * tile ids are stored in 16 vertex bits,
@@ -61,10 +57,13 @@ public class BlockTextureRegistry
 	 */
 	public static final int MAX_TILE_COUNT = 65_536;
 	
-	
-	
 	/** renders every face flat, also used when set registration overflows */
 	public static final short UNTEXTURED_ID = 0;
+	
+	
+	// needs to be defined after the other static variables so it can reference them
+	public static final BlockTextureRegistry INSTANCE = new BlockTextureRegistry();
+	
 	
 	
 	
@@ -282,13 +281,13 @@ public class BlockTextureRegistry
 		
 		byte[] uploadPixels = new byte[TILE_BYTE_COUNT];
 		boolean anyPixelDiffersFromAverage = false;
-		for (int v = 0; v < TILE_HEIGHT_AND_WIDTH; v++)
+		for (int v = 0; v < TextureUtil.TEXTURE_WIDTH_AND_HEIGHT; v++)
 		{
-			for (int u = 0; u < TILE_HEIGHT_AND_WIDTH; u++)
+			for (int u = 0; u < TextureUtil.TEXTURE_WIDTH_AND_HEIGHT; u++)
 			{
 				// 1x1 fallback tiles repeat their single pixel
-				int sourceIndex = ((v * faceTexture.height / TILE_HEIGHT_AND_WIDTH) * faceTexture.width)
-						+ (u * faceTexture.width / TILE_HEIGHT_AND_WIDTH);
+				int sourceIndex = ((v * faceTexture.height / TextureUtil.TEXTURE_WIDTH_AND_HEIGHT) * faceTexture.width)
+						+ (u * faceTexture.width / TextureUtil.TEXTURE_WIDTH_AND_HEIGHT);
 				int argb = argbPixels[sourceIndex];
 				
 				byte red, green, blue, alpha;
@@ -311,7 +310,7 @@ public class BlockTextureRegistry
 					alpha = (byte) ColorUtil.getAlpha(argb);
 				}
 				
-				int outIndex = ((v * TILE_HEIGHT_AND_WIDTH) + u) * 4;
+				int outIndex = TextureUtil.getPixelIndex(u,v) * 4;
 				uploadPixels[outIndex] = red;
 				uploadPixels[outIndex + 1] = green;
 				uploadPixels[outIndex + 2] = blue;

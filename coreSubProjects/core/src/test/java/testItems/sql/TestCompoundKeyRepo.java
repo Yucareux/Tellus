@@ -84,12 +84,15 @@ public class TestCompoundKeyRepo extends AbstractDhRepo<DhChunkPos, TestCompound
 	}
 	
 	@Override
-	public PreparedStatement createInsertStatement(TestCompoundKeyDto dto) throws SQLException
+	public PreparedStatement createUpsertStatement(TestCompoundKeyDto dto) throws SQLException
 	{
 		String sql = 
 			"INSERT INTO "+this.getTableName()+" \n" +
 				"(XPos, ZPos, Value) \n" +
-			"VALUES(?,?,?);";
+			"VALUES(?,?,?) \n" +
+			"ON CONFLICT(XPos, ZPos) DO UPDATE SET" +
+			"   Value = excluded.Value"
+			;
 		PreparedStatement statement = this.createPreparedStatement(sql);
 		
 		int i = 1; // post-increment for the win!
@@ -101,23 +104,6 @@ public class TestCompoundKeyRepo extends AbstractDhRepo<DhChunkPos, TestCompound
 		return statement;
 	}
 	
-	@Override
-	public PreparedStatement createUpdateStatement(TestCompoundKeyDto dto) throws SQLException
-	{
-		String sql =
-			"UPDATE "+this.getTableName()+" \n" +
-			"SET \n" +
-			"   Value = ? \n" +
-			"WHERE XPos = ? AND ZPos = ?";
-		PreparedStatement statement = this.createPreparedStatement(sql);
-		
-		int i = 1;
-		statement.setObject(i++, dto.value);
-		
-		statement.setObject(i++, dto.id.getX());
-		statement.setObject(i++, dto.id.getZ());
-		
-		return statement;
-	}
+	
 	
 }

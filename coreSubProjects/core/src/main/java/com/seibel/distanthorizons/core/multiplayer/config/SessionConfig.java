@@ -1,11 +1,13 @@
 package com.seibel.distanthorizons.core.multiplayer.config;
 
-import com.google.common.base.MoreObjects;
+import com.seibel.distanthorizons.api.enums.worldGeneration.EDhApiGeneratorPlan;
+import com.seibel.distanthorizons.core.util.MoreObjects;
 import com.seibel.distanthorizons.core.config.Config;
 import com.seibel.distanthorizons.core.config.listeners.ConfigChangeListener;
 import com.seibel.distanthorizons.core.config.types.ConfigEntry;
 import com.seibel.distanthorizons.core.network.INetworkObject;
 import io.netty.buffer.ByteBuf;
+import org.jetbrains.annotations.NotNull;
 
 import java.io.Closeable;
 import java.util.*;
@@ -32,27 +34,32 @@ public class SessionConfig implements INetworkObject
 	{
 		// Note: config values are transmitted in the insertion order
 		
-		registerConfigEntry(Config.Common.WorldGenerator.enableDistantGeneration.getChatCommandName(), new Entry(
-			Config.Server.enableServerGeneration::get,
-			runnable -> new Closeable()
+		registerConfigEntry(Config.Common.WorldGenerator.generatorPlan, (clientPlan, serverPlan) -> {
+			if (clientPlan == EDhApiGeneratorPlan.DISABLED || serverPlan == EDhApiGeneratorPlan.DISABLED)
 			{
-				private final ConfigChangeListener<Boolean> distantGenerationChanges = new ConfigChangeListener<>(Config.Common.WorldGenerator.enableDistantGeneration, ignored -> runnable.run());
-				private final ConfigChangeListener<Boolean> serverGenerationChanges = new ConfigChangeListener<>(Config.Server.enableServerGeneration, ignored -> runnable.run());
-				
-				@Override
-				public void close()
+				return EDhApiGeneratorPlan.DISABLED;
+			}
+			
+			// Find a plan that both client and server accept; if nothing found, server overrides the client.
+			boolean surfaceGenEnabled = clientPlan.surfaceGenEnabled && serverPlan.surfaceGenEnabled;
+			boolean chunkGenEnabled = clientPlan.chunkGenEnabled && serverPlan.chunkGenEnabled;
+			for (EDhApiGeneratorPlan plan : EDhApiGeneratorPlan.values())
+			{
+				if (plan.generationEnabled
+					&& plan.surfaceGenEnabled == surfaceGenEnabled
+					&& plan.chunkGenEnabled == chunkGenEnabled)
 				{
-					this.serverGenerationChanges.close();
-					this.distantGenerationChanges.close();
+					return plan;
 				}
-			},
-			(Boolean client, Boolean server) -> client && Config.Common.WorldGenerator.enableDistantGeneration.get()
-		));
+			}
+			
+			return serverPlan;
+		});
 		
 		registerConfigEntry(Config.Server.maxGenerationRequestDistance, Math::min);
-		registerConfigEntry(Config.Common.WorldGenerator.generationCenterChunkX, (x, y) -> y);
-		registerConfigEntry(Config.Common.WorldGenerator.generationCenterChunkZ, (x, y) -> y);
-		registerConfigEntry(Config.Common.WorldGenerator.generationMaxChunkRadius, (x, y) -> y);
+		registerConfigEntry(Config.Common.WorldGenerator.generationCenterChunkX, (clientVal, serverVal) -> serverVal);
+		registerConfigEntry(Config.Common.WorldGenerator.generationCenterChunkZ, (clientVal, serverVal) -> serverVal);
+		registerConfigEntry(Config.Common.WorldGenerator.generationMaxChunkRadius, (clientVal, serverVal) -> serverVal);
 		registerConfigEntry(Config.Server.generationRequestRateLimit, Math::min);
 		
 		registerConfigEntry(Config.Server.enableRealTimeUpdates, Boolean::logicalAnd);
@@ -62,15 +69,15 @@ public class SessionConfig implements INetworkObject
 		registerConfigEntry(Config.Server.maxSyncOnLoadRequestDistance, Math::min);
 		registerConfigEntry(Config.Server.syncOnLoadRateLimit, Math::min);
 		
-		registerConfigEntry(Config.Server.playerBandwidthLimit, (x, y) -> {
-			if (x == 0 && y == 0)
+		registerConfigEntry(Config.Server.playerBandwidthLimit, (clientVal, serverVal) -> {
+			if (clientVal == 0 && serverVal == 0)
 			{
 				return 0;
 			}
 			
 			return Math.min(
-					x > 0 ? x : Integer.MAX_VALUE,
-					y > 0 ? y : Integer.MAX_VALUE
+				(clientVal > 0) ? clientVal : Integer.MAX_VALUE,
+				(serverVal > 0) ? serverVal : Integer.MAX_VALUE
 			);
 		});
 	}
@@ -83,7 +90,7 @@ public class SessionConfig implements INetworkObject
 	// public values //
 	//===============//
 	
-	public boolean isDistantGenerationEnabled() { return this.getValue(Config.Common.WorldGenerator.enableDistantGeneration); }
+	public EDhApiGeneratorPlan getGeneratorPlan() { return this.getValue(Config.Common.WorldGenerator.generatorPlan); }
 	public int getMaxGenerationRequestDistance() { return this.getValue(Config.Server.maxGenerationRequestDistance); }
 	public Integer getGenerationCenterChunkX() { return this.getValue(Config.Common.WorldGenerator.generationCenterChunkX); }
 	public Integer getGenerationCenterChunkZ() { return this.getValue(Config.Common.WorldGenerator.generationCenterChunkZ); }
@@ -107,8 +114,14 @@ public class SessionConfig implements INetworkObject
 	
 	private static <T> void registerConfigEntry(ConfigEntry<T> configEntry, BinaryOperator<T> valueConstrainer)
 	{
+		String commandName = configEntry.getChatCommandName();
+		if (commandName == null)
+		{
+			throw new NullPointerException("Config ["+configEntry.name+"] doesn't have a chat command defined.");
+		}
+		
 		registerConfigEntry(
-			Objects.requireNonNull(configEntry.getChatCommandName()),
+			commandName,
 			new Entry(
 				configEntry::get,
 				runnable -> new ConfigChangeListener<>(configEntry, ignored -> runnable.run()),
@@ -117,7 +130,7 @@ public class SessionConfig implements INetworkObject
 		);
 	}
 	
-	private static void registerConfigEntry(String key, Entry entry)
+	private static void registerConfigEntry(@NotNull String key, Entry entry)
 	{
 		if (CONFIG_ENTRIES.containsKey(key))
 		{
@@ -196,19 +209,21 @@ public class SessionConfig implements INetworkObject
 	/** 
 	 * example: "common.playerBandwidthLimit:[497], " <br>
 	 * Useful to see what was changed when receiving a new config from the server.
+	 *
+	 * @param includeAllValues whether all values should be included, even unchanged values
 	 */
-	public String getDifferencesAsString(SessionConfig that)
+	public String getDifferencesAsString(SessionConfig that, boolean includeAllValues)
 	{
 		StringBuilder stringBuilder = new StringBuilder();
 		
-		for (String key : this.values.keySet())
+		for (String key : CONFIG_ENTRIES.keySet())
 		{
-			String thisFieldString = this.values.get(key) + "";
-			String thatFieldString = that.values.get(key) + "";
+			Object thisValue = this.getValue(key);
+			Object thatValue = that.getValue(key);
 			
-			if (!thisFieldString.equals(thatFieldString))
+			if (includeAllValues || !Objects.equals(thisValue, thatValue))
 			{
-				stringBuilder.append(key+":["+thisFieldString+"], ");
+				stringBuilder.append(key+":["+thatValue+"], ");
 			}
 		}
 		
@@ -258,10 +273,18 @@ public class SessionConfig implements INetworkObject
 		
 		public AnyChangeListener(Runnable runnable)
 		{
-			this.changeListeners = new ArrayList<>(CONFIG_ENTRIES.size());
-			for (Entry entry : CONFIG_ENTRIES.values())
+			try
 			{
-				this.changeListeners.add(entry.changeListenerFactory.apply(runnable));
+				int size = CONFIG_ENTRIES.size();
+				this.changeListeners = new ArrayList<>(size);
+				for (Entry entry : CONFIG_ENTRIES.values())
+				{
+					this.changeListeners.add(entry.changeListenerFactory.apply(runnable));
+				}
+			}
+			catch (Throwable e)
+			{
+				throw e;
 			}
 		}
 		

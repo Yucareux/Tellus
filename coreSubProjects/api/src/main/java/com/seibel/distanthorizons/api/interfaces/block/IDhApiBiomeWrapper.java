@@ -32,4 +32,11 @@ public interface IDhApiBiomeWrapper extends IDhApiUnsafeWrapper
 {
 	String getName();
 	
+	/**
+	 * Returns the full serialized form of the given biome
+	 * as defined by DH's serialization methods.
+	 * @since API 7.1.0 
+	 */
+	String getSerialString();
+	
 }

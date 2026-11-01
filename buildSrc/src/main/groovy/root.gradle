@@ -41,6 +41,27 @@ def writePreprocessorDefinitions() {
         sb.append("DEV_BUILD=\n")
     }
 
+    // gradle sends the value over as a string so compare as a string
+    if (rootProject.enableRenderDocInjection != null
+        && rootProject.enableRenderDocInjection.toString().toLowerCase() == "true")
+    {
+        sb.append("INJECT_RENDER_DOC=\n")
+    }
+    
     new File(rootDir, "build.properties").text = sb.toString()
 }
 writePreprocessorDefinitions()
+
+// TODO remove downgrading
+gradle.projectsEvaluated {
+    rootProject.subprojects.each {
+        if (it.tasks.findByName('remapJar') == null)
+        {
+            return
+        }
+        
+        it.tasks.downgradeJar.inputFile = it.tasks.remapJar.archiveFile
+        it.tasks.jar.finalizedBy(it.tasks.remapJar)
+        it.tasks.remapJar.finalizedBy(it.tasks.shadeDowngradedApi)
+    }
+}

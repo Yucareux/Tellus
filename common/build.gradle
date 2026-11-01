@@ -1,16 +1,1 @@
-plugins {
-    id 'dh-loader'
-}
-
-// Mojang removed ARM LWJGL natives, which causes CI to fail for 1.12.2. Note: this means we cannot build on ARM CPUs right now.
-configurations.configureEach {
-    incoming.beforeResolve {
-        dependencies.withType(ExternalDependency).each { dep ->
-            if (dep.group == 'org.lwjgl') {
-                dep.artifacts.removeIf {
-                    it.classifier?.contains('arm')
-                }
-            }
-        }
-    }
-}
+apply plugin: 'dh-loader'

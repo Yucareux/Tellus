@@ -21,7 +21,8 @@ class NativeRelocator
 	
 	private void prepare() throws Exception
 	{
-		if (this.rootDirectory.resolve(".venv").toFile().exists())
+		// a venv left behind by a failed prepare run is unusable, so probe it rather than trusting the directory
+		if (this.venvPythonPath().toFile().exists() && this.venvHasDependencies())
 		{
 			return;
 		}
@@ -54,7 +55,32 @@ class NativeRelocator
 		
 		if (exitCode != 0)
 		{
-			throw new Exception("Prepare failed: " + exitCode);
+			throw new Exception("Prepare failed: " + exitCode
+					+ " (see the pip output above; the native relocation venv could not be created)");
+		}
+	}
+	
+	private Path venvPythonPath()
+	{
+		Path windowsPython = this.rootDirectory.resolve(".venv/Scripts/python.exe");
+		return windowsPython.toFile().exists() ? windowsPython : this.rootDirectory.resolve(".venv/bin/python");
+	}
+	
+	private boolean venvHasDependencies()
+	{
+		try
+		{
+			ProcessBuilder processBuilder = new ProcessBuilder(this.venvPythonPath().toString(), "-c", "import lief");
+			processBuilder.directory(this.rootDirectory.toFile());
+			processBuilder.redirectErrorStream(true);
+			
+			Process process = processBuilder.start();
+			process.getInputStream().readAllBytes();
+			return process.waitFor() == 0;
+		}
+		catch (Exception e)
+		{
+			return false;
 		}
 	}
 	
@@ -156,9 +182,7 @@ class NativeRelocator
 		processBuilder.directory(this.rootDirectory.toFile());
 		
 		processBuilder.command(
-				this.rootDirectory.resolve(".venv/Scripts").toFile().exists()
-						? this.rootDirectory.resolve(".venv/Scripts/python.exe").toString()
-						: this.rootDirectory.resolve(".venv/bin/python").toString(),
+				this.venvPythonPath().toString(),
 				"./fix_modified_binary.py",
 				outputFilePath.toString()
 		);

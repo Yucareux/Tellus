@@ -19,7 +19,7 @@
 
 package com.seibel.distanthorizons.core.network.exceptions;
 
-/** Fired if the current section is not fully generated and underlying generator does not support N-sized generation. */
+/** Fired when the requested section must be split into smaller sections for the active generator plan. */
 public class SectionRequiresSplittingException extends Exception
 {
 	public SectionRequiresSplittingException() { this("Section requires splitting"); }

@@ -120,6 +120,7 @@ public class ChunkFileReader implements AutoCloseable
 	 */
 	public CompletableFuture<ChunkWrapper> createEmptyOrPreExistingChunkWrapperAsync(
 		int chunkX, int chunkZ,
+		boolean attemptToLoadFromDisk,
 		Map<DhChunkPos, ChunkLightStorage> chunkSkyLightingByDhPos,
 		Map<DhChunkPos, ChunkLightStorage> chunkBlockLightingByDhPos,
 		Map<DhChunkPos, ChunkWrapper> generatedChunkWrapperByDhPos)
@@ -131,6 +132,14 @@ public class ChunkFileReader implements AutoCloseable
 		{
 			return CompletableFuture.completedFuture(generatedChunkWrapperByDhPos.get(dhChunkPos));
 		}
+		
+		if (!attemptToLoadFromDisk)
+		{
+			ChunkWrapper newChunkWrapper = this.CreateProtoChunkWrapper(this.params.mcServerLevel, chunkPos);
+			generatedChunkWrapperByDhPos.put(dhChunkPos, newChunkWrapper);
+			return CompletableFuture.completedFuture(newChunkWrapper);
+		}
+		
 		
 		return this.getChunkNbtDataAsync(chunkPos)
 			.thenApply((CompoundTag chunkData) ->

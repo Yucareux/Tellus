@@ -19,6 +19,8 @@
 
 package com.seibel.distanthorizons.api.interfaces.render;
 
+import com.seibel.distanthorizons.api.enums.config.EDhApiDepthRange;
+import com.seibel.distanthorizons.api.enums.config.EDhApiDepthDirection;
 import com.seibel.distanthorizons.api.enums.config.EDhApiRenderingApi;
 import com.seibel.distanthorizons.api.enums.config.EDhApiRenderingEngine;
 import com.seibel.distanthorizons.api.methods.events.abstractEvents.DhApiAfterDhInitEvent;
@@ -59,6 +61,17 @@ public interface IDhApiRenderProxy
 	 */
 	EDhApiRenderingApi getRenderingApi() throws IllegalStateException;
 	/**
+	 * Returns which specific {@link EDhApiRenderingEngine}
+	 * Distant Horizons will use for rendering. <br><br>
+	 * 
+	 * @throws IllegalStateException if no renderer has been bound yet, 
+	 *      wait till after {@link DhApiAfterDhInitEvent} has been fired
+	 * 
+	 * @see DhApiAfterDhInitEvent
+	 * @since API 7.1.0
+	 */
+	EDhApiRenderingEngine getRenderingEngine() throws IllegalStateException;
+	/**
 	 * Returns true if the current renderer
 	 * is calling the base rendering API's method calls. <br>
 	 * ie GL.drawArrays() for OpenGL. <Br><br>
@@ -74,40 +87,115 @@ public interface IDhApiRenderProxy
 	 */
 	boolean isNativeRenderer() throws IllegalStateException;
 	
+	/**
+	 * Returns the currently active {@link EDhApiDepthRange} DH is rendering with this frame. <Br>
+	 * This value may change from frame to frame based on config and other active mods.
+	 *
+	 * @throws IllegalStateException if no renderer has been bound yet, 
+	 *      wait till after {@link DhApiAfterDhInitEvent} has been fired
+	 *
+	 * @since API 7.2.0
+	 */
+	EDhApiDepthRange getDepthRange() throws IllegalStateException;
+	/**
+	 * Returns the currently active {@link EDhApiDepthDirection} DH is rendering with this frame. <Br>
+	 * This value may change from frame to frame based on config and other active mods.
+	 *
+	 * @throws IllegalStateException if no renderer has been bound yet, 
+	 *      wait till after {@link DhApiAfterDhInitEvent} has been fired
+	 *
+	 * @since API 7.2.0
+	 */
+	EDhApiDepthDirection getDepthDirection() throws IllegalStateException;
+	
 	
 	
 	//=======================//
 	// OpenGL object getters //
 	//=======================//
 	
+	/** @deprecated in favor of {@link IDhApiRenderProxy#getDhDepthTextureGlId} */
+	@Deprecated // don't remove, this method is needed by Iris
+	default DhApiResult<Integer> getDhDepthTextureId() { return this.getDhDepthTextureGlId(); }
 	/**
 	 * Returns the OpenGL name of Distant Horizons' depth texture. <br>
 	 * Will return {@link DhApiResult#success} = false and {@link DhApiResult#payload} = -1 if the texture hasn't been created yet
-	 * or a rendering API other than OpenGL is in use.
+	 * or a rendering API other than {@link EDhApiRenderingEngine#OPEN_GL} is in use.
+	 *
+	 * @see IDhApiRenderProxy#getRenderingEngine()
+	 * @since API 7.1.0
 	 */
-	DhApiResult<Integer> getDhDepthTextureId();
+	DhApiResult<Integer> getDhDepthTextureGlId();
+	/**
+	 * Returns a wrapper around the Blaze3D objects that represent Distant Horizons' depth texture. <br>
+	 * Will return {@link DhApiResult#success} = false and {@link DhApiResult#payload} = null if the texture hasn't been created yet
+	 * or a rendering API other than {@link EDhApiRenderingEngine#BLAZE_3D} is in use.
+	 *
+	 * @see IDhApiRenderProxy#getRenderingEngine()
+	 * @since API 7.1.0
+	 */
+	DhApiResult<IDhApiBlazeTextureWrapper> getDhDepthTextureBlazeWrapper();
 	
+	
+	/** @deprecated in favor of {@link IDhApiRenderProxy#getDhDepthTextureGlId} */
+	@Deprecated // don't remove, this method is needed by Iris
+	default DhApiResult<Integer> getDhColorTextureId() { return this.getDhColorTextureGlId(); }
 	/**
 	 * Returns the OpenGL name of Distant Horizons' color texture. <br>
 	 * Will return {@link DhApiResult#success} = false and {@link DhApiResult#payload} = -1 if the texture hasn't been created yet
-	 * or a rendering API other than OpenGL is in use
+	 * or a rendering API other than {@link EDhApiRenderingEngine#OPEN_GL} is in use.
+	 *
+	 * @see IDhApiRenderProxy#getRenderingEngine()
+	 * @since API 7.1.0
 	 */
-	DhApiResult<Integer> getDhColorTextureId();
+	DhApiResult<Integer> getDhColorTextureGlId();
+	/**
+	 * Returns a wrapper around the Blaze3D objects that represent Distant Horizons' color texture. <br>
+	 * Will return {@link DhApiResult#success} = false and {@link DhApiResult#payload} = null if the texture hasn't been created yet
+	 * or a rendering API other than {@link EDhApiRenderingEngine#BLAZE_3D} is in use.
+	 *
+	 * @see IDhApiRenderProxy#getRenderingEngine() 
+	 * @since API 7.1.0
+	 */
+	DhApiResult<IDhApiBlazeTextureWrapper> getDhColorTextureBlazeWrapper();
 	
 	/**
-	 * Returns the OpenGL name of Distant Horizons' block color-ratio atlas. <br>
-	 * Returns an unsuccessful result with payload -1 before the atlas is created
-	 * or when the active renderer does not provide an OpenGL atlas. <br>
-	 * Query this each render pass: growing the atlas can replace its texture ID.
-	 * A gray texel (128) preserves the LOD's base color.
-	 *
-	 * @apiNote Backported from API 7.1.0 for Iris compatibility in the Tellus fork.
+	 * Returns the OpenGL name of Distant Horizons' block ratio atlas texture. <br>
+	 * Will return {@link DhApiResult#success} = false and {@link DhApiResult#payload} = -1 if the texture hasn't been created yet
+	 * or a rendering API other than {@link EDhApiRenderingEngine#OPEN_GL} is in use. <br><br>
+	 *  
+	 * The term "block ratio atlas" means the texture is a ratio between DH's underlying color
+	 * and the color the block should have for that face. <br>
+	 * A color value of 0.5f (or half a byte) means DH's base color will be used for that pixel. <br><br>
+	 *  
+	 * <b>Note:</b> <br>
+	 * This texture is likely to be recreated/changed without warning.
+	 * If you want to use this texture at render-time it's recommended you
+	 * query this method every time before binding.
+	 * 
+	 * @see IDhApiRenderProxy#getRenderingEngine()
+	 * @since API 7.1.0
 	 */
-	default DhApiResult<Integer> getDhBlockRatioAtlasTextureGlId()
-	{
-		return DhApiResult.createFail("DH's block ratio atlas texture is unavailable.", -1);
-	}
-
+	DhApiResult<Integer> getDhBlockRatioAtlasTextureGlId();
+	/**
+	 * Returns a wrapper around the Blaze3D objects that represent Distant Horizons' block ratio atlas texture. <br>
+	 * Will return {@link DhApiResult#success} = false and {@link DhApiResult#payload} = null if the texture hasn't been created yet
+	 * or a rendering API other than {@link EDhApiRenderingEngine#BLAZE_3D} is in use. <br><br>
+	 * 
+	 * The term "block ratio atlas" means the texture is a ratio between DH's underlying color
+	 * and the color the block should have for that face. <br>
+	 * A color value of 0.5f (or half a byte) means DH's base color will be used for that pixel. <br><br>
+	 *
+	 * <b>Note:</b> <br>
+	 * This texture is likely to be recreated/changed without warning.
+	 * If you want to use this texture at render-time it's recommended you
+	 * query this method every time before binding.
+	 *
+	 * @see IDhApiRenderProxy#getRenderingEngine()
+	 * @since API 7.1.0
+	 */
+	DhApiResult<IDhApiBlazeTextureWrapper> getDhBlockRatioAtlasTextureBlazeWrapper();
+	
 	
 	
 	//======================//

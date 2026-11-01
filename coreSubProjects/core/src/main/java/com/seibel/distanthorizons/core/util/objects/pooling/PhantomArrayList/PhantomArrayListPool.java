@@ -214,7 +214,7 @@ public class PhantomArrayListPool
 							LOGGER.warn(message);
 							if (Config.Common.Logging.Warning.showPoolInsufficientMemoryWarning.get())
 							{
-								ClientApi.INSTANCE.showChatMessageNextFrame(message);
+								ClientApi.INSTANCE.queueSlowChatMessage(message);
 							}
 						}
 					}
@@ -248,6 +248,7 @@ public class PhantomArrayListPool
 		{
 			// these arrays are stored here so they don't have to be re-allocated each loop
 			ArrayList<Pair<String, AtomicInteger>> allocationStackTraceCountPairList = new ArrayList<>();
+			ArrayList<Pair<String, AtomicInteger>> lastSeenStackTraceCountPairList = new ArrayList<>();
 			
 			try
 			{
@@ -269,6 +270,7 @@ public class PhantomArrayListPool
 					int checkoutCount = 0;
 					
 					allocationStackTraceCountPairList.clear();
+					lastSeenStackTraceCountPairList.clear();
 					
 					Reference<? extends AbstractPhantomArrayList> phantomRef = pool.phantomRefQueue.poll();
 					while (phantomRef != null)
@@ -288,6 +290,7 @@ public class PhantomArrayListPool
 								&& checkout.allocationStackTrace != null) // stack trace shouldn't be null, but just in case
 							{
 								PhantomLoggingHelper.putAndIncrementTrackingString(checkout.allocationStackTrace, allocationStackTraceCountPairList);
+								PhantomLoggingHelper.putAndIncrementTrackingString(checkout.lastSeenStackTrace, lastSeenStackTraceCountPairList);
 							}
 						}
 						else
@@ -319,7 +322,11 @@ public class PhantomArrayListPool
 							// log stack traces if present
 							if (pool.logGarbageCollectedStacks)
 							{
-								PhantomLoggingHelper.LogAllocationStackTracePairCounts(LOGGER, allocationStackTraceCountPairList);
+								LOGGER.info("\n==== GC stack start ====\n");
+								PhantomLoggingHelper.LogAllocationStackTracePairCounts(LOGGER, "Allocation", allocationStackTraceCountPairList);
+								LOGGER.info("\n========\n");
+								PhantomLoggingHelper.LogAllocationStackTracePairCounts(LOGGER, "Last seen", lastSeenStackTraceCountPairList);
+								LOGGER.info("\n==== GC stack end ====\n");
 							}
 						}
 					}

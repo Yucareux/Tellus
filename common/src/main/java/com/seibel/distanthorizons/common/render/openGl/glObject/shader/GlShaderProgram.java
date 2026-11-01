@@ -24,8 +24,11 @@ import java.nio.FloatBuffer;
 
 import com.seibel.distanthorizons.api.objects.math.DhApiMat4f;
 import com.seibel.distanthorizons.api.objects.math.DhApiVec3i;
-import org.lwjgl.opengl.GL33;
-import org.lwjgl.system.MemoryStack;
+import static com.seibel.distanthorizons.lwjgl.LWJGLServiceProvider.LWJGL;
+
+import com.seibel.distanthorizons.lwjgl.AbstractMemoryStack;
+import org.lwjgl.opengl.GL11;
+import org.lwjgl.opengl.GL20;
 
 import com.seibel.distanthorizons.core.util.math.DhMat4f;
 import com.seibel.distanthorizons.core.util.math.DhVec3f;
@@ -56,36 +59,36 @@ public class GlShaderProgram
 	 */
 	public GlShaderProgram(String vertResourcePath, String fragResourcePath, String[] attributes)
 	{
-		this.id = GL33.glCreateProgram();
+		this.id = LWJGL.glCreateProgram();
 		
 		{
 			String shaderString = GlShader.loadFile(vertResourcePath, false);
-			GlShader vertShader = new GlShader(GL33.GL_VERTEX_SHADER, shaderString);
-			GL33.glAttachShader(this.id, vertShader.id);
+			GlShader vertShader = new GlShader(GL20.GL_VERTEX_SHADER, shaderString);
+			LWJGL.glAttachShader(this.id, vertShader.id);
 			vertShader.free();
 		}
 		
 		{
 			String shaderString = GlShader.loadFile(fragResourcePath, false);
-			GlShader fragShader = new GlShader(GL33.GL_FRAGMENT_SHADER, shaderString);
-			GL33.glAttachShader(this.id, fragShader.id);
+			GlShader fragShader = new GlShader(GL20.GL_FRAGMENT_SHADER, shaderString);
+			LWJGL.glAttachShader(this.id, fragShader.id);
 			fragShader.free();
 		}
 		
 		for (int i = 0; i < attributes.length; i++)
 		{
-			GL33.glBindAttribLocation(this.id, i, attributes[i]);
+			LWJGL.glBindAttribLocation(this.id, i, attributes[i]);
 		}
-		GL33.glLinkProgram(this.id);
+		LWJGL.glLinkProgram(this.id);
 		
-		int status = GL33.glGetProgrami(this.id, GL33.GL_LINK_STATUS);
-		if (status != GL33.GL_TRUE)
+		int status = LWJGL.glGetProgrami(this.id, GL20.GL_LINK_STATUS);
+		if (status != GL11.GL_TRUE)
 		{
-			String message = "Shader Link Error. Details: " + GL33.glGetProgramInfoLog(this.id);
+			String message = "Shader Link Error. Details: " + LWJGL.glGetProgramInfoLog(this.id,1024);
 			this.free(); // important!
 			throw new RuntimeException(message);
 		}
-		GL33.glUseProgram(this.id); // This HAVE to be a direct call to prevent calling the overloaded version
+		LWJGL.glUseProgram(this.id); // This HAVE to be a direct call to prevent calling the overloaded version
 	}
 	
 	//endregion
@@ -97,10 +100,10 @@ public class GlShaderProgram
 	//=========//
 	//region
 	
-	public void bind() { GL33.glUseProgram(this.id); }
-	public void unbind() { GL33.glUseProgram(0); }
+	public void bind() { LWJGL.glUseProgram(this.id); }
+	public void unbind() { LWJGL.glUseProgram(0); }
 	
-	public void free() { GL33.glDeleteProgram(this.id); }
+	public void free() { LWJGL.glDeleteProgram(this.id); }
 	
 	//endregion
 	
@@ -122,7 +125,7 @@ public class GlShaderProgram
 	 */
 	public int getAttributeLocation(CharSequence name)
 	{
-		int i = GL33.glGetAttribLocation(id, name);
+		int i = LWJGL.glGetAttribLocation(id, name);
 		if (i == -1) throw new RuntimeException("Attribute name not found: " + name);
 		return i;
 	}
@@ -131,7 +134,7 @@ public class GlShaderProgram
 	 * Returns -1 if the attribute doesn't exist or has been optimized out.
 	 */
 	public int tryGetAttributeLocation(CharSequence name)
-	{ return GL33.glGetAttribLocation(this.id, name); }
+	{ return LWJGL.glGetAttribLocation(this.id, name); }
 	
 	//endregion
 	
@@ -153,7 +156,7 @@ public class GlShaderProgram
 	 */
 	public int getUniformLocation(CharSequence name) throws RuntimeException
 	{
-		int i = GL33.glGetUniformLocation(id, name);
+		int i = LWJGL.glGetUniformLocation(id, name);
 		if (i == -1)
 		{
 			throw new RuntimeException("Uniform name not found: " + name);
@@ -164,41 +167,41 @@ public class GlShaderProgram
 	// Same as above but without throwing errors.
 	// Return -1 if uniform doesn't exist or has been optimized out
 	public int tryGetUniformLocation(CharSequence name)
-	{ return GL33.glGetUniformLocation(this.id, name); }
+	{ return LWJGL.glGetUniformLocation(this.id, name); }
 	
 	/** Requires a bound ShaderProgram. */
-	public void setUniform(int location, boolean value) { GL33.glUniform1i(location, value ? 1 : 0); }
+	public void setUniform(int location, boolean value) { LWJGL.glUniform1i(location, value ? 1 : 0); }
 	/** @see GlShaderProgram#setUniform(int, boolean) */
 	public void trySetUniform(int location, boolean value) { if (location != -1) { this.setUniform(location, value); } }
 	
 	/** Requires a bound ShaderProgram. */
-	public void setUniform(int location, int value) { GL33.glUniform1i(location, value); }
+	public void setUniform(int location, int value) { LWJGL.glUniform1i(location, value); }
 	/** @see GlShaderProgram#setUniform(int, int) */
 	public void trySetUniform(int location, int value) { if (location != -1) { this.setUniform(location, value); } }
 	
 	/** Requires a bound ShaderProgram. */
-	public void setUniform(int location, float value) { GL33.glUniform1f(location, value); }
+	public void setUniform(int location, float value) { LWJGL.glUniform1f(location, value); }
 	/** @see GlShaderProgram#setUniform(int, float) */
 	public void trySetUniform(int location, float value) { if (location != -1) { this.setUniform(location, value); } }
 	
 	/** Requires a bound ShaderProgram. */
-	public void setUniform(int location, DhVec3f value) { GL33.glUniform3f(location, value.x, value.y, value.z); }
+	public void setUniform(int location, DhVec3f value) { LWJGL.glUniform3f(location, value.x, value.y, value.z); }
 	/** @see GlShaderProgram#setUniform(int, DhVec3f) */
 	public void trySetUniform(int location, DhVec3f value) { if (location != -1) { this.setUniform(location, value); } }
 	
 	/** Requires a bound ShaderProgram. */
-	public void setUniform(int location, DhApiVec3i value) { GL33.glUniform3i(location, value.x, value.y, value.z); }
+	public void setUniform(int location, DhApiVec3i value) { LWJGL.glUniform3i(location, value.x, value.y, value.z); }
 	/** @see GlShaderProgram#setUniform(int, DhApiMat4f) */
 	public void trySetUniform(int location, DhApiVec3i value) { if (location != -1) { this.setUniform(location, value); } }
 	
 	/** Requires a bound ShaderProgram. */
 	public void setUniform(int location, DhApiMat4f value)
 	{
-		try (MemoryStack stack = MemoryStack.stackPush())
+		try (AbstractMemoryStack stack = AbstractMemoryStack.stackPush())
 		{
 			FloatBuffer buffer = stack.mallocFloat(16);
 			storeMatrixInBuffer(value, buffer);
-			GL33.glUniformMatrix4fv(location, false, buffer);
+			LWJGL.glUniformMatrix4fv(location, false, buffer);
 		}
 	}
 	private static void storeMatrixInBuffer(DhApiMat4f matrix, FloatBuffer floatBuffer)
@@ -234,7 +237,7 @@ public class GlShaderProgram
 	 */
 	public void setUniform(int location, Color value)
 	{
-		GL33.glUniform4f(location, 
+		LWJGL.glUniform4f(location, 
 				value.getRed()   / 256.0f, 
 				value.getGreen() / 256.0f, 
 				value.getBlue()  / 256.0f, 

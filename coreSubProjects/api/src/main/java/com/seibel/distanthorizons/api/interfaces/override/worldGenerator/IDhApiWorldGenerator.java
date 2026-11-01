@@ -62,6 +62,25 @@ public interface IDhApiWorldGenerator extends Closeable, IDhApiOverrideable
 	 * @since API 1.0.0
 	 */
 	default byte getLargestDataDetailLevel() { return EDhApiDetailLevel.BLOCK.detailLevel; }
+
+	/** Tellus extension: the request may start without waiting for external data. */
+	byte GENERATION_READY = 0;
+	/** Tellus extension: retry this area as smaller requests. */
+	byte GENERATION_SPLIT = 1;
+	/** Tellus extension: retain the request in the queue without occupying a worker. */
+	byte GENERATION_WAIT = 2;
+
+	/**
+	 * Non-blocking readiness check, called before allocating generation resources.
+	 * Implementations must be thread-safe and must not download data here.
+	 * WAIT requests are retried on subsequent queue ticks; they do not prevent
+	 * ready requests farther from the player from running. SPLIT is honored only
+	 * above the smallest section size. The default preserves stock DH behavior.
+	 * This is a Tellus fork extension, not part of upstream API 7.1.0.
+	 */
+	default byte getGenerationAvailability(int chunkPosMinX, int chunkPosMinZ,
+		int generationRequestChunkWidthCount, byte targetDataDetail)
+	{ return GENERATION_READY; }
 	
 	/** 
 	 * Used if {@link #getReturnType()} returns {@link EDhApiWorldGeneratorReturnType#API_CHUNKS} or {@link EDhApiWorldGeneratorReturnType#API_DATA_SOURCES}. <Br> 

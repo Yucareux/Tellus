@@ -30,9 +30,6 @@ buildAllJars/
 _buildAllJars/
 _buildWorkers/
 
-# Non-build artwork and setup archive from the vendored core repository
-coreSubProjects/_Misc Files/
-
 relocate_natives/.venv/
 relocate_natives/__pycache__/
 relocate_natives/apple-codesign/

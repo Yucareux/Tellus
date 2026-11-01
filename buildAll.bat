@@ -1,28 +1,45 @@
 @echo off & setlocal enabledelayedexpansion
-@rem Note for devs: If this script doesnt work, please look at the unix buildAll script
-@rem This script was originally created on linux, so there may be some problems with this translation
 
 
-echo ==================== Note: All build jars will be in the folder called 'buildAllJars' ====================
-mkdir buildAllJars
-del buildAllJars/*
-del build/forgix/*
+echo ==================== Getting versions to build... ====================
+mkdir _buildAllJars 2>nul
+del _buildAllJars\* /Q 2>nul
 
-@rem Loop trough everything in the version properties folder
-for %%f in (versionProperties\*) do (
-    @rem Get the name of the version that is going to be compiled
-    set version=%%~nf
+set "ROOT=%~dp0"
+set "WORK_DIR=%ROOT%_buildWorkers"
+mkdir "%WORK_DIR%" 2>nul
 
-    @rem Clean out the folders, build it, and merge it
-    echo ==================== Cleaning workspace to build !version! ====================
-    call .\gradlew.bat clean
-    
-	echo ==================== Building !version! ====================
-    call .\gradlew.bat build -PmcVer="!version!"
-    
-    echo ==================== Moving jar ====================
-    move build\forgix\*.jar buildAllJars\
-    move cleanroom\build\libs\*.jar buildAllJars\
+
+
+echo ==================== Clearing old workers... ====================
+REM clearing the old worker folders is to make sure any source files that were deleted
+REM are correctly deleted here before build
+for /d %%D in ("_buildWorkers\*") do (
+	rd /s /q "%%D"
 )
 
+
+
+REM get the number of versions to compile
+set count=0
+for %%f in (versionProperties\*) do set /a count+=1
+echo ==================== Found %count% versions to build in parallel ====================
+
+REM Launch a parallel job for each version
+for %%f in (%ROOT%versionProperties\*) do (
+    set version=%%~nf
+	
+	echo starting [!version!]...
+    start "Build !version!" cmd /c ""%ROOT%buildAll_Worker.bat" "!version!" "%ROOT%" "%WORK_DIR%" ""..\..\_buildAllJars"""
+	
+	REM Minor timeout between launches so we can stop the build early if we only want 
+	REM to test part of the script and to reduce startup load
+	timeout /t 1 /nobreak
+	
+REM 2>nul to supress a harmless warning that the for loop
+REM "cannot find the drive specified"
+) 2>nul
+
+
+echo ==================== All builds started... Completed Jars will be in _buildAllJars ====================
 endlocal

@@ -94,11 +94,12 @@ public class FabricServerProxy implements AbstractModInitializer.IEventProxy
 				DhApi.events.bind(DhApiChunkProcessingEvent.class, new TestChunkInputReplacerEvent());
 			}
 			
-			// test custom colors
+			// test custom colors/textures
 			if (false)
 			{
+				DhApi.events.bind(DhApiBlockStateWrapperCreatedEvent.class, new TestBlockWrapperCreatedEvent()); // needed for custom colors/textures
 				DhApi.events.bind(DhApiBlockColorOverrideEvent.class, new TestCustomColorEvent());
-				DhApi.events.bind(DhApiBlockStateWrapperCreatedEvent.class, new TestBlockWrapperCreatedEvent());
+				DhApi.events.bind(DhApiBlockTextureOverrideEvent.class, new TestCustomTextureEvent());
 			}
 			
 			// test fog override

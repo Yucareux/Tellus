@@ -3,9 +3,6 @@ package com.seibel.distanthorizons.neoforge.mixins;
 import com.seibel.distanthorizons.common.commonMixins.AbstractDhMixinPlugin;
 import com.seibel.distanthorizons.core.logging.DhLogger;
 import com.seibel.distanthorizons.core.logging.DhLoggerBuilder;
-import com.seibel.distanthorizons.core.wrapperInterfaces.modAccessor.IImmersivePortalsAccessor;
-import com.seibel.distanthorizons.neoforge.wrappers.modAccessor.ModChecker;
-import net.neoforged.fml.ModList;
 import org.objectweb.asm.tree.ClassNode;
 import org.spongepowered.asm.mixin.extensibility.IMixinConfigPlugin;
 import org.spongepowered.asm.mixin.extensibility.IMixinInfo;
@@ -21,49 +18,17 @@ public class NeoforgeMixinPlugin extends AbstractDhMixinPlugin implements IMixin
 {
 	private static final DhLogger LOGGER = new DhLoggerBuilder().build();
 	
-	private boolean firstRun = false;
-	private boolean isNeoforgeMixinFile;
-	
 	
 	@Override
 	public boolean shouldApplyMixin(String targetClassName, String mixinClassName)
 	{
-		if (!this.firstRun)
+		if (!this.isNeoforge())
 		{
-			try
-			{
-				Class<?> cls = Class.forName("net.neoforged.fml.common.Mod"); // Check if a NeoForge exclusive class exists
-				this.isNeoforgeMixinFile = true;
-			}
-			catch (ClassNotFoundException e)
-			{
-				this.isNeoforgeMixinFile = false;
-			}
-		}
-		if (!this.isNeoforgeMixinFile)
-		{
+			LOGGER.debug("Skipping DH mixin ["+mixinClassName+"] -> ["+targetClassName+"] due to neoforge not being loaded.");
 			return false;
 		}
 		
-		if (mixinClassName.contains(".mods."))
-		{ 
-			// If the mixin wants to go into a mod then we check if that mod is loaded or not
-			return ModList.get().isLoaded(
-					mixinClassName
-							// What these 2 regex's do is get the mod name that we are checking out of the mixinClassName
-							// Eg. "com.seibel.distanthorizons.mixins.mods.sodium.MixinSodiumChunkRenderer" turns into "sodium"
-							.replaceAll("^.*mods.", "") // Replaces everything before the mods
-							.replaceAll("\\..*$", "") // Replaces everything after the mod name
-			);
-		}
-		
-		
-		if (!this.shouldApplyDhMixin(targetClassName, mixinClassName))
-		{
-			return false;
-		}
-		
-		return true;
+		return this.shouldApplyDhMixin(targetClassName, mixinClassName);
 	}
 	
 	

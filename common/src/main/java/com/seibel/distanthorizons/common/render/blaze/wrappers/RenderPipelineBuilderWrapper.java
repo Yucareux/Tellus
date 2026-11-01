@@ -6,20 +6,29 @@ public class RenderPipelineBuilderWrapper {}
 
 #else
 
+#if MC_VER <= MC_26_2_0
 import com.mojang.blaze3d.pipeline.*;
 import com.mojang.blaze3d.platform.PolygonMode;
 import com.mojang.blaze3d.shaders.UniformType;
 import com.mojang.blaze3d.vertex.VertexFormat;
 import net.minecraft.resources.Identifier;
+#else
+import com.mojang.renderpearl.api.GpuFormat;
+import com.mojang.renderpearl.api.pipeline.*;
+import com.mojang.renderpearl.api.textures.*;
+import com.mojang.renderpearl.api.vertex.VertexFormat;
+import net.minecraft.resources.Identifier;
+#endif
 
 #if MC_VER <= MC_1_21_11
 import com.mojang.blaze3d.platform.DepthTestFunction;
 #elif MC_VER <= MC_26_1_2
 import com.mojang.blaze3d.platform.CompareOp;
-#else
+#elif MC_VER <= MC_26_2_0
 import com.mojang.blaze3d.platform.CompareOp;
 import com.mojang.blaze3d.GpuFormat;
 import com.mojang.blaze3d.PrimitiveTopology;
+#else
 #endif
 
 import java.io.IOException;
@@ -344,7 +353,11 @@ public class RenderPipelineBuilderWrapper
 			
 			for (String name : this.samplerNames)
 			{
+				#if MC_VER <= MC_26_2_0
 				bindGroupBuilder.withSampler(name);
+				#else
+				bindGroupBuilder.withUniform(name, UniformType.COMBINED_IMAGE_SAMPLER);
+				#endif
 			}
 			
 			for (String name : this.uniformBufferNames)

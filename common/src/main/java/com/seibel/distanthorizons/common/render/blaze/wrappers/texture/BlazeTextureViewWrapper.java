@@ -5,15 +5,26 @@ public class BlazeTextureViewWrapper {}
 
 #else
 
+#if MC_VER <= MC_26_2_0
 import com.mojang.blaze3d.systems.CommandEncoder;
 import com.mojang.blaze3d.systems.GpuDevice;
 import com.mojang.blaze3d.systems.RenderSystem;
 import com.mojang.blaze3d.textures.*;
+#else
+import com.mojang.renderpearl.api.commands.CommandEncoder;
+import com.mojang.renderpearl.api.device.GpuDevice;
+import com.mojang.blaze3d.systems.RenderSystem;
+import com.mojang.renderpearl.api.textures.*;
+#endif
+
 import com.seibel.distanthorizons.core.logging.DhLogger;
 import com.seibel.distanthorizons.core.logging.DhLoggerBuilder;
 
 import java.util.OptionalDouble;
 
+/**
+ * Used to wrap around a MC created texture.
+ */
 public class BlazeTextureViewWrapper implements IDhBlazeTexture
 {
 	public static final DhLogger LOGGER = new DhLoggerBuilder().build();

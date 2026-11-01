@@ -20,8 +20,8 @@ import net.minecraft.world.level.chunk.status.ChunkStatus;
 public abstract class AbstractWorldGenStep
 {
 	public abstract void generateGroup(
-			ThreadWorldGenParams tParams, DhLitWorldGenRegion worldGenRegion,
-			ArrayGridList<ChunkWrapper> chunkWrappers);
+		ThreadWorldGenParams tParams, DhLitWorldGenRegion worldGenRegion,
+		ArrayGridList<ChunkWrapper> chunkWrappers);
 	
 	public abstract ChunkStatus getChunkStatus();
 	

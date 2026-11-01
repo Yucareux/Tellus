@@ -3,7 +3,11 @@ package com.seibel.distanthorizons.common.wrappers.gui;
 #if MC_VER <= MC_1_12_2
 import net.minecraft.client.gui.GuiButton;
 import net.minecraft.client.gui.GuiScreen;
+#if MC_VER <= MC_1_7_10
+import net.minecraft.util.StatCollector;
+#else
 import net.minecraft.util.text.ITextComponent;
+#endif
 #else
 import net.minecraft.client.gui.Font;
 
@@ -23,6 +27,9 @@ import net.minecraft.client.gui.GuiGraphicsExtractor;
 
 import java.util.ArrayList;
 import java.util.List;
+#if MC_VER <= MC_1_7_10
+import java.util.Collections;
+#endif
 
 #if MC_VER <= MC_1_12_2
 public class DhScreen extends GuiScreen
@@ -31,11 +38,19 @@ public class DhScreen extends Screen
 #endif
 {
 	#if MC_VER <= MC_1_12_2
+	#if MC_VER <= MC_1_7_10
+	protected String title;
+	#else
 	protected ITextComponent title;
+	#endif
 	#endif
 	
 	#if MC_VER <= MC_1_12_2
+	#if MC_VER <= MC_1_7_10
+	protected DhScreen(String title)
+	#else
 	protected DhScreen(ITextComponent title)
+	#endif
 	{
 		this.title = title;
 	}
@@ -75,30 +90,54 @@ public class DhScreen extends Screen
 		}
 	}
 	
-	protected void DhDrawCenteredString(ITextComponent text, int x, int y, int color) {
+	protected void DhDrawCenteredString(#if MC_VER <= MC_1_7_10 String #else ITextComponent #endif text, int x, int y, int color) {
+		#if MC_VER <= MC_1_7_10
+		if (StatCollector.canTranslate(text))
+		{
+			text = StatCollector.translateToLocal(text);
+		}
+		this.drawCenteredString(this.fontRendererObj, text, x, y, color);
+		#else
 		drawCenteredString(fontRenderer, text.getFormattedText(), x, y, color);
+		#endif
 	}
 	
-	protected void DhDrawString(ITextComponent text, int x, int y, int color) {
+	protected void DhDrawString(#if MC_VER <= MC_1_7_10 String #else ITextComponent #endif text, int x, int y, int color) {
+		#if MC_VER <= MC_1_7_10
+		if (StatCollector.canTranslate(text))
+		{
+			text = StatCollector.translateToLocal(text);
+		}
+		this.drawString(this.fontRendererObj, text, x, y, color);
+		#else
 		drawString(fontRenderer, text.getFormattedText(), x, y, color);
+		#endif
 	}
 	
-	protected void DhRenderComponentTooltip(List<ITextComponent> list, int x, int y) 
+	protected void DhRenderComponentTooltip(List<#if MC_VER <= MC_1_7_10 String #else ITextComponent #endif> list, int x, int y)
 	{
+		#if MC_VER <= MC_1_7_10
+		drawHoveringText(list, x, y, fontRendererObj);
+		#else
 		ArrayList<String> formattedText = new ArrayList<>(list.size());
 		for (ITextComponent component : list)
 		{
 			formattedText.add(component.getFormattedText());
 		}
-		
+
 		drawHoveringText(formattedText, x, y, fontRenderer);
+		#endif
 	}
 	
-	protected void DhRenderTooltip(ITextComponent text, int x, int y) 
+	protected void DhRenderTooltip(#if MC_VER <= MC_1_7_10 String #else ITextComponent #endif text, int x, int y)
 	{
+		#if MC_VER <= MC_1_7_10
+		drawHoveringText(Collections.singletonList(text), x, y, fontRendererObj);
+		#else
 		ArrayList<String> formattedText = new ArrayList<>(1);
 		formattedText.add(text.getFormattedText());
 		drawHoveringText(formattedText, x, y, fontRenderer);
+		#endif
 	}
 	#elif MC_VER < MC_1_20_1
 	protected void DhDrawCenteredString(PoseStack guiStack, Font font, Component text, int x, int y, int color)

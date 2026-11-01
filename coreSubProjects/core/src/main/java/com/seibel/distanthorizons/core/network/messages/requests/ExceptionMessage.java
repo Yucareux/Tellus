@@ -19,7 +19,7 @@
 
 package com.seibel.distanthorizons.core.network.messages.requests;
 
-import com.google.common.base.MoreObjects;
+import com.seibel.distanthorizons.core.util.MoreObjects;
 import com.seibel.distanthorizons.core.network.exceptions.RateLimitedException;
 import com.seibel.distanthorizons.core.network.exceptions.RequestOutOfRangeException;
 import com.seibel.distanthorizons.core.network.exceptions.RequestRejectedException;

@@ -20,14 +20,18 @@
 package com.seibel.distanthorizons.common.render.openGl.util;
 
 import com.seibel.distanthorizons.common.render.openGl.glObject.shader.GlShaderProgram;
+import com.seibel.distanthorizons.common.wrappers.minecraft.MinecraftGLWrapper;
 import com.seibel.distanthorizons.core.dependencyInjection.SingletonInjector;
 import com.seibel.distanthorizons.core.render.RenderParams;
 import com.seibel.distanthorizons.core.wrapperInterfaces.minecraft.IMinecraftRenderWrapper;
-import org.lwjgl.opengl.GL33;
+import com.seibel.distanthorizons.core.wrapperInterfaces.render.AbstractDhRenderApiDefinition;
 
 public abstract class GlAbstractShaderRenderer
 {
 	protected static final IMinecraftRenderWrapper MC_RENDER = SingletonInjector.INSTANCE.get(IMinecraftRenderWrapper.class);
+	protected static final AbstractDhRenderApiDefinition RENDER_DEF = SingletonInjector.INSTANCE.get(AbstractDhRenderApiDefinition.class);
+	
+	private static final MinecraftGLWrapper GLMC = MinecraftGLWrapper.INSTANCE;
 	
 	
 	protected GlShaderProgram shader;
@@ -43,7 +47,10 @@ public abstract class GlAbstractShaderRenderer
 	
 	public void init()
 	{
-		if (this.init) return;
+		if (this.init)
+		{
+			return;
+		}
 		this.init = true;
 		
 		this.onInit();
@@ -82,7 +89,7 @@ public abstract class GlAbstractShaderRenderer
 		
 		int width = MC_RENDER.getTargetFramebufferViewportWidth();
 		int height = MC_RENDER.getTargetFramebufferViewportHeight();
-		GL33.glViewport(0, 0, width, height);
+		GLMC.glViewport(0, 0, width, height);
 		
 		this.onRender();
 		

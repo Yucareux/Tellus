@@ -1,8 +1,10 @@
 package com.seibel.distanthorizons.core.render;
 
 import com.seibel.distanthorizons.core.dataObjects.render.textures.BlockTextureRegistry;
+import com.seibel.distanthorizons.core.util.LodUtil;
 import com.seibel.distanthorizons.core.util.objects.pooling.PhantomArrayList.PhantomArrayListCheckout;
 import com.seibel.distanthorizons.core.util.objects.pooling.PhantomArrayList.PhantomArrayListPool;
+import com.seibel.distanthorizons.coreapi.util.TextureUtil;
 
 import java.nio.ByteBuffer;
 
@@ -102,20 +104,26 @@ public abstract class AbstractBlockTextureAtlas
 			ByteBuffer pixelBuffer = checkout.getByteBuffer(0, BlockTextureRegistry.TILE_BYTE_COUNT);
 			for (int i = 0; i < pendingTiles.tilePixels.length; i++)
 			{
+				byte[] tilePixels = pendingTiles.tilePixels[i];
+				if (tilePixels.length == 0)
+				{
+					LodUtil.assertNotReach("Tiles should never have zero pixels, a static setup may be happening in the wrong order.");
+				}
+				
 				pixelBuffer.clear();
-				pixelBuffer.put(pendingTiles.tilePixels[i]);
+				pixelBuffer.put(tilePixels);
 				pixelBuffer.flip();
 				
 				int tileId = pendingTiles.firstTileId + i;
-				int destinationX = (tileId % TILES_PER_ROW) * BlockTextureRegistry.TILE_HEIGHT_AND_WIDTH;
-				int destinationY = (tileId / TILES_PER_ROW) * BlockTextureRegistry.TILE_HEIGHT_AND_WIDTH;
+				int destinationX = (tileId % TILES_PER_ROW) * TextureUtil.TEXTURE_WIDTH_AND_HEIGHT;
+				int destinationY = (tileId / TILES_PER_ROW) * TextureUtil.TEXTURE_WIDTH_AND_HEIGHT;
 				
 				this.writeToTexture(
 					pixelBuffer,
 					destinationX,
 					destinationY,
-					BlockTextureRegistry.TILE_HEIGHT_AND_WIDTH, // width
-					BlockTextureRegistry.TILE_HEIGHT_AND_WIDTH  // height
+					TextureUtil.TEXTURE_WIDTH_AND_HEIGHT, // width
+					TextureUtil.TEXTURE_WIDTH_AND_HEIGHT  // height
 				);
 			}
 			
@@ -132,8 +140,8 @@ public abstract class AbstractBlockTextureAtlas
 			newRowCount *= 2;
 		}
 		
-		int width = TILES_PER_ROW * BlockTextureRegistry.TILE_HEIGHT_AND_WIDTH;
-		int height = newRowCount * BlockTextureRegistry.TILE_HEIGHT_AND_WIDTH;
+		int width = TILES_PER_ROW * TextureUtil.TEXTURE_WIDTH_AND_HEIGHT;
+		int height = newRowCount * TextureUtil.TEXTURE_WIDTH_AND_HEIGHT;
 		this.tryCreateOrResize(width, height);
 		
 		this.allocatedTileCount = newRowCount * TILES_PER_ROW;

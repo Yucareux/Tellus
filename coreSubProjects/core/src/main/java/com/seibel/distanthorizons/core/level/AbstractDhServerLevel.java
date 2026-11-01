@@ -99,7 +99,7 @@ public abstract class AbstractDhServerLevel extends AbstractDhLevel implements I
 	
 	@Override
 	public boolean shouldDoWorldGen()
-	{ return Config.Common.WorldGenerator.enableDistantGeneration.get(); }
+	{ return Config.Common.WorldGenerator.generatorPlan.get().generationEnabled; }
 	
 	@Override
 	public DhBlockPos2D getTargetPosForGeneration()
@@ -157,13 +157,13 @@ public abstract class AbstractDhServerLevel extends AbstractDhLevel implements I
 					message.sendResponse(new RequestOutOfRangeException("Section out of allowed bounds"));
 					return;
 				}
-				
-				if (!Config.Server.Experimental.enableNSizedGeneration.get() && DhSectionPos.getDetailLevel(message.sectionPos) != DhSectionPos.SECTION_MINIMUM_DETAIL_LEVEL)
+
+				if (!Config.Common.WorldGenerator.generatorPlan.get().surfaceGenEnabled
+					&& DhSectionPos.getDetailLevel(message.sectionPos) > DhSectionPos.SECTION_BLOCK_DETAIL_LEVEL)
 				{
-					message.sendResponse(new SectionRequiresSplittingException("Only highest-detail sections are allowed"));
+					message.sendResponse(new SectionRequiresSplittingException("Only full chunks are supported by the server generator plan"));
 					return;
 				}
-				
 				this.requestHandler.queueWorldGenForRequestMessage(serverPlayerState, message, rateLimiterSet);
 			}
 			else

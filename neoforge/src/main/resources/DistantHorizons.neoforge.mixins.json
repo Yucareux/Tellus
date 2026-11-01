@@ -1,28 +1,32 @@
 {
-  "required": true,
-  "minVersion": "0.8",
-  "package": "com.seibel.distanthorizons.neoforge.mixins",
-  "mixins": [
-    "server.MixinChunkGenerator",
-    "server.MixinChunkMap",
-    "server.MixinServerPlayer",
-    "server.MixinTFChunkGenerator",
-    "server.MixinTracingExecutor",
-    "server.MixinUtilBackgroundThread",
-    "server.MixinLevelTicks"
-  ],
-  "client": [
-    "client.MixinClientPacketListener",
-    "client.MixinDebugScreenOverlay",
-    "client.MixinFogRenderer",
-    "client.MixinChunkSectionsToRender",
-    "client.MixinGameRenderer",
-    "client.MixinImmersivePortalsRenderStates",
-    "client.MixinLevelRenderer",
-    "client.MixinLightTexture",
-    "client.MixinMinecraft",
-    "client.MixinOptionsScreen"
-  ],
-  "server": [],
-  "plugin": "com.seibel.distanthorizons.neoforge.mixins.NeoforgeMixinPlugin"
+    "required": true,
+    "minVersion": "0.8",
+    "package": "com.seibel.distanthorizons.neoforge.mixins",
+    "mixins": [
+        "server.MixinChunkGenerator",
+        "server.MixinChunkMap",
+        "server.MixinServerPlayer",
+        "server.MixinTFChunkGenerator",
+        "server.MixinTracingExecutor",
+        "server.MixinUtilBackgroundThread",
+        "server.MixinLevelTicks"
+    ],
+    "client": [
+        "client.MixinClientPacketListener",
+        "client.MixinDebugScreenOverlay",
+        "client.MixinFogRenderer",
+        "client.MixinGameRenderer",
+        "client.MixinImmersivePortalsRenderStates",
+        "client.MixinIrisFrameBuffer",
+        "client.MixinLevelRenderer",
+        "client.MixinChunkSectionsToRender",
+        "client.MixinLightTexture",
+        "client.MixinMinecraft",
+        "client.MixinOptionsScreen",
+        "client.MixinSharedConstants",
+        "client.MixinProjectionMatrixBuffer",
+        "client.MixinMain"
+    ],
+    "server": [],
+    "plugin": "com.seibel.distanthorizons.neoforge.mixins.NeoforgeMixinPlugin"
 }

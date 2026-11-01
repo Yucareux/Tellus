@@ -19,11 +19,13 @@
 
 package com.seibel.distanthorizons.core.api.external.methods.config.common;
 
+import com.seibel.distanthorizons.api.enums.worldGeneration.EDhApiGeneratorPlan;
 import com.seibel.distanthorizons.api.interfaces.config.IDhApiConfigValue;
 import com.seibel.distanthorizons.api.interfaces.config.both.IDhApiWorldGenerationConfig;
 import com.seibel.distanthorizons.core.config.api.DhApiConfigValue;
 import com.seibel.distanthorizons.api.enums.worldGeneration.EDhApiDistantGeneratorMode;
 import com.seibel.distanthorizons.core.config.Config;
+import com.seibel.distanthorizons.core.config.api.converters.ApiGeneratorModeToBoolConverter;
 
 /**
  * Distant Horizons' world generation configuration. <br><br>
@@ -41,13 +43,18 @@ public class DhApiWorldGenerationConfig implements IDhApiWorldGenerationConfig
 	
 	
 	
+	@Deprecated
 	@Override
 	public IDhApiConfigValue<Boolean> enableDistantWorldGeneration()
-	{ return new DhApiConfigValue<>(Config.Common.WorldGenerator.enableDistantGeneration); }
+	{ return new DhApiConfigValue<EDhApiGeneratorPlan, Boolean>(Config.Common.WorldGenerator.generatorPlan, new ApiGeneratorModeToBoolConverter()); }
+	@Override
+	public IDhApiConfigValue<EDhApiGeneratorPlan> GeneratorPlan()
+	{ return new DhApiConfigValue<>(Config.Common.WorldGenerator.generatorPlan); }
+	
 	
 	@Override
-	public IDhApiConfigValue<EDhApiDistantGeneratorMode> distantGeneratorMode()
-	{ return new DhApiConfigValue<>(Config.Common.WorldGenerator.distantGeneratorMode); }
+	public IDhApiConfigValue<EDhApiDistantGeneratorMode> chunkGeneratorMode()
+	{ return new DhApiConfigValue<>(Config.Common.WorldGenerator.chunkGeneratorMode); }
 	
 	
 }

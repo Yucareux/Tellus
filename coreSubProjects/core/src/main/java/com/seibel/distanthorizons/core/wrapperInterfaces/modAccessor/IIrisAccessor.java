@@ -21,7 +21,22 @@ package com.seibel.distanthorizons.core.wrapperInterfaces.modAccessor;
 
 public interface IIrisAccessor extends IModAccessor
 {
+	String FRAMEBUFFER_MIXIN_CLASS = "net.irisshaders.iris.gl.framebuffer.GlFramebuffer";
+	String READABLE_NAME = "Iris";
+	
+	
 	boolean isShaderPackInUse();
 	
 	boolean isRenderingShadowPass();
+	
+	boolean isReverseZDuringShaders();
+	
+	/**
+	 * Returns the depth texture ID Iris created for the given Minecraft {@code Framebuffer}
+	 * via its mixin injection.
+	 * Returns -1 if the framebuffer wasn't patched by Iris, or for versions above 1.12.2.
+	 * Useful only on versions where Minecraft uses a renderbuffer for depth instead of a texture.
+	 */
+	int getFramebufferDepthTextureId(Object framebuffer);
+	
 }

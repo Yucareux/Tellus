@@ -25,6 +25,9 @@ import com.seibel.distanthorizons.api.interfaces.config.IDhApiConfigValue;
 /**
  * Distant Horizons' noise texture configuration. <br><br>
  *
+ * Not to be confused with {@link IDhApiTextureConfig}
+ * which handles resource pack populated textures.
+ * 
  * @author James Seibel
  * @version 2022-6-14
  * @since API 1.0.0

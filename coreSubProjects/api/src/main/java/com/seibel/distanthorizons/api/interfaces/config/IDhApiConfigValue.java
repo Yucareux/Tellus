@@ -59,8 +59,24 @@ public interface IDhApiConfigValue<T>
 	 * If the config cannot be set via the API this method will return false. <br><br>
 	 * 
 	 * @return true if the value was set, false otherwise.
+	 * @deprecated pass in a display name for your mod so users can easily determine what your mod is controlling.
 	 */
+	@Deprecated
 	boolean setValue(T newValue);
+	/**
+	 * Sets the config's value. <br>
+	 * If the newValue is set to null then the config
+	 * will revert to using the True Value 
+	 * (IE the value visible in the config menu).<br>
+	 * If the config cannot be set via the API this method will return false. <br><br>
+	 *
+	 * @param apiUserDisplayName is displayed in the UI to denote your control over a given option
+	 *                           so users can easily see what your mod is controlling.
+	 * 
+	 * @return true if the value was set, false otherwise.
+	 * @since API 7.2.0
+	 */
+	boolean setValue(T newValue, String apiUserDisplayName);
 	
 	/**
 	 * Un-sets the config's API value. <br>

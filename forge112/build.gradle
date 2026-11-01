@@ -1,0 +1,70 @@
+plugins {
+    id 'unimined-forge112'
+}
+
+repositories {
+    maven {
+        name 'CleanroomMC Maven'
+        url 'https://maven.cleanroommc.com' // MixinBooter
+    }
+}
+
+// ==================== Mod Dependency Helper ====================
+
+def addMod(path, enabled) {
+    if (enabled == "2")
+        dependencies { modImplementation(path) }
+    else if (enabled == "1")
+        dependencies { modCompileOnly(path) }
+}
+
+
+// ==================== Dependencies ====================
+
+dependencies {
+    addMod('curse.maven:autoreglib-250363:2746011', rootProject.enable_quark)
+    addMod('curse.maven:quark-243121:2924091', rootProject.enable_quark)
+    
+    addMod('curse.maven:serene-seasons-291874:2799213', rootProject.enable_serene_seasons)
+    
+    addMod('curse.maven:cofh-core-69162:2920433', rootProject.enable_thermal_dynamics)
+    addMod('curse.maven:thermal-dynamics-227443:2920505', rootProject.enable_thermal_dynamics)
+    
+    addMod('curse.maven:actinium-1-12-2-optimization-1650442:8804052',rootProject.enable_actinium)
+
+    addMod('curse.maven:gregtech-ce-unofficial-557242:5519022', rootProject.enable_gregtech)
+    
+    addMod('curse.maven:lumenized-1234162:6734060', rootProject.enable_lumenized)
+	
+    implementation("zone.rong:mixinbooter:11.8")
+}
+
+// ==================== Tasks ====================
+
+task deleteResources(type: Delete) {
+    delete file("build/resources/main")
+}
+
+processResources {
+    dependsOn(copyCoreResources)
+    from(convertJsonToLang) { into 'assets/distanthorizons/lang' }
+    // dependsOn(copyCommonLoaderResources)
+
+    from(project(":common").file("src/main/resources/${gradle.ext.accessWidenerVersion}.distanthorizons_at.cfg")) {
+        into 'META-INF'
+    }
+}
+
+tasks.named('runClient') {
+    dependsOn(copyCoreResources)
+    // dependsOn(copyCommonLoaderResources)
+    finalizedBy(deleteResources)
+}
+
+sourcesJar {
+    def commonSources = project(":common").sourcesJar
+    dependsOn commonSources
+    from commonSources.archiveFile.map { zipTree(it) }
+}
+
+

@@ -4,29 +4,29 @@ plugins {
 }
 
 forgix {
-    
+
     // add the mod loaders to the end of the jar
     // put together in the format: "a", "a-b", "a-b-c"
     int loaderCount = 0;
     String modLoaders = "";
     ((String) gradle.builds_for)
         .split(",")
-        .each 
-        { loader ->
-            def loaderName = loader.trim()
-            if (modLoaders != "")
-            {
-                modLoaders += "-";
-            }
-            
-            modLoaders += loaderName;
+        .each
+            { loader ->
+                def loaderName = loader.trim()
+                if (modLoaders != "")
+                {
+                    modLoaders += "-";
+                }
 
-            loaderCount++;
-        }
+                modLoaders += loaderName;
+
+                loaderCount++;
+            }
 
     // run if there are multiple launchers that need merging
     autoRun = (loaderCount > 1);
-    
+
     // merged jars are named in the format: 
     // "DistantHorizons-3.0.1-b-dev-26.1-fabric-neoforge.jar"
     archiveClassifier = modLoaders

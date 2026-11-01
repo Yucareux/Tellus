@@ -21,7 +21,9 @@ package com.seibel.distanthorizons.common.render.openGl.glObject;
 
 import com.seibel.distanthorizons.common.render.openGl.glObject.enums.GLEnums;
 import com.seibel.distanthorizons.common.wrappers.minecraft.MinecraftGLWrapper;
-import org.lwjgl.opengl.GL33;
+import org.lwjgl.opengl.*;
+
+import static com.seibel.distanthorizons.lwjgl.LWJGLServiceProvider.LWJGL;
 
 public class GLState implements AutoCloseable
 {
@@ -69,37 +71,37 @@ public class GLState implements AutoCloseable
 	
 	public void saveState()
 	{
-		this.program = GL33.glGetInteger(GL33.GL_CURRENT_PROGRAM);
-		this.vao = GL33.glGetInteger(GL33.GL_VERTEX_ARRAY_BINDING);
-		this.vbo = GL33.glGetInteger(GL33.GL_ARRAY_BUFFER_BINDING);
-		this.ebo = GL33.glGetInteger(GL33.GL_ELEMENT_ARRAY_BUFFER_BINDING);
+		this.program = LWJGL.glGetInteger(GL20.GL_CURRENT_PROGRAM);
+		this.vao = LWJGL.glGetInteger(GL30.GL_VERTEX_ARRAY_BINDING);
+		this.vbo = LWJGL.glGetInteger(GL15.GL_ARRAY_BUFFER_BINDING);
+		this.ebo = LWJGL.glGetInteger(GL15.GL_ELEMENT_ARRAY_BUFFER_BINDING);
 		
-		this.fbo = GL33.glGetInteger(GL33.GL_FRAMEBUFFER_BINDING);
+		this.fbo = LWJGL.glGetInteger(GL30.GL_FRAMEBUFFER_BINDING);
 		
-		this.texture2D = GL33.glGetInteger(GL33.GL_TEXTURE_BINDING_2D);
-		this.activeTextureNumber = GL33.glGetInteger(GL33.GL_ACTIVE_TEXTURE);
+		this.texture2D = LWJGL.glGetInteger(GL11.GL_TEXTURE_BINDING_2D);
+		this.activeTextureNumber = LWJGL.glGetInteger(GL13.GL_ACTIVE_TEXTURE);
 		
-		GLMC.glActiveTexture(GL33.GL_TEXTURE0);
-		this.texture0 = GL33.glGetInteger(GL33.GL_TEXTURE_BINDING_2D);
+		GLMC.glActiveTexture(GL13.GL_TEXTURE0);
+		this.texture0 = LWJGL.glGetInteger(GL11.GL_TEXTURE_BINDING_2D);
 		
-		GLMC.glActiveTexture(GL33.GL_TEXTURE1);
-		this.texture1 = GL33.glGetInteger(GL33.GL_TEXTURE_BINDING_2D);
+		GLMC.glActiveTexture(GL13.GL_TEXTURE1);
+		this.texture1 = LWJGL.glGetInteger(GL11.GL_TEXTURE_BINDING_2D);
 		
-		GLMC.glActiveTexture(GL33.GL_TEXTURE2); // problem with Iris
-		this.texture2 = GL33.glGetInteger(GL33.GL_TEXTURE_BINDING_2D);
+		GLMC.glActiveTexture(GL13.GL_TEXTURE2); // problem with Iris
+		this.texture2 = LWJGL.glGetInteger(GL11.GL_TEXTURE_BINDING_2D);
 		
-		GLMC.glActiveTexture(GL33.GL_TEXTURE3);
-		this.texture3 = GL33.glGetInteger(GL33.GL_TEXTURE_BINDING_2D);
+		GLMC.glActiveTexture(GL13.GL_TEXTURE3);
+		this.texture3 = LWJGL.glGetInteger(GL11.GL_TEXTURE_BINDING_2D);
 		
 		GLMC.glActiveTexture(this.activeTextureNumber);
 		
 		if (this.fbo != 0)
 		{
-			this.frameBufferTexture0 = GL33.glGetFramebufferAttachmentParameteri(GL33.GL_FRAMEBUFFER, GL33.GL_COLOR_ATTACHMENT0, GL33.GL_FRAMEBUFFER_ATTACHMENT_OBJECT_NAME);
-			this.frameBufferTexture1 = GL33.glGetFramebufferAttachmentParameteri(GL33.GL_FRAMEBUFFER, GL33.GL_COLOR_ATTACHMENT1, GL33.GL_FRAMEBUFFER_ATTACHMENT_OBJECT_NAME);
+			this.frameBufferTexture0 = LWJGL.glGetFramebufferAttachmentParameteri(GL30.GL_FRAMEBUFFER, GL30.GL_COLOR_ATTACHMENT0, GL30.GL_FRAMEBUFFER_ATTACHMENT_OBJECT_NAME);
+			this.frameBufferTexture1 = LWJGL.glGetFramebufferAttachmentParameteri(GL30.GL_FRAMEBUFFER, GL30.GL_COLOR_ATTACHMENT1, GL30.GL_FRAMEBUFFER_ATTACHMENT_OBJECT_NAME);
 			
-			int depthType = GL33.glGetFramebufferAttachmentParameteri(GL33.GL_FRAMEBUFFER, GL33.GL_DEPTH_ATTACHMENT, GL33.GL_FRAMEBUFFER_ATTACHMENT_OBJECT_TYPE);
-			this.frameBufferDepthTexture = (depthType == GL33.GL_TEXTURE) ? GL33.glGetFramebufferAttachmentParameteri(GL33.GL_FRAMEBUFFER, GL33.GL_DEPTH_ATTACHMENT, GL33.GL_FRAMEBUFFER_ATTACHMENT_OBJECT_NAME) : 0;
+			int depthType = LWJGL.glGetFramebufferAttachmentParameteri(GL30.GL_FRAMEBUFFER, GL30.GL_DEPTH_ATTACHMENT, GL30.GL_FRAMEBUFFER_ATTACHMENT_OBJECT_TYPE);
+			this.frameBufferDepthTexture = (depthType == GL11.GL_TEXTURE) ? LWJGL.glGetFramebufferAttachmentParameteri(GL30.GL_FRAMEBUFFER, GL30.GL_DEPTH_ATTACHMENT, GL30.GL_FRAMEBUFFER_ATTACHMENT_OBJECT_NAME) : 0;
 		}
 		else
 		{
@@ -109,38 +111,38 @@ public class GLState implements AutoCloseable
 			this.frameBufferDepthTexture = 0;
 		}
 		
-		this.blend = GL33.glIsEnabled(GL33.GL_BLEND);
-		this.scissor = GL33.glIsEnabled(GL33.GL_SCISSOR_TEST);
-		this.blendEqRGB = GL33.glGetInteger(GL33.GL_BLEND_EQUATION_RGB);
-		this.blendEqAlpha = GL33.glGetInteger(GL33.GL_BLEND_EQUATION_ALPHA);
-		this.blendSrcColor = GL33.glGetInteger(GL33.GL_BLEND_SRC_RGB);
-		this.blendSrcAlpha = GL33.glGetInteger(GL33.GL_BLEND_SRC_ALPHA);
-		this.blendDstColor = GL33.glGetInteger(GL33.GL_BLEND_DST_RGB);
-		this.blendDstAlpha = GL33.glGetInteger(GL33.GL_BLEND_DST_ALPHA);
-		this.depth = GL33.glIsEnabled(GL33.GL_DEPTH_TEST);
-		this.writeToDepthBuffer = GL33.glGetInteger(GL33.GL_DEPTH_WRITEMASK) == GL33.GL_TRUE;
-		this.depthFunc = GL33.glGetInteger(GL33.GL_DEPTH_FUNC);
-		this.stencil = GL33.glIsEnabled(GL33.GL_STENCIL_TEST);
-		this.stencilFunc = GL33.glGetInteger(GL33.GL_STENCIL_FUNC);
-		this.stencilRef = GL33.glGetInteger(GL33.GL_STENCIL_REF);
-		this.stencilMask = GL33.glGetInteger(GL33.GL_STENCIL_VALUE_MASK);
+		this.blend = LWJGL.glIsEnabled(GL11.GL_BLEND);
+		this.scissor = LWJGL.glIsEnabled(GL11.GL_SCISSOR_TEST);
+		this.blendEqRGB = LWJGL.glGetInteger(GL20.GL_BLEND_EQUATION_RGB);
+		this.blendEqAlpha = LWJGL.glGetInteger(GL20.GL_BLEND_EQUATION_ALPHA);
+		this.blendSrcColor = LWJGL.glGetInteger(GL14.GL_BLEND_SRC_RGB);
+		this.blendSrcAlpha = LWJGL.glGetInteger(GL14.GL_BLEND_SRC_ALPHA);
+		this.blendDstColor = LWJGL.glGetInteger(GL14.GL_BLEND_DST_RGB);
+		this.blendDstAlpha = LWJGL.glGetInteger(GL14.GL_BLEND_DST_ALPHA);
+		this.depth = LWJGL.glIsEnabled(GL11.GL_DEPTH_TEST);
+		this.writeToDepthBuffer = LWJGL.glGetInteger(GL11.GL_DEPTH_WRITEMASK) == GL11.GL_TRUE;
+		this.depthFunc = LWJGL.glGetInteger(GL11.GL_DEPTH_FUNC);
+		this.stencil = LWJGL.glIsEnabled(GL11.GL_STENCIL_TEST);
+		this.stencilFunc = LWJGL.glGetInteger(GL11.GL_STENCIL_FUNC);
+		this.stencilRef = LWJGL.glGetInteger(GL11.GL_STENCIL_REF);
+		this.stencilMask = LWJGL.glGetInteger(GL11.GL_STENCIL_VALUE_MASK);
 		this.view = new int[4];
-		GL33.glGetIntegerv(GL33.GL_VIEWPORT, this.view);
-		this.cull = GL33.glIsEnabled(GL33.GL_CULL_FACE);
-		this.cullMode = GL33.glGetInteger(GL33.GL_CULL_FACE_MODE);
-		this.polyMode = GL33.glGetInteger(GL33.GL_POLYGON_MODE);
+		LWJGL.glGetIntegerv(GL11.GL_VIEWPORT, this.view);
+		this.cull = LWJGL.glIsEnabled(GL11.GL_CULL_FACE);
+		this.cullMode = LWJGL.glGetInteger(GL11.GL_CULL_FACE_MODE);
+		this.polyMode = LWJGL.glGetInteger(GL11.GL_POLYGON_MODE);
 	}
 	
 	@Override 
 	public void close()
 	{
 		// explicitly unbinding the frame buffer is necessary to prevent GL_CLEAR calls from hitting the wrong buffer
-		GLMC.glBindFramebuffer(GL33.GL_FRAMEBUFFER, 0);
+		GLMC.glBindFramebuffer(GL30.GL_FRAMEBUFFER, 0);
 		boolean frameBufferSet = false;
 		
-		if (this.fbo != 0 && GL33.glIsFramebuffer(this.fbo))
+		if (this.fbo != 0 && GL30.glIsFramebuffer(this.fbo))
 		{
-			GLMC.glBindFramebuffer(GL33.GL_FRAMEBUFFER, this.fbo);
+			GLMC.glBindFramebuffer(GL30.GL_FRAMEBUFFER, this.fbo);
 			frameBufferSet = true;
 		}
 		
@@ -163,45 +165,45 @@ public class GLState implements AutoCloseable
 			GLMC.disableScissorTest();
 		}
 		
-		GLMC.glActiveTexture(GL33.GL_TEXTURE0);
-		GLMC.glBindTexture(GL33.glIsTexture(this.texture0) ? this.texture0 : 0);
+		GLMC.glActiveTexture(GL13.GL_TEXTURE0);
+		GLMC.glBindTexture(LWJGL.glIsTexture(this.texture0) ? this.texture0 : 0);
 		
-		GLMC.glActiveTexture(GL33.GL_TEXTURE1);
-		GLMC.glBindTexture(GL33.glIsTexture(this.texture1) ? this.texture1 : 0);
+		GLMC.glActiveTexture(GL13.GL_TEXTURE1);
+		GLMC.glBindTexture(LWJGL.glIsTexture(this.texture1) ? this.texture1 : 0);
 		
-		GLMC.glActiveTexture(GL33.GL_TEXTURE2);
-		GLMC.glBindTexture(GL33.glIsTexture(this.texture2) ? this.texture2 : 0);
+		GLMC.glActiveTexture(GL13.GL_TEXTURE2);
+		GLMC.glBindTexture(LWJGL.glIsTexture(this.texture2) ? this.texture2 : 0);
 		
-		GLMC.glActiveTexture(GL33.GL_TEXTURE3);
-		GLMC.glBindTexture(GL33.glIsTexture(this.texture3) ? this.texture3 : 0);
+		GLMC.glActiveTexture(GL13.GL_TEXTURE3);
+		GLMC.glBindTexture(LWJGL.glIsTexture(this.texture3) ? this.texture3 : 0);
 		
 		GLMC.glActiveTexture(this.activeTextureNumber);
-		GLMC.glBindTexture(GL33.glIsTexture(this.texture2D) ? this.texture2D : 0);
+		GLMC.glBindTexture(LWJGL.glIsTexture(this.texture2D) ? this.texture2D : 0);
 		
 		// attempting to set textures on the default frame buffer (ID 0) will throw errors
 		if (frameBufferSet)
 		{
-			if (GL33.glIsTexture(this.frameBufferTexture0))
+			if (LWJGL.glIsTexture(this.frameBufferTexture0))
 			{
-				GL33.glFramebufferTexture2D(GL33.GL_FRAMEBUFFER, GL33.GL_COLOR_ATTACHMENT0, GL33.GL_TEXTURE_2D, this.frameBufferTexture0, 0);
+				LWJGL.glFramebufferTexture2D(GL30.GL_FRAMEBUFFER, GL30.GL_COLOR_ATTACHMENT0, GL11.GL_TEXTURE_2D, this.frameBufferTexture0, 0);
 			}
 			
-			if (this.frameBufferTexture1 != 0 && GL33.glIsTexture(this.frameBufferTexture1))
+			if (this.frameBufferTexture1 != 0 && LWJGL.glIsTexture(this.frameBufferTexture1))
 			{
-				GL33.glFramebufferTexture2D(GL33.GL_FRAMEBUFFER, GL33.GL_COLOR_ATTACHMENT1, GL33.GL_TEXTURE_2D, this.frameBufferTexture1, 0);
+				LWJGL.glFramebufferTexture2D(GL30.GL_FRAMEBUFFER, GL30.GL_COLOR_ATTACHMENT1, GL11.GL_TEXTURE_2D, this.frameBufferTexture1, 0);
 			}
 			
-			if (GL33.glIsTexture(this.frameBufferDepthTexture))
+			if (LWJGL.glIsTexture(this.frameBufferDepthTexture))
 			{
-				GL33.glFramebufferTexture2D(GL33.GL_FRAMEBUFFER, GL33.GL_DEPTH_ATTACHMENT, GL33.GL_TEXTURE_2D, this.frameBufferDepthTexture, 0);
+				LWJGL.glFramebufferTexture2D(GL30.GL_FRAMEBUFFER, GL30.GL_DEPTH_ATTACHMENT, GL11.GL_TEXTURE_2D, this.frameBufferDepthTexture, 0);
 			}
 				
 		}
 		
-		GL33.glBindVertexArray(GL33.glIsVertexArray(this.vao) ? this.vao : 0);
-		GL33.glBindBuffer(GL33.GL_ARRAY_BUFFER, GL33.glIsBuffer(this.vbo) ? this.vbo : 0);
-		GL33.glBindBuffer(GL33.GL_ELEMENT_ARRAY_BUFFER, GL33.glIsBuffer(this.ebo) ? this.ebo: 0);
-		GL33.glUseProgram(GL33.glIsProgram(this.program) ? this.program : 0);
+		LWJGL.glBindVertexArray(GL30.glIsVertexArray(this.vao) ? this.vao : 0);
+		LWJGL.glBindBuffer(GL15.GL_ARRAY_BUFFER, GL15.glIsBuffer(this.vbo) ? this.vbo : 0);
+		LWJGL.glBindBuffer(GL15.GL_ELEMENT_ARRAY_BUFFER, GL15.glIsBuffer(this.ebo) ? this.ebo: 0);
+		LWJGL.glUseProgram(GL20.glIsProgram(this.program) ? this.program : 0);
 		
 		if (this.writeToDepthBuffer)
 		{
@@ -213,7 +215,7 @@ public class GLState implements AutoCloseable
 		}
 		
 		GLMC.glBlendFunc(this.blendSrcColor, this.blendDstColor);
-		GL33.glBlendEquationSeparate(this.blendEqRGB, this.blendEqAlpha);
+		LWJGL.glBlendEquationSeparate(this.blendEqRGB, this.blendEqAlpha);
 		GLMC.glBlendFuncSeparate(this.blendSrcColor, this.blendDstColor, this.blendSrcAlpha, this.blendDstAlpha);
 		
 		if (this.depth)
@@ -228,15 +230,15 @@ public class GLState implements AutoCloseable
 		
 		if (this.stencil)
 		{
-			GL33.glEnable(GL33.GL_STENCIL_TEST);
+			LWJGL.glEnable(GL11.GL_STENCIL_TEST);
 		}
 		else
 		{
-			GL33.glDisable(GL33.GL_STENCIL_TEST);
+			LWJGL.glDisable(GL11.GL_STENCIL_TEST);
 		}
-		GL33.glStencilFunc(this.stencilFunc, this.stencilRef, this.stencilMask);
+		LWJGL.glStencilFunc(this.stencilFunc, this.stencilRef, this.stencilMask);
 		
-		GL33.glViewport(this.view[0], this.view[1], this.view[2], this.view[3]);
+		GLMC.glViewport(this.view[0], this.view[1], this.view[2], this.view[3]);
 		if (this.cull)
 		{
 			GLMC.enableFaceCulling();
@@ -245,8 +247,8 @@ public class GLState implements AutoCloseable
 		{
 			GLMC.disableFaceCulling();
 		}
-		GL33.glCullFace(this.cullMode);
-		GL33.glPolygonMode(GL33.GL_FRONT_AND_BACK, this.polyMode);
+		LWJGL.glCullFace(this.cullMode);
+		LWJGL.glPolygonMode(GL11.GL_FRONT_AND_BACK, this.polyMode);
 	}
 	
 	@Override

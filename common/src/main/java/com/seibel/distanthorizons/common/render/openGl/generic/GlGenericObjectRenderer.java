@@ -51,7 +51,11 @@ import com.seibel.distanthorizons.coreapi.DependencyInjection.ApiEventInjector;
 import com.seibel.distanthorizons.coreapi.DependencyInjection.OverrideInjector;
 import com.seibel.distanthorizons.coreapi.ModInfo;
 import org.lwjgl.opengl.ARBInstancedArrays;
-import org.lwjgl.opengl.GL33;
+import org.lwjgl.opengl.GL11;
+import org.lwjgl.opengl.GL14;
+import org.lwjgl.opengl.GL15;
+
+import static com.seibel.distanthorizons.lwjgl.LWJGLServiceProvider.LWJGL;
 
 import java.awt.*;
 import java.nio.ByteBuffer;
@@ -196,7 +200,11 @@ public class GlGenericObjectRenderer implements IDhGenericRenderer
 		if (isMac)
 		{
 			LOGGER.warn("Generic rendering not supported by Mac. Clouds, beacons, and some other effects will be disabled.");
-			Config.Client.Advanced.Graphics.GenericRendering.enableGenericRendering.setApiValue(false);
+			Config.Client.Advanced.Graphics.GenericRendering.enableGenericRendering.setMcVersionOverrideValue(false);
+			// the following can't be enabled anyway, but manually turning
+			// them off helps make the UI look correct
+			Config.Client.Advanced.Graphics.GenericRendering.enableCloudRendering.setMcVersionOverrideValue(false);
+			Config.Client.Advanced.Graphics.GenericRendering.enableBeaconRendering.setMcVersionOverrideValue(false);
 			return;
 		}
 		
@@ -239,7 +247,7 @@ public class GlGenericObjectRenderer implements IDhGenericRenderer
 		solidIndexBuffer.asIntBuffer().put(BOX_INDICES);
 		solidIndexBuffer.rewind();
 		this.boxIndexBuffer = new GLIndexBuffer(false);
-		this.boxIndexBuffer.uploadBuffer(solidIndexBuffer, EDhApiGpuUploadMethod.DATA, BOX_INDICES.length * Integer.BYTES, GL33.GL_STATIC_DRAW);
+		this.boxIndexBuffer.uploadBuffer(solidIndexBuffer, EDhApiGpuUploadMethod.DATA, BOX_INDICES.length * Integer.BYTES, GL15.GL_STATIC_DRAW);
 		this.boxIndexBuffer.bind();
 	}
 	private void addGenericDebugObjects()
@@ -424,18 +432,18 @@ public class GlGenericObjectRenderer implements IDhGenericRenderer
 			boolean renderWireframe = Config.Client.Advanced.Debugging.renderWireframe.get();
 			if (renderWireframe)
 			{
-				GL33.glPolygonMode(GL33.GL_FRONT_AND_BACK, GL33.GL_LINE);
+				LWJGL.glPolygonMode(GL11.GL_FRONT_AND_BACK, GL11.GL_LINE);
 				GLMC.disableFaceCulling();
 			}
 			else
 			{
-				GL33.glPolygonMode(GL33.GL_FRONT_AND_BACK, GL33.GL_FILL);
+				LWJGL.glPolygonMode(GL11.GL_FRONT_AND_BACK, GL11.GL_FILL);
 				GLMC.enableFaceCulling();
 			}
 			
 			GLMC.enableBlend();
-			GL33.glBlendEquation(GL33.GL_FUNC_ADD);
-			GLMC.glBlendFuncSeparate(GL33.GL_SRC_ALPHA, GL33.GL_ONE_MINUS_SRC_ALPHA, GL33.GL_ONE, GL33.GL_ONE_MINUS_SRC_ALPHA);
+			LWJGL.glBlendEquation(GL14.GL_FUNC_ADD);
+			GLMC.glBlendFuncSeparate(GL11.GL_SRC_ALPHA, GL11.GL_ONE_MINUS_SRC_ALPHA, GL11.GL_ONE, GL11.GL_ONE_MINUS_SRC_ALPHA);
 			
 			IDhApiGenericObjectShaderProgram shaderProgram = this.instancedRenderingAvailable ? this.instancedShaderProgram : this.directShaderProgram;
 			IDhApiGenericObjectShaderProgram shaderProgramOverride = OverrideInjector.INSTANCE.get(IDhApiGenericObjectShaderProgram.class);
@@ -533,7 +541,7 @@ public class GlGenericObjectRenderer implements IDhGenericRenderer
 			if (renderWireframe)
 			{
 				// default back to GL_FILL since all other rendering uses it 
-				GL33.glPolygonMode(GL33.GL_FRONT_AND_BACK, GL33.GL_FILL);
+				LWJGL.glPolygonMode(GL11.GL_FRONT_AND_BACK, GL11.GL_FILL);
 				GLMC.enableFaceCulling();
 			}
 			
@@ -544,7 +552,7 @@ public class GlGenericObjectRenderer implements IDhGenericRenderer
 			// Restore GL states that 1.12.2 vanilla expects
 			#if MC_VER <= MC_1_12_2
 			GLMC.disableBlend();
-			GLMC.glBlendFuncSeparate(GL33.GL_SRC_ALPHA, GL33.GL_ONE, GL33.GL_ONE, GL33.GL_ZERO);
+			GLMC.glBlendFuncSeparate(GL11.GL_SRC_ALPHA, GL11.GL_ONE, GL11.GL_ONE, GL11.GL_ZERO);
 			#endif
 		}
 	}
@@ -585,59 +593,59 @@ public class GlGenericObjectRenderer implements IDhGenericRenderer
 			
 			GlGenericObjectVertexContainer container = (GlGenericObjectVertexContainer) (boxGroup.vertexBufferContainer);
 			
-			GL33.glBindBuffer(GL33.GL_ARRAY_BUFFER, container.color);
-			GL33.glEnableVertexAttribArray(1);
-			GL33.glVertexAttribPointer(1, 4, GL33.GL_FLOAT, false, 4 * Float.BYTES, 0);
+			LWJGL.glBindBuffer(GL15.GL_ARRAY_BUFFER, container.color);
+			LWJGL.glEnableVertexAttribArray(1);
+			LWJGL.glVertexAttribPointer(1, 4, GL11.GL_FLOAT, false, 4 * Float.BYTES, 0);
 			this.vertexAttribDivisor(1, 1);
 			
-			GL33.glBindBuffer(GL33.GL_ARRAY_BUFFER, container.scale);
-			GL33.glEnableVertexAttribArray(2);
+			LWJGL.glBindBuffer(GL15.GL_ARRAY_BUFFER, container.scale);
+			LWJGL.glEnableVertexAttribArray(2);
 			this.vertexAttribDivisor(2, 1);
-			GL33.glVertexAttribPointer(2, 3, GL33.GL_FLOAT, false, 3 * Float.BYTES, 0);
+			LWJGL.glVertexAttribPointer(2, 3, GL11.GL_FLOAT, false, 3 * Float.BYTES, 0);
 			
-			GL33.glBindBuffer(GL33.GL_ARRAY_BUFFER, container.chunkPos);
-			GL33.glEnableVertexAttribArray(3);
+			LWJGL.glBindBuffer(GL15.GL_ARRAY_BUFFER, container.chunkPos);
+			LWJGL.glEnableVertexAttribArray(3);
 			this.vertexAttribDivisor(3, 1);
-			GL33.glVertexAttribIPointer(3, 3, GL33.GL_INT, 3 * Integer.BYTES, 0);
+			LWJGL.glVertexAttribIPointer(3, 3, GL11.GL_INT, 3 * Integer.BYTES, 0);
 			
-			GL33.glBindBuffer(GL33.GL_ARRAY_BUFFER, container.subChunkPos);
-			GL33.glEnableVertexAttribArray(4);
+			LWJGL.glBindBuffer(GL15.GL_ARRAY_BUFFER, container.subChunkPos);
+			LWJGL.glEnableVertexAttribArray(4);
 			this.vertexAttribDivisor(4, 1);
-			GL33.glVertexAttribPointer(4, 3, GL33.GL_FLOAT, false, 3 * Float.BYTES, 0);
+			LWJGL.glVertexAttribPointer(4, 3, GL11.GL_FLOAT, false, 3 * Float.BYTES, 0);
 			
-			GL33.glBindBuffer(GL33.GL_ARRAY_BUFFER, container.material);
-			GL33.glEnableVertexAttribArray(5);
+			LWJGL.glBindBuffer(GL15.GL_ARRAY_BUFFER, container.material);
+			LWJGL.glEnableVertexAttribArray(5);
 			this.vertexAttribDivisor(5, 1);
-			GL33.glVertexAttribIPointer(5, 1, GL33.GL_BYTE, Byte.BYTES, 0);
+			LWJGL.glVertexAttribIPointer(5, 1, GL11.GL_BYTE, Byte.BYTES, 0);
 			
 			
 			// Draw instanced
 			profiler.popPush("render");
 			if (container.uploadedBoxCount > 0)
 			{
-				GL33.glDrawElementsInstanced(GL33.GL_TRIANGLES, BOX_INDICES.length, GL33.GL_UNSIGNED_INT, 0, container.uploadedBoxCount);
+				LWJGL.glDrawElementsInstanced(GL11.GL_TRIANGLES, BOX_INDICES.length, GL11.GL_UNSIGNED_INT, 0, container.uploadedBoxCount);
 			}
 			
 			
 			// Clean up
 			profiler.popPush("cleanup");
 			
-			GL33.glDisableVertexAttribArray(1);
-			GL33.glDisableVertexAttribArray(2);
-			GL33.glDisableVertexAttribArray(3);
-			GL33.glDisableVertexAttribArray(4);
-			GL33.glDisableVertexAttribArray(5);
+			LWJGL.glDisableVertexAttribArray(1);
+			LWJGL.glDisableVertexAttribArray(2);
+			LWJGL.glDisableVertexAttribArray(3);
+			LWJGL.glDisableVertexAttribArray(4);
+			LWJGL.glDisableVertexAttribArray(5);
 		}
 	}
 	/** 
-	 * Clean way to handle both {@link GL33#glVertexAttribDivisor} and {@link ARBInstancedArrays#glVertexAttribDivisorARB}
+	 * Clean way to handle both {@link LWJGL#glVertexAttribDivisor} and {@link ARBInstancedArrays#glVertexAttribDivisorARB}
 	 * based on which one is supported.
 	 */
 	private void vertexAttribDivisor(int index, int divisor)
 	{
 		if (this.vertexAttribDivisorSupported)
 		{
-			GL33.glVertexAttribDivisor(index, divisor);	
+			LWJGL.glVertexAttribDivisor(index, divisor);	
 		}
 		else if(this.instancedArraysSupported)
 		{
@@ -684,7 +692,7 @@ public class GlGenericObjectRenderer implements IDhGenericRenderer
 					shaderProgram.fillDirectUniformData(renderEventParam, boxGroup, box, camPos);
 					
 					profiler.popPush("render");
-					GL33.glDrawElements(GL33.GL_TRIANGLES, BOX_INDICES.length, GL33.GL_UNSIGNED_INT, 0);
+					LWJGL.glDrawElements(GL11.GL_TRIANGLES, BOX_INDICES.length, GL11.GL_UNSIGNED_INT, 0);
 				}
 			}
 			catch (IndexOutOfBoundsException e)

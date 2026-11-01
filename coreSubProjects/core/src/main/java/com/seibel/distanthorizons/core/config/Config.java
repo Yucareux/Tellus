@@ -24,6 +24,7 @@ import com.seibel.distanthorizons.api.enums.config.quickOptions.*;
 import com.seibel.distanthorizons.api.enums.rendering.*;
 import com.seibel.distanthorizons.api.enums.worldGeneration.EDhApiDistantGeneratorMode;
 import com.seibel.distanthorizons.api.enums.worldGeneration.EDhApiDistantGeneratorProgressDisplayLocation;
+import com.seibel.distanthorizons.api.enums.worldGeneration.EDhApiGeneratorPlan;
 import com.seibel.distanthorizons.core.config.eventHandlers.*;
 import com.seibel.distanthorizons.core.config.eventHandlers.presets.*;
 import com.seibel.distanthorizons.core.config.types.*;
@@ -77,8 +78,7 @@ public class Config
 			.addListener(ThreadPresetConfigEventHandler.INSTANCE)
 			.build();
 		
-		public static ConfigUiLinkedEntry quickEnableWorldGenerator = new ConfigUiLinkedEntry(Common.WorldGenerator.enableDistantGeneration);
-		public static ConfigUiLinkedEntry quickEnableServerGeneration = new ConfigUiLinkedEntry(Server.enableServerGeneration);
+		public static ConfigUiLinkedEntry quickWorldGeneratorPlan = new ConfigUiLinkedEntry(Common.WorldGenerator.generatorPlan);
 		
 		public static ConfigUiLinkedEntry quickShowWorldGenProgress = new ConfigUiLinkedEntry(Common.WorldGenerator.showGenerationProgress);
 		
@@ -128,8 +128,11 @@ public class Config
 					.set(true)
 					.comment("Enable Screen Space Ambient Occlusion")
 					.build();
-				public static ConfigUISpacer ssaoSpacer = new ConfigUISpacer.Builder().build();
-				
+				public static ConfigEntry<Boolean> enableAntiAliasing = new ConfigEntry.Builder<Boolean>()
+					.set(true)
+					.comment("Enabling Anti-Aliasing smooths edges and reduces flickering when moving.")
+					.build();
+				public static ConfigUISpacer antiAliasingSpacer = new ConfigUISpacer.Builder().build();
 				
 				public static ConfigUiLinkedEntry quickEnableGenericRendering = new ConfigUiLinkedEntry(GenericRendering.enableGenericRendering);
 				public static ConfigCategory genericRendering = new ConfigCategory.Builder().set(GenericRendering.class).build();
@@ -320,14 +323,6 @@ public class Config
 							+ EDhApiMcRenderingFadeMode.NONE + ": Fastest, there will be a pronounced border between DH and MC rendering. \n"
 							+ EDhApiMcRenderingFadeMode.SINGLE_PASS + ": Fades after MC's transparent pass, opaque blocks underwater won't be faded. \n"
 							+ EDhApiMcRenderingFadeMode.DOUBLE_PASS + ": Slowest, fades after both MC's opaque and transparent passes, provides the smoothest transition. \n"
-							+ "")
-						.build();
-					
-					public static ConfigEntry<Boolean> dhFadeFarClipPlane = new ConfigEntry.Builder<Boolean>()
-						.set(true)
-						.comment(""
-							+ "Should DH fade out before reaching the far clip plane? \n"
-							+ "This is helpful to prevent DH clouds from cutting off in the distance. \n"
 							+ "")
 						.build();
 					
@@ -677,7 +672,7 @@ public class Config
 						.build();
 					
 					public static ConfigEntry<Integer> maxTexturedLodDetailLevel = new ConfigEntry.Builder<Integer>()
-						.setMinDefaultMax(0, 2, 4)
+						.setMinDefaultMax(0, 2, 8)
 						.comment(""
 							+ "The highest detail level number that can render with block textures. \n"
 							+ "At higher detail levels each LOD covers multiple blocks, \n"
@@ -707,7 +702,8 @@ public class Config
 						.set("grass_block," +
 							"mycelium," +
 							"nylium," +
-							"dirt_path" +
+							"dirt_path," +
+							"grass" +
 							"")
 						.setAppearance(EConfigEntryAppearance.ALL)
 						.comment(""
@@ -945,6 +941,8 @@ public class Config
 							+ "A comma separated list of dimension resource locations where DH won't render. \n"
 							+ "\n"
 							+ "Example: \"minecraft:the_nether,minecraft:the_end\"\n"
+							+ "For Minecraft 1.12.2 and older: \n"
+							+ "Open the F3 screen and copy the dimension_name:ID shown in yellow. Example: \"overworld:0\"\n"
 							+ "\n"
 							+ "Note:\n"
 							+ "Some DH settings will be disabled and/or changed to improve \n"
@@ -1431,19 +1429,48 @@ public class Config
 		{
 			public static ConfigUIComment worldGeneratorHeader = new ConfigUIComment.Builder().setParentConfigClass(WorldGenerator.class).build();
 			
-			public static ConfigEntry<Boolean> enableDistantGeneration = new ConfigEntry.Builder<Boolean>()
-				.setChatCommandName("generation.enable")
-				.set(true)
+			public static ConfigEntry<EDhApiGeneratorPlan> generatorPlan = new ConfigEntry.Builder<EDhApiGeneratorPlan>()
+				.setChatCommandName("generation.plan")
+				.set(EDhApiGeneratorPlan.SURFACE_THEN_CHUNKS)
+				.setShowEnumOptionFunc(WorldGenPlanConfigEventHandler::setShowEnumOptionFunc)
+				.addListener(WorldGenPlanConfigEventHandler.INSTANCE)
 				.comment(""
-					+ " Should Distant Horizons slowly generate LODs \n"
-					+ " outside the vanilla render distance? \n"
-					+ "Depending on the generator mode, this will import existing chunks \n"
-					+ "and/or generating missing chunks."
+					+ "Defines how LODs will be generated \n"
+					+ "outside the vanilla render distance. \n"
+					+ "In multiplayer, this may be overridden by the server. \n"
+					+ "\n"
+					+ EDhApiGeneratorPlan.SURFACE_THEN_CHUNKS + " \n"
+					+ "The rough surface will be generated first \n"
+					+ "then chunks will be generated to fill in \n"
+					+ "missing features (ie trees and villages). \n"
+					+ "\n"
+					+ "Recommended for modded or vanilla worlds. \n"
+					+ "\n"
+					+ EDhApiGeneratorPlan.SURFACE_ONLY + " \n"
+					+ "Only the rough surface will be generated. \n"
+					+ "Chunk features like trees and villages \n"
+					+ "won't be generated. \n"
+					+ "\n"
+					+ "Recommended for computers that don't have \n"
+					+ "enough CPU power or RAM space to handle \n"
+					+ "the chunk generator. \n"
+					+ "\n"
+					+ EDhApiGeneratorPlan.CHUNKS_ONLY + " \n"
+					+ "Slower than either surface options, \n"
+					+ "but provides more accurate terrain. \n"
+					+ "\n"
+					+ "Recommended for custom worlds \n"
+					+ "where the surface generator would \n"
+					+ "generate incorrect terrain. \n"
+					+ "\n"
+					+ EDhApiGeneratorPlan.DISABLED + " \n"
+					+ "No distant terrain will be generated. \n"
+					+ "\n"
 					+ "")
 				.build();
 			
-			public static ConfigEntry<EDhApiDistantGeneratorMode> distantGeneratorMode = new ConfigEntry.Builder<EDhApiDistantGeneratorMode>()
-				.setChatCommandName("generation.mode")
+			public static ConfigEntry<EDhApiDistantGeneratorMode> chunkGeneratorMode = new ConfigEntry.Builder<EDhApiDistantGeneratorMode>()
+				.setChatCommandName("generation.chunkMode")
 				.set(EDhApiDistantGeneratorMode.FEATURES)
 				.comment(""
 					+ "How detailed should LODs be generated outside the vanilla render distance? \n"
@@ -1451,28 +1478,9 @@ public class Config
 					+ EDhApiDistantGeneratorMode.PRE_EXISTING_ONLY + " \n"
 					+ "Only create LOD data for already generated chunks. \n"
 					+ "\n"
-					//not currently implemented
-					//+ EDhApiDistantGeneratorMode.BIOME_ONLY + " \n"
-					//+ "Only generate the biomes and use the biome's \n"
-					//+ "grass color, water color, or snow color. \n"
-					//+ "Doesn't generate height, everything is shown at sea level. \n"
-					//+ "- Fastest \n"
-					//+ "\n"
-					//+ EDhApiDistantGeneratorMode.BIOME_ONLY_SIMULATE_HEIGHT + " \n"
-					//+ "Same as " + EDhApiDistantGeneratorMode.BIOME_ONLY + ", except instead \n"
-					//+ "of always using sea level as the LOD height \n"
-					//+ "different biome types (mountain, ocean, forest, etc.) \n"
-					//+ "use predetermined heights to simulate having height data. \n"
-					//+ "- Fastest \n"
-					+ "\n"
-					+ EDhApiDistantGeneratorMode.SURFACE + " \n"
-					+ "Generate the world surface, \n"
-					+ "this does NOT include trees, \n"
-					+ "or structures. \n"
-					+ "\n"
 					+ EDhApiDistantGeneratorMode.FEATURES + " \n"
 					+ "Generate everything except structures. \n"
-					+ "WARNING: This may cause world generator bugs or instability when paired with certain world generator mods. \n"
+					+ "Note: This may cause world generator bugs or instability when paired with certain world generator mods. \n"
 					+ "\n"
 					+ EDhApiDistantGeneratorMode.INTERNAL_SERVER + " \n"
 					+ "Ask the local server to generate/load each chunk. \n"
@@ -1480,6 +1488,42 @@ public class Config
 					+ "but may cause server/simulation lag. \n"
 					+ "Note: unlike other modes this option DOES save generated chunks to \n"
 					+ "Minecraft's region files. \n"
+					+ "")
+				.build();
+			
+			public static ConfigUISpacer genLimitingSpacer = new ConfigUISpacer.Builder().build();
+			
+			public static final ConfigEntry<Boolean> limitIfServerUnhealthy = new ConfigEntry.Builder<Boolean>()
+				.set(true)
+				.comment(""
+					+ "If the Minecraft server thread is taking too long \n"
+					+ "Distant Horizons will pause world gen to reduce server stuttering/lag. \n"
+					+ "")
+				.build();
+			
+			public static final ConfigEntry<Boolean> pauseIfMovingQuickly = new ConfigEntry.Builder<Boolean>()
+				.set(true)
+				.comment(""
+					+ "If true and the player/camera is moving quickly \n"
+					+ "Distant Horizons will pause world gen to improve loading speed \n"
+					+ "and reduce CPU load. \n"
+					+ "")
+				.build();
+			
+			public static final ConfigEntry<Double> surfaceRegenMaxDistancePercent = new ConfigEntry.Builder<Double>()
+				.setMinDefaultMax(-1.0, -1.0, 1_000.0)
+				.comment(""
+					+ "If the "+EDhApiGeneratorPlan.SURFACE_THEN_CHUNKS+" generator plan is \n"
+					+ "in use, this percentage can be defined to reduce how far the \n"
+					+ "second high-quality generation pass will go \n"
+					+ "as a percentage of your total render distance: \n"
+					+ "-1.0 = Infinity\n"
+					+ "0.0 = 0%\n"
+					+ "0.5 = 50%\n"
+					+ "1.0 = 100%\n"
+					+ "2.0 = 200%\n"
+					+ "\n"
+					+ "Does nothing on a dedicated server. \n"
 					+ "")
 				.build();
 			
@@ -1522,6 +1566,10 @@ public class Config
 					+ "")
 				.build();
 			
+			
+			
+			// file configs //
+			
 			public static ConfigEntry<Integer> generationCenterChunkX = new ConfigEntry.Builder<Integer>()
 				.setChatCommandName("generation.bounds.centerChunk.x")
 				.setAppearance(EConfigEntryAppearance.ONLY_IN_FILE)
@@ -1561,19 +1609,18 @@ public class Config
 			
 			public static ConfigEntry<Boolean> disableUnchangedChunkCheck = new ConfigEntry.Builder<Boolean>()
 				.set(false)
-				// enabling this can be quite detrimental to performance,
-				// so hiding it in the config file should reduce people accidentally enabling it
-				.setAppearance(EConfigEntryAppearance.ONLY_IN_FILE)
 				.comment(""
-					+ "Enabling this will drastically increase chunk processing time\n"
-					+ "and you may need to increase your CPU load to handle it.\n"
+					+ "Enabling this will drastically speed up chunk processing time\n"
+					+ "if you are CPU limited.\n"
+					+ "Disabling it will drastically speed up chunk processing time\n"
+					+ "if you are disk speed/IO limited.\n"
 					+ "\n"
 					+ "Normally DH will attempt to skip creating LODs for chunks it's already seen\n"
 					+ "and that haven't changed.\n"
 					+ "\n"
-					+ "However sometimes that logic incorrectly prevents LODs from being updated.\n"
-					+ "Disabling this check may fix issues where LODs aren't updated after\n"
-					+ "blocks have been changed.\n"
+					+ "Disabling this option can also fix a rare bug where\n"
+					+ "modified chunks are skipped due to being too similar to\n"
+					+ "their saved hash.\n"
 					+ "")
 				.build();
 			
@@ -1604,32 +1651,43 @@ public class Config
 					+ "")
 				.build();
 			
-			public static ConfigCategory experimental = new ConfigCategory.Builder().set(Experimental.class).build();
+			public static ConfigEntry<EDhApiDatabaseSyncMode> databaseSyncMode = new ConfigEntry.Builder<EDhApiDatabaseSyncMode>()
+				.set(EDhApiDatabaseSyncMode.NORMAL)
+				.comment(""
+					+ "Requires a level restart to apply. \n"
+					+ "\n"
+					+ "Setting this to a less strict mode increases DB read/write\n"
+					+ "speed at the cost of potential data loss/corruption if\n"
+					+ "the computer looses power \n"
+					+ "(unexpected program shutdown should be safe for all options).\n"
+					+ "\n"
+					+ EDhApiDatabaseSyncMode.FULL + " \n"
+					+ "ACID - data will never be lost or corrupted \n"
+					+ "Slow \n"
+					+ "At max throughput: ~2k saves per sec, ~70% disk usage \n"
+					+ "\n"
+					+ EDhApiDatabaseSyncMode.NORMAL + " \n"
+					+ "May not be durable - some data may be lost on power loss, but DB should be safe from corruption \n"
+					+ "Fast\n"
+					+ "At max throughput: ~14k saves per sec, ~40% disk usage \n"
+					+ "\n"
+					+ EDhApiDatabaseSyncMode.OFF + " \n"
+					+ "Not consistent - database may be corrupted during power loss \n"
+					+ "Very Fast\n"
+					+ "At max throughput: ~16k saves per sec, ~6% disk usage \n"
+					+ "\n"
+					+ "")
+				.build();
+			
+			//public static ConfigCategory experimental = new ConfigCategory.Builder().set(Experimental.class).build();
 			
 			
 			
-			public static class Experimental
-			{
-				public static ConfigUIComment experimentalHeader = new ConfigUIComment.Builder().setParentConfigClass(Experimental.class).build();
-				
-				public static ConfigEntry<Boolean> upsampleLowerDetailLodsToFillHoles = new ConfigEntry.Builder<Boolean>()
-					.set(false)
-					.comment(""
-						+ "When active DH will attempt to fill missing LOD data \n"
-						+ "with any data that is present in the tree, preventing holes when moving \n"
-						+ "when a N-sized generator (or server) is active. \n"
-						+ "\n"
-						+ "This is only used when N-sized world generation is available \n"
-						+ "and/or when on a server where [generateOnlyInHighestDetail] is false. \n"
-						+ "\n"
-						+ "Experimental:\n"
-						+ "Enabling this option will increase CPU and harddrive use\n"
-						+ "and may cause rendering bugs.\n"
-						+ "\n"
-						+ "")
-					.build();
-				
-			}
+			//public static class Experimental
+			//{
+			//	public static ConfigUIComment experimentalHeader = new ConfigUIComment.Builder().setParentConfigClass(Experimental.class).build();
+			//	
+			//}
 			
 		}
 		
@@ -1672,6 +1730,15 @@ public class Config
 					+ "running C2ME and are seeing thread starvation in either C2ME or DH. \n"
 					+ "")
 				.build();
+			
+			//public static final ConfigEntry<Boolean> useC2meThreadCount = new ConfigEntry.Builder<Boolean>()
+			//	.set(true)
+			//	.comment(""
+			//		+ "If C2ME is present, set DH's thread count to match C2ME. \n"
+			//		+ "\n"
+			//		+ "This is necessary to prevent thread starvation issues when C2ME is present. \n"
+			//		+ "")
+			//	.build();
 			
 			
 			
@@ -1820,14 +1887,6 @@ public class Config
 						+ "")
 					.build();
 				
-				public static ConfigEntry<Boolean> showDeprecatedRendererWarningOnStartup = new ConfigEntry.Builder<Boolean>()
-					.set(true)
-					.comment(""
-						+ "If enabled, a chat message will be displayed when DH is using \n"
-						+ "a deprecated renderer. \n"
-						+ "")
-					.build();
-				
 				public static ConfigEntry<Boolean> logGarbageCollectorWarning = new ConfigEntry.Builder<Boolean>()
 					.set(true)
 					.comment(""
@@ -1846,8 +1905,12 @@ public class Config
 						+ "")
 					.build();
 				
+				// as of 3.2.0 explicit GC shouldn't be needed since we pool our byte buffers
+				// but we'll keep this around (in a disabled form) for now in case we
+				// see problems that explicit GC solves
 				public static ConfigEntry<Boolean> logExplicitGcDisabledWarning = new ConfigEntry.Builder<Boolean>()
-					.set(true)
+					.set(false)
+					.setAppearance(EConfigEntryAppearance.ONLY_IN_FILE)
 					.comment(""
 						+ "If enabled, a message will be logged if explicit garbage collection \n"
 						+ "is disabled. \n"
@@ -1857,7 +1920,8 @@ public class Config
 					.build();
 				
 				public static ConfigEntry<Boolean> showExplicitGcDisabledWarning = new ConfigEntry.Builder<Boolean>()
-					.set(true)
+					.set(false)
+					.setAppearance(EConfigEntryAppearance.ONLY_IN_FILE)
 					.comment(""
 						+ "If enabled, a message will be displayed in chat if explicit garbage collection \n"
 						+ "is disabled. \n"
@@ -1914,17 +1978,6 @@ public class Config
 				+ "Prefix of the level keys sent to the clients.\n"
 				+ "If the mod is running behind a proxy, each backend should use a unique value.\n"
 				+ "If this value is empty, level key will be based on the server's seed hash.\n"
-				+ "")
-			.build();
-		
-		
-		// Generation
-		public static ConfigEntry<Boolean> enableServerGeneration = new ConfigEntry.Builder<Boolean>()
-			.set(true)
-			.comment(""
-				+ "When enabled, Distant Horizons will attempt to download missing LODs from the server.\n"
-				+ "\n"
-				+ "Note: the server must have Distant Generation enabled for it to work."
 				+ "")
 			.build();
 		
@@ -2017,25 +2070,6 @@ public class Config
 				+ "If false, transfer speed will remain fixed.\n"
 				+ "")
 			.build();
-		
-		
-		public static ConfigCategory experimental = new ConfigCategory.Builder().set(Experimental.class).build();
-		
-		
-		
-		public static class Experimental
-		{
-			public static ConfigEntry<Boolean> enableNSizedGeneration = new ConfigEntry.Builder<Boolean>()
-				.setChatCommandName("generation.nSized")
-				.set(false)
-				.comment(""
-					+ "When enabled on the client, this allows loading lower detail levels as needed to speed up terrain generation.\n"
-					+ "This must also be enabled on the server; otherwise, it will have no effect.\n"
-					+ "For better performance when switching LOD detail levels, enabling [upsampleLowerDetailLodsToFillHoles] is recommended.\n"
-					+ "")
-				.build();
-			
-		}
 		
 	}
 	

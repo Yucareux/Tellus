@@ -9,7 +9,6 @@ import com.seibel.distanthorizons.core.world.DhServerWorld;
 #if MC_VER <= MC_1_12_2
 import net.minecraft.command.ICommandSender;
 import net.minecraft.server.MinecraftServer;
-import net.minecraft.util.text.TextComponentString;
 import net.minecraft.world.WorldServer;
 #else
 import com.mojang.brigadier.builder.LiteralArgumentBuilder;
@@ -32,7 +31,7 @@ import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
 
 
-public class PregenCommand extends AbstractCommand
+public class PregenCommand extends AbstractDhCommand
 {
 	private PregenManager getPregenManager()
 	{
@@ -45,7 +44,7 @@ public class PregenCommand extends AbstractCommand
 	{
 		if (args.length < 2)
 		{
-			sender.sendMessage(new TextComponentString("Usage: /dh pregen <status|start|stop>"));
+			sendMessage(sender, "Usage: /dh pregen <status|start|stop>");
 			return;
 		}
 		
@@ -54,15 +53,14 @@ public class PregenCommand extends AbstractCommand
 			case "status":
 			{
 				String statusString = this.getPregenManager().getStatusString();
-				sender.sendMessage(new TextComponentString(
-					statusString != null ? statusString : "Pregen is not running"));
+				sendMessage(sender, statusString != null ? statusString : "Pregen is not running");
 				break;
 			}
 			case "start":
 			{
 				if (args.length < 5)
 				{
-					sender.sendMessage(new TextComponentString("Usage: /dh pregen start <dimension> <x> <z> <chunkRadius>"));
+					sendMessage(sender, "Usage: /dh pregen start <dimension> <x> <z> <chunkRadius>");
 					return;
 				}
 				
@@ -75,22 +73,31 @@ public class PregenCommand extends AbstractCommand
 					
 					// find the world by dimension name
 					WorldServer world = null;
-					for (WorldServer w : server.worlds)
+					#if MC_VER <= MC_1_7_10
+					for (WorldServer possibleWorld : server.worldServers)
+					#else
+					for (WorldServer possibleWorld : server.worlds)
+					#endif
 					{
-						if (w.provider.getDimensionType().getName().equals(dimensionName))
+						#if MC_VER <= MC_1_7_10
+						if (possibleWorld.provider.getDimensionName().equals(dimensionName) 
+							|| String.valueOf(possibleWorld.provider.dimensionId).equals(dimensionName))
+						#else
+						if (possibleWorld.provider.getDimensionType().getName().equals(dimensionName))
+						#endif
 						{
-							world = w;
+							world = possibleWorld;
 							break;
 						}
 					}
 					
 					if (world == null)
 					{
-						sender.sendMessage(new TextComponentString("Unknown dimension: " + dimensionName));
+						sendMessage(sender, "Unknown dimension: " + dimensionName);
 						return;
 					}
 					
-					sender.sendMessage(new TextComponentString("Starting pregen. Progress will be in the server console."));
+					sendMessage(sender, "Starting pregen. Progress will be in the server console.");
 					
 					final ICommandSender finalSender = sender;
 					CompletableFuture<Void> future = this.getPregenManager().startPregen(
@@ -102,20 +109,20 @@ public class PregenCommand extends AbstractCommand
 					future.whenComplete((result, throwable) -> {
 						if (throwable instanceof CancellationException)
 						{
-							finalSender.sendMessage(new TextComponentString("Pregen is cancelled"));
+							sendMessage(finalSender, "Pregen is cancelled");
 							return;
 						}
 						else if (throwable != null)
 						{
-							finalSender.sendMessage(new TextComponentString("Pregen failed: " + throwable.getMessage()));
+							sendMessage(finalSender, "Pregen failed: " + throwable.getMessage());
 							return;
 						}
-						finalSender.sendMessage(new TextComponentString("Pregen is complete"));
+						sendMessage(finalSender, "Pregen is complete");
 					});
 				}
 				catch (NumberFormatException e)
 				{
-					sender.sendMessage(new TextComponentString("Invalid number format"));
+					sendMessage(sender, "Invalid number format");
 				}
 				break;
 			}
@@ -124,14 +131,14 @@ public class PregenCommand extends AbstractCommand
 				CompletableFuture<Void> runningPregen = this.getPregenManager().getRunningPregen();
 				if (runningPregen == null)
 				{
-					sender.sendMessage(new TextComponentString("Pregen is not running"));
+					sendMessage(sender, "Pregen is not running");
 					return;
 				}
 				runningPregen.cancel(true);
 				break;
 			}
 			default:
-				sender.sendMessage(new TextComponentString("Unknown subcommand: " + args[1]));
+				sendMessage(sender, "Unknown subcommand: " + args[1]);
 		}
 	}
     #else

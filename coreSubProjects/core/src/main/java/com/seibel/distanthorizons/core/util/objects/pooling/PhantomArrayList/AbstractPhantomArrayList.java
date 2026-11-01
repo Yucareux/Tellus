@@ -35,6 +35,7 @@ public abstract class AbstractPhantomArrayList implements AutoCloseable
 	//=============//
 	// constructor //
 	//=============//
+	//region
 	
 	/** The Array counts can be 0 or greater. */
 	public AbstractPhantomArrayList(
@@ -58,14 +59,31 @@ public abstract class AbstractPhantomArrayList implements AutoCloseable
 		this.phantomArrayListPool.phantomRefToCheckout.put(this.phantomReference, this.pooledArraysCheckout);
 	}
 	
+	//endregion
+	
+	
+	
+	//===============//
+	// leak tracking //
+	//===============//
+	//region
+	
+	/** @see PhantomArrayListCheckout#recordLastSeen() */
+	public void recordLastSeen() { this.pooledArraysCheckout.recordLastSeen(); }
+	
+	//endregion
+	
 	
 	
 	//================//
 	// base overrides //
 	//================//
+	//region
 	
 	@Override 
 	public void close() { this.phantomArrayListPool.returnParentPhantomRef(this.phantomReference); }
+	
+	//endregion
 	
 	
 }

@@ -19,6 +19,7 @@
 
 package com.seibel.distanthorizons.core.enums;
 
+import com.seibel.distanthorizons.api.enums.rendering.EDhApiDirection;
 import com.seibel.distanthorizons.core.util.math.DhVec3i;
 
 /**
@@ -120,6 +121,49 @@ public enum EDhDirection
 		}
 	}
 	
+	public EDhApiDirection getApiVersion()
+	{
+		switch (this)
+		{
+			case UP:
+				return EDhApiDirection.UP;
+			case DOWN:
+				return EDhApiDirection.DOWN;
+			case EAST:
+				return EDhApiDirection.EAST;
+			case WEST:
+				return EDhApiDirection.WEST;
+			case NORTH:
+				return EDhApiDirection.NORTH;
+			case SOUTH:
+				return EDhApiDirection.SOUTH;
+				
+			default:
+				throw new IllegalStateException("No API direction found for ["+this+"]");
+		}
+	}
+	
+	public static EDhDirection fromApiVersion(EDhApiDirection apiDirection)
+	{
+		switch (apiDirection)
+		{
+			case UP:
+				return EDhDirection.UP;
+			case DOWN:
+				return EDhDirection.DOWN;
+			case EAST:
+				return EDhDirection.EAST;
+			case WEST:
+				return EDhDirection.WEST;
+			case NORTH:
+				return EDhDirection.NORTH;
+			case SOUTH:
+				return EDhDirection.SOUTH;
+				
+			default:
+				throw new IllegalStateException("No Core direction found for ["+apiDirection+"]");
+		}
+	}
 	
 	@Override
 	public String toString() { return this.name; }

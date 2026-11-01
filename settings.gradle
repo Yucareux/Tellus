@@ -1,3 +1,10 @@
+plugins {
+    // foojay automatically downloads the appropriate JDK if the required
+    // one is missing
+    // https://docs.gradle.org/current/userguide/toolchains.html#sub:download_repositories
+    id 'org.gradle.toolchains.foojay-resolver-convention' version '1.0.0'
+}
+
 // Throw an error if the core sub-project wasn't cloned
 if (!file("./coreSubProjects/LICENSE.txt").exists()) {
     println('''

@@ -52,6 +52,14 @@ public class OverridePriorityListContainer implements IBindable
 		return overrideRemoved;
 	}
 	
+	public boolean clear()
+	{
+		boolean objectsRemoved = (this.overridePairList.size() > 0);
+		this.overridePairList.clear();
+		return objectsRemoved;
+	}
+	
+	
 	
 	// getters //
 	

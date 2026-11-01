@@ -32,7 +32,13 @@ import com.seibel.distanthorizons.core.wrapperInterfaces.chunk.IChunkWrapper;
 import com.seibel.distanthorizons.core.wrapperInterfaces.misc.IMutableBlockPosWrapper;
 import com.seibel.distanthorizons.core.wrapperInterfaces.world.IBiomeWrapper;
 import com.seibel.distanthorizons.core.wrapperInterfaces.world.ILevelWrapper;
-#if MC_VER <= MC_1_12_2
+#if MC_VER <= MC_1_7_10
+import net.minecraft.block.Block;
+import net.minecraft.world.biome.BiomeGenBase;
+import net.minecraft.world.chunk.Chunk;
+import com.seibel.distanthorizons.common.backports.FakeBlockState;
+import net.minecraft.world.chunk.storage.ExtendedBlockStorage;
+#elif MC_VER <= MC_1_12_2
 import net.minecraft.block.state.IBlockState;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.world.World;
@@ -87,7 +93,10 @@ public class ChunkWrapper implements IChunkWrapper
 	private static final DhLogger LOGGER = new DhLoggerBuilder().build();
 	
 	/** can be used for interactions with the underlying chunk where creating new BlockPos objects could cause issues for the garbage collector. */
+	#if MC_VER <= MC_1_7_10
+	#else
 	private static final ThreadLocal<BlockPos.MutableBlockPos> MUTABLE_BLOCK_POS_REF = ThreadLocal.withInitial(() -> new BlockPos.MutableBlockPos());
+	#endif
 	private static final ThreadLocal<MutableBlockPosWrapper> MUTABLE_BLOCK_POS_WRAPPER_REF = ThreadLocal.withInitial(() -> new MutableBlockPosWrapper());
 	
 	public static final Set<String> LOGGED_BLOCK_GET_ERRORS = Collections.newSetFromMap(new ConcurrentHashMap<String, Boolean>());
@@ -119,12 +128,17 @@ public class ChunkWrapper implements IChunkWrapper
 	/** will be null if we are using MC heightmaps */
 	private int[][] lightBlockingHeightMap = null;
 	
+	#if MC_VER <= MC_1_7_10
+	private final BiomeGenBase[] biomeList;
+	#endif
+	
 	
 	
 	//=============//
 	// constructor //
 	//=============//
 	//region
+	
 	/**
 	 * Note: this constructor should be very
 	 * fast since it will be called frequently on the MC
@@ -139,18 +153,78 @@ public class ChunkWrapper implements IChunkWrapper
 		this.chunk = chunk;
 		this.wrappedLevel = wrappedLevel;
 		
-		#if MC_VER <= MC_1_21_11
+		#if MC_VER <= MC_1_7_10
+		this.chunkPos = new DhChunkPos(chunk.xPosition, chunk.zPosition);
+		this.biomeList = fillBiomeMap(chunk);
+		#elif MC_VER <= MC_1_21_11
 		this.chunkPos = new DhChunkPos(chunk.getPos().x, chunk.getPos().z);
 		#else
 		this.chunkPos = new DhChunkPos(chunk.getPos().x(), chunk.getPos().z());
 		#endif
 	}
 	
-	@Override
-	public ChunkWrapper copy() { return new ChunkWrapper(this.chunk, this.wrappedLevel); }
-	@Override
-	public ChunkWrapper copyWithLevel(ILevelWrapper levelWrapper) { return new ChunkWrapper(this.chunk, levelWrapper); }
+	#if MC_VER <= MC_1_7_10
+	/** used for copying */
+	private ChunkWrapper(ChunkWrapper that, ILevelWrapper wrappedLevel)
+	{
+		this.chunk = that.chunk;
+		this.wrappedLevel = wrappedLevel;
+		this.chunkPos = new DhChunkPos(that.chunkPos.getX(), that.chunkPos.getZ());
+		this.biomeList = that.biomeList;
+	}
+	#endif
 	
+	
+	
+	// copiers //
+	//region
+	
+	@Override
+	public ChunkWrapper copy()
+	{
+		#if MC_VER <= MC_1_7_10
+		return new ChunkWrapper(this, this.wrappedLevel);
+		#else
+		return new ChunkWrapper(this.chunk, this.wrappedLevel);
+		#endif
+	}
+
+	@Override
+	public ChunkWrapper copyWithLevel(ILevelWrapper levelWrapper)
+	{
+		#if MC_VER <= MC_1_7_10
+		return new ChunkWrapper(this, levelWrapper);
+		#else
+		return new ChunkWrapper(this.chunk, levelWrapper);
+		#endif
+	}
+	
+	//endregion
+	
+	
+	
+	// constructor helpers //
+	//region
+	
+	#if MC_VER <= MC_1_7_10
+	private static BiomeGenBase[] fillBiomeMap(Chunk chunk)
+	{
+		// We must use World.getBiomeGenForCoords since mods like LOTR override those functions. Getting it from the chunk is incorrect.
+		BiomeGenBase[] biomeArray = new BiomeGenBase[LodUtil.CHUNK_WIDTH * LodUtil.CHUNK_WIDTH];
+		for (int x = 0; x < LodUtil.CHUNK_WIDTH; x++)
+		{
+			for (int z = 0; z < LodUtil.CHUNK_WIDTH; z++)
+			{
+				biomeArray[x * LodUtil.CHUNK_WIDTH + z] = chunk.worldObj.getBiomeGenForCoords(
+					(chunk.xPosition << 4) + x, 
+					(chunk.zPosition << 4) + z);
+			}
+		}
+		return biomeArray;
+	}
+	#endif
+	
+	//endregion
 	//endregion
 	
 	
@@ -221,7 +295,7 @@ public class ChunkWrapper implements IChunkWrapper
 		
 		// default if every section is empty or missing
 		this.minNonEmptyHeight = this.getInclusiveMinBuildHeight();
-		
+
 		// determine the lowest empty section (bottom up)
 		#if MC_VER <= MC_1_12_2
 		ExtendedBlockStorage[] sections = this.chunk.getBlockStorageArray();
@@ -234,14 +308,14 @@ public class ChunkWrapper implements IChunkWrapper
 			{
 				continue;
 			}
-			
+
 			if (!isChunkSectionEmpty(sections[index]))
 			{
 				this.minNonEmptyHeight = this.getChunkSectionMinHeight(index);
 				break;
 			}
 		}
-		
+
 		return this.minNonEmptyHeight;
 	}
 	
@@ -257,7 +331,7 @@ public class ChunkWrapper implements IChunkWrapper
 		
 		// default if every section is empty or missing
 		this.maxNonEmptyHeight = this.getExclusiveMaxBuildHeight();
-		
+
 		// determine the highest empty section (top down)
 		#if MC_VER <= MC_1_12_2
 		ExtendedBlockStorage[] sections = this.chunk.getBlockStorageArray();
@@ -268,19 +342,19 @@ public class ChunkWrapper implements IChunkWrapper
 		{
 			// update at each position to fix using the max height if the chunk is empty
 			this.maxNonEmptyHeight = this.getChunkSectionMinHeight(index) + 16;
-			
+
 			if (sections[index] == null)
 			{
 				continue;
 			}
-			
+
 			if (!isChunkSectionEmpty(sections[index]))
 			{
 				// non-empty section found
 				break;
 			}
 		}
-		
+
 		return this.maxNonEmptyHeight;
 	}
 	#if MC_VER <= MC_1_12_2
@@ -300,7 +374,7 @@ public class ChunkWrapper implements IChunkWrapper
 	@Override
 	public void createDhHeightMaps()
 	{
-		if (heightmapThreadWarningLogged 
+		if (!heightmapThreadWarningLogged
 			&& !DhApi.isDhThread())
 		{
 			heightmapThreadWarningLogged = true;
@@ -367,7 +441,9 @@ public class ChunkWrapper implements IChunkWrapper
 		// will be null if we want to use MC heightmaps
 		if (this.solidHeightMap == null)
 		{
-			#if MC_VER <= MC_1_12_2
+			#if MC_VER <= MC_1_7_10
+			return 255; // assume max height so we don't miss anything
+			#elif MC_VER <= MC_1_12_2
 			return this.chunk.getHeightValue(xRel, zRel);
 			#else
 			return this.chunk.getOrCreateHeightmapUnprimed(Heightmap.Types.WORLD_SURFACE).getFirstAvailable(xRel, zRel);	
@@ -402,7 +478,10 @@ public class ChunkWrapper implements IChunkWrapper
 	@Override
 	public IBiomeWrapper getBiome(int relX, int relY, int relZ)
 	{
-		#if MC_VER <= MC_1_12_2
+		#if MC_VER <= MC_1_7_10
+		BiomeGenBase biome = this.biomeList[(relX * LodUtil.CHUNK_WIDTH) + relZ];
+		return BiomeWrapper.getBiomeWrapper(biome, this.wrappedLevel);
+		#elif MC_VER <= MC_1_12_2
 		BlockPos.MutableBlockPos blockPos = MUTABLE_BLOCK_POS_REF.get();
 		blockPos.setPos(relX, relY, relZ);
 		
@@ -430,6 +509,23 @@ public class ChunkWrapper implements IChunkWrapper
 	{
 		this.throwIndexOutOfBoundsIfRelativePosOutsideChunkBounds(relX, relY, relZ);
 		
+		#if MC_VER <= MC_1_7_10
+		try
+		{
+			final Block block = this.chunk.getBlock(relX, relY, relZ);
+			final int meta = this.chunk.getBlockMetadata(relX, relY, relZ);
+			return BlockStateWrapper.fromBlockState(block, meta, this.wrappedLevel);
+		}
+		catch (Exception e)
+		{
+			if (LOGGED_BLOCK_GET_ERRORS.add(e.getMessage()))
+			{
+				LOGGER.warn("Failed to get block from chunk ["+this.chunkPos+"] at relative block pos ["+relX+","+relY+","+relZ+"], air will be used instead. This error message will only be logged once. error: ["+e.getMessage()+"].", e);
+			}
+			
+			return BlockStateWrapper.AIR;
+		}
+		#else
 		BlockPos.MutableBlockPos blockPos = MUTABLE_BLOCK_POS_REF.get();
 		
 		#if MC_VER <= MC_1_12_2
@@ -453,6 +549,7 @@ public class ChunkWrapper implements IChunkWrapper
 			
 			return BlockStateWrapper.AIR;
 		}
+		#endif
 	}
 	
 	@Override
@@ -460,6 +557,23 @@ public class ChunkWrapper implements IChunkWrapper
 	{
 		this.throwIndexOutOfBoundsIfRelativePosOutsideChunkBounds(relX, relY, relZ);
 		
+		#if MC_VER <= MC_1_7_10
+		try
+		{
+			final Block block = this.chunk.getBlock(relX, relY, relZ);
+			final int meta = this.chunk.getBlockMetadata(relX, relY, relZ);
+			return BlockStateWrapper.fromBlockState(block, meta, this.wrappedLevel, guess);
+		}
+		catch (Exception e)
+		{
+			if (LOGGED_BLOCK_GET_ERRORS.add(e.getMessage()))
+			{
+				LOGGER.warn("Failed to get block from chunk ["+this.chunkPos+"] at relative block pos ["+relX+","+relY+","+relZ+"], air will be used instead. This error message will only be logged once. error: ["+e.getMessage()+"].", e);
+			}
+			
+			return BlockStateWrapper.AIR;
+		}
+		#else
 		BlockPos.MutableBlockPos pos = (BlockPos.MutableBlockPos)mcBlockPos.getWrappedMcObject();
 		#if MC_VER <= MC_1_12_2
 		pos.setPos(relX, relY, relZ);
@@ -482,94 +596,8 @@ public class ChunkWrapper implements IChunkWrapper
 			
 			return BlockStateWrapper.AIR;
 		}
+		#endif
 	}
-	
-	/**
-	
-	 // Commented out experimental LevelChunkSection cloning logic to fix extremely rare concurrency modification issue
-	 // James has only ever seen a report relating to LevelSection concurrent modification once,
-	 // the issue can cause DH lighting/LOD building to fail due to the chunk being modified on the server.
-	 // James has only heard of this issue once, so it isn't a high priority issue.
-	 // And from James' quick look at a few different MC versions it appears the LevelChunkSection object changes quite drastically between MC versions,
-	 // meaning any cloning logic would have to either be a new wrapper or very MC version dependent, either way a lot of additional work.
-	 // Due to the large time cost and extremely rare nature of the issue, this logic is commented out unless this issue pops up again in the future. 
-	
-	 // instance variable to hold the cloned sections
-	private final LevelChunkSection[] levelChunkSections;
-	
-	 // new constructor logic to clone the sections
-	public constructor(...)
-	{
-		// other constructor logic //
-		
-		LevelChunkSection[] sections = this.chunk.getSections();	 
-		this.levelChunkSections = new LevelChunkSection[sections.length];
-		for (int i = 0; i < sections.length; i++)
-		{
-			LevelChunkSection section = sections[i];
-			if (section != null)
-			{
-	            // Implementation notes:
-	            // implement section cloning for older MC versions, only 1.21.4 MC (and maybe other semi recent versions) have a clean way to handle this
-	            // we probably want a wrapper object instead
-	            
-				#if MC_VER < MC_1_21_4
-				this.levelChunkSections[i] = section;
-				#else
-				this.levelChunkSections[i] = section.copy();
-				#endif
-			}
-		}
-	}
-	
-	 // replacement getters
-	@Override
-	public IBlockStateWrapper getBlockState(int relX, int relY, int relZ)
-	{
-		this.throwIndexOutOfBoundsIfRelativePosOutsideChunkBounds(relX, relY, relZ);
-		return this.getBlockStateInternal(relX, relY, relZ, null);
-	}
-	
-	@Override
-	public IBlockStateWrapper getBlockState(int relX, int relY, int relZ, IMutableBlockPosWrapper mcBlockPos, IBlockStateWrapper guess)
-	{
-		this.throwIndexOutOfBoundsIfRelativePosOutsideChunkBounds(relX, relY, relZ);
-		return this.getBlockStateInternal(relX, relY, relZ, guess);
-	}
-	
-	// internal getter logic
-	private IBlockStateWrapper getBlockStateInternal(int relX, int y, int relZ, @Nullable IBlockStateWrapper guess)
-	{
-		try
-		{
-			// attempt to get the section for this position
-			int i = (y - this.getInclusiveMinBuildHeight()) / 16;
-			if (i >= 0 && i < this.levelChunkSections.length)
-			{
-				LevelChunkSection section = this.levelChunkSections[i];
-				if (!section.hasOnlyAir())
-				{
-					if (guess != null)
-					{
-						return BlockStateWrapper.fromBlockState(section.getBlockState(relX & 15, y & 15, relZ & 15), this.wrappedLevel, guess);
-					}
-					else
-					{
-						return BlockStateWrapper.fromBlockState(section.getBlockState(relX & 15, y & 15, relZ & 15), this.wrappedLevel);
-					}
-				}
-			}
-			
-			return BlockStateWrapper.AIR;
-		}
-		catch (Exception e)
-		{
-			return BlockStateWrapper.AIR;
-		}
-	}
-	 */
-	
-	
 	
 	@Override
 	public IMutableBlockPosWrapper getMutableBlockPosWrapper() { return MUTABLE_BLOCK_POS_WRAPPER_REF.get(); }
@@ -611,41 +639,27 @@ public class ChunkWrapper implements IChunkWrapper
 	#endif
 	
 	@Override
-	public int getMaxBlockX() 
-	{ 
-		#if MC_VER <= MC_1_12_2
-		return this.chunk.getPos().getXEnd();
-		#else
-		return this.chunk.getPos().getMaxBlockX();
-		#endif 
-	}
+	public int getMinBlockX() { return this.chunkPos.getMinBlockX(); }
 	@Override
-	public int getMaxBlockZ() 
-	{ 
-		#if MC_VER <= MC_1_12_2
-		return this.chunk.getPos().getZEnd();
-		#else
-		return this.chunk.getPos().getMaxBlockZ();
-		#endif
-	}
-	@Override
-	public int getMinBlockX() 
-	{ 
-		#if MC_VER <= MC_1_12_2
-		return this.chunk.getPos().getXStart();
-		#else
-		return this.chunk.getPos().getMinBlockX();
-		#endif
-	}
-	@Override
-	public int getMinBlockZ() 
+	public int getMinBlockZ() { return this.chunkPos.getMinBlockZ(); }
+	
+	
+	#if MC_VER <= MC_1_7_10
+	/** 
+	 * Returns true if the chunk has
+	 * been populated far enough for us to
+	 * convert it to an LOD. <br><br>
+	 * 
+	 * This method is only necessary for 1.7.10 since we handle
+	 * this logic in the save mixin for newer MC versions.
+	 */
+	public static boolean canSaveChunk(Chunk chunk)
 	{
-		#if MC_VER <= MC_1_12_2
-		return this.chunk.getPos().getZStart();
-		#else
-		return this.chunk.getPos().getMinBlockZ();
-		#endif
+		return chunk != null
+			&& chunk.isTerrainPopulated
+			&& chunk.isLightPopulated;
 	}
+	#endif
 	
 	//endregion
 	
@@ -731,9 +745,10 @@ public class ChunkWrapper implements IChunkWrapper
 		{
 			this.blockLightPosList = new ArrayList<>();
 			
-			//1.12.2 doesn't store lights we must bruteforce it
+			// 1.12.2 and older doesn't store light blocks, so we have to bruteforce it
 			#if MC_VER <= MC_1_12_2
-			for (ExtendedBlockStorage section : this.chunk.getBlockStorageArray()) {
+			for (ExtendedBlockStorage section : this.chunk.getBlockStorageArray())
+			{
 				if (section == null || section.isEmpty())
 				{
 					continue;
@@ -747,10 +762,14 @@ public class ChunkWrapper implements IChunkWrapper
 					{
 						for (int y = 0; y < 16; y++)
 						{
-							IBlockState blockState = section.get(x, y, z);
-							if (blockState.getLightValue() > 0)
+							#if MC_VER <= MC_1_7_10
+							int lightValue = FakeBlockState.getLightEmission(section.getBlockByExtId(x, y, z), section.getExtBlockMetadata(x, y, z));
+							#else
+							int lightValue = section.get(x, y, z).getLightValue();
+							#endif
+							if (lightValue > 0)
 							{
-								this.blockLightPosList.add(new DhBlockPos(this.chunk.getPos().getXStart() + x, baseY + y, this.chunk.getPos().getZStart() + z));
+								this.blockLightPosList.add(new DhBlockPos(this.chunkPos.getMinBlockX() + x, baseY + y, this.chunkPos.getMinBlockZ() + z));
 							}
 						}
 					}
@@ -788,8 +807,10 @@ public class ChunkWrapper implements IChunkWrapper
 	//region
 	
 	@Override
-	public String toString() { return this.chunk.getClass().getSimpleName() + this.chunk.getPos(); }
+	public String toString() { return this.chunk.getClass().getSimpleName() + this.chunkPos; }
 	
+	// commented out since we don't currently need
+	// any special hashing logic
 	//@Override 
 	//public int hashCode()
 	//{

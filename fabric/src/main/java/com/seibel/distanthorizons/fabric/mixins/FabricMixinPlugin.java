@@ -1,6 +1,8 @@
 package com.seibel.distanthorizons.fabric.mixins;
 
 import com.seibel.distanthorizons.common.commonMixins.AbstractDhMixinPlugin;
+import com.seibel.distanthorizons.core.logging.DhLogger;
+import com.seibel.distanthorizons.core.logging.DhLoggerBuilder;
 import com.seibel.distanthorizons.fabric.wrappers.modAccessor.ModChecker;
 import net.fabricmc.loader.api.FabricLoader;
 import org.objectweb.asm.tree.ClassNode;
@@ -16,29 +18,11 @@ import java.util.Set;
  */
 public class FabricMixinPlugin extends AbstractDhMixinPlugin implements IMixinConfigPlugin
 {
+	private static final DhLogger LOGGER = new DhLoggerBuilder().build();
 	
 	@Override
 	public boolean shouldApplyMixin(String targetClassName, String mixinClassName)
-	{
-		if (mixinClassName.contains(".mods."))
-		{
-			String cleanedMixinName = mixinClassName
-				// What these 2 regex's do is get the mod name that we are checking out of the mixinClassName
-				// Eg. "com.seibel.distanthorizons.mixins.mods.sodium.MixinSodiumChunkRenderer" turns into "sodium"
-				.replaceAll("^.*mods.", "") // Replaces everything before the mods
-				.replaceAll("\\..*$", ""); // Replaces everything after the mod name
-			
-			// If the mixin wants to go into a mod then we check if that mod is loaded or not
-			return FabricLoader.getInstance().isModLoaded(cleanedMixinName);
-		}
-		
-		if (!this.shouldApplyDhMixin(targetClassName, mixinClassName))
-		{
-			return false;
-		}
-		
-		return true;
-	}
+	{ return this.shouldApplyDhMixin(targetClassName, mixinClassName); }
 	
 	
 	@Override

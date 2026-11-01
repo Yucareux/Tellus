@@ -19,7 +19,9 @@
 
 package com.seibel.distanthorizons.core.dataObjects.render.textures;
 
+import com.seibel.distanthorizons.api.methods.events.abstractEvents.DhApiBlockTextureOverrideEvent;
 import com.seibel.distanthorizons.coreapi.util.ColorUtil;
+import com.seibel.distanthorizons.coreapi.util.TextureUtil;
 
 /**
  * A small texture representing one face of a block state,
@@ -32,16 +34,13 @@ public class BlockFaceTexture
 	public final int height;
 	/**
 	 * Pixel colors in ARGB order. <br>
-	 * Indexed via <code>(v * width) + u</code> where (0,0) is the face's top left pixel.
+	 * Indexed via <code>(v * width) + u</code> where (0,0) is the face's top left pixel. <br><br>
+	 * 
+	 * If changed {@link DhApiBlockTextureOverrideEvent}
+	 * will need to be updated.
 	 */
 	public final int[] argbPixels;
 	
-	/** 
-	 * true if these pixels should be multiplied by a position specific tint before rendering (IE grass or leaf colors)
-	 * @deprecated currently all textures are treated as tinted = true
-	 */
-	@Deprecated
-	public final boolean tinted;
 	public final boolean uploadAsColorRatio;
 	
 	
@@ -52,7 +51,7 @@ public class BlockFaceTexture
 	//region
 	
 	public static BlockFaceTexture createSolidColor(int argbColor)
-	{ return new BlockFaceTexture(1, 1, new int[] { argbColor }, false, false); }
+	{ return new BlockFaceTexture(1, 1, new int[] { argbColor }, false); }
 	
 	public static BlockFaceTexture createErrorGridTexture()
 	{
@@ -65,19 +64,39 @@ public class BlockFaceTexture
 			ColorUtil.BLACK, // bottom left
 			ColorUtil.HOT_PINK, // bottom right
 		};
-		return new BlockFaceTexture(2, 2, argbPixels, false, false); 
+		return new BlockFaceTexture(2, 2, argbPixels, false); 
 	}
 	
-	public static BlockFaceTexture createTexture(int width, int height, int[] argbPixels, boolean tinted)
-	{ return new BlockFaceTexture(width, height, argbPixels, tinted, true); }
+	public static BlockFaceTexture createTexture(int width, int height, int[] argbPixels)
+	{ return new BlockFaceTexture(width, height, argbPixels, true); }
 	
-	private BlockFaceTexture(int width, int height, int[] argbPixels, boolean tinted, boolean uploadAsColorRatio)
+	private BlockFaceTexture(int width, int height, int[] argbPixels, boolean uploadAsColorRatio)
 	{
 		this.width = width;
 		this.height = height;
 		this.argbPixels = argbPixels;
-		this.tinted = tinted;
 		this.uploadAsColorRatio = uploadAsColorRatio;
+	}
+	
+	//endregion
+	
+	
+	
+	//=====//
+	// API //
+	//=====//
+	//region
+	
+	public void updateFromApiEvent(DhApiBlockTextureOverrideEvent.EventParam eventParam)
+	{
+		for (int u = 0; u < TextureUtil.TEXTURE_WIDTH_AND_HEIGHT; u++)
+		{
+			for (int v = 0; v < TextureUtil.TEXTURE_WIDTH_AND_HEIGHT; v++)
+			{
+				int newColor = eventParam.getColorAsInt(u, v);
+				this.argbPixels[TextureUtil.getPixelIndex(u, v)] = newColor;
+			}
+		}
 	}
 	
 	//endregion

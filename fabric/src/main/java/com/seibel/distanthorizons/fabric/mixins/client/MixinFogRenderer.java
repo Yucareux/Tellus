@@ -90,8 +90,6 @@ public class MixinFogRenderer
 	{
 		#if MC_VER < MC_1_21_6
 		boolean cancelFog = MixinVanillaFogCommon.cancelFog(camera, fogMode);
-		#elif MC_VER < MC_1_21_6
-		boolean cancelFog = MixinVanillaFogCommon.cancelFog(camera);
 		#else
 		boolean cancelFog = MixinVanillaFogCommon.cancelFog();
 		#endif

@@ -1,9 +1,11 @@
-#version 330 core
+#version 330
+// needed for "layout(location = 0)" required as as of MC 26.3
+#extension GL_ARB_separate_shader_objects : require
 
-in vec2 vPosition;
-in vec4 vColor;
+layout(location = 0) in vec2 vPosition;
+layout(location = 1) in vec4 vColor;
 
-out vec4 fColor;
+layout(location = 0) out vec4 fColor;
 
 // DH vert test
 void main()
