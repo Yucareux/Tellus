@@ -77,6 +77,25 @@ class ExperimentalHeightBoundsTest {
       assertEquals(HighYPackedCoordinateProfile.TELLUS_DIMENSION_MIN_Y, deepestFloor - settings.undergroundDepth());
    }
 
+   @Test
+   void automaticBoundsStayAboveDensePackedFloor() {
+      // The settings that crashed lighting: automatic altitude resolved to Y -2032.
+      EarthGeneratorSettings settings = decode(
+         """
+         {
+           "world_scale": 2.5,
+           "height_offset": -1988
+         }
+         """
+      );
+
+      EarthGeneratorSettings.HeightLimits limits = EarthGeneratorSettings.resolveHeightLimits(settings);
+
+      assertTrue(HighYPackedCoordinateProfile.isEnabled());
+      assertEquals(HighYPackedCoordinateProfile.TELLUS_DIMENSION_MIN_Y, limits.minY());
+      assertEquals(EarthGeneratorSettings.MAX_WORLD_Y, limits.minY() + limits.height() - 1);
+   }
+
    private static EarthGeneratorSettings decode(String json) {
       JsonElement input = JsonParser.parseString(json);
       DataResult<EarthGeneratorSettings> result = EarthGeneratorSettings.CODEC.parse(JsonOps.INSTANCE, input);

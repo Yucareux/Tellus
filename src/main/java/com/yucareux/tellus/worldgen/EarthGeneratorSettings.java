@@ -88,9 +88,10 @@ public record EarthGeneratorSettings(
    public static final double DEFAULT_SPAWN_LATITUDE = 27.9881;
    public static final double DEFAULT_SPAWN_LONGITUDE = 86.925;
    public static final int AUTO_ALTITUDE = Integer.MIN_VALUE;
-   public static final int MIN_WORLD_Y = -2032;
-   public static final int MAX_WORLD_HEIGHT = 4064;
+   // The dense BlockPos profile clamps Y below its floor, which collapses lower blocks and crashes lighting.
+   public static final int MIN_WORLD_Y = HighYPackedCoordinateProfile.isEnabled() ? HighYPackedCoordinateProfile.TELLUS_DIMENSION_MIN_Y : -2032;
    public static final int MAX_WORLD_Y = 2031;
+   public static final int MAX_WORLD_HEIGHT = MAX_WORLD_Y - MIN_WORLD_Y + 1;
    public static final int EXPERIMENTAL_HEIGHT_OFFSET = 0;
    public static final int EXPERIMENTAL_DEEP_OCEAN_HEIGHT_OFFSET = 1_392;
    public static final int MIN_UNDERGROUND_DEPTH = 64;
