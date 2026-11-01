@@ -45,6 +45,7 @@ public final class TellusClient {
          () -> true,
          (latitude, longitude) -> TellusNeoForgeClientNetworking.sendToServer(new GeoTpTeleportPayload(latitude, longitude))
       );
+      TellusNeoForgeClientNetworking.registerClientPayloadHandlers(modEventBus);
       modEventBus.addListener(TellusClient::registerGuiLayers);
       modEventBus.addListener(TellusClient::registerKeyMappings);
       NeoForge.EVENT_BUS.addListener(TellusClient::onClientDisconnect);
