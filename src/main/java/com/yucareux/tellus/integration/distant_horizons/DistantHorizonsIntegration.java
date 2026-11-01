@@ -96,7 +96,9 @@ public final class DistantHorizonsIntegration {
                + "worlds will use the legacy download path after startup generation is released"
          );
       }
-      if (checkApiVersion()) {
+      boolean apiSupported = checkApiVersion();
+      DistantHorizonsCompatibility.record(apiSupported, gateAvailable);
+      if (apiSupported) {
          DhApiEventRegister.on(DhApiLevelLoadEvent.class, new DhApiLevelLoadEvent() {
             public void onLevelLoad(DhApiEventParam<DhApiLevelLoadEvent.EventParam> param) {
                DistantHorizonsIntegration.onLevelLoad(param.value.levelWrapper);
