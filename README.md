@@ -139,6 +139,7 @@ This section lets you toggle vanilla structures and world features on or off, su
 - **OpenWaters bathymetry**: Cached bathymetry tiles used for ocean and underwater terrain.
 - **NOAA OISST v2.1**: Cached sea-surface temperature and sea-ice blocks used for ocean climate.
 - **Preloaded terrain**: Terrain areas prepared with Preload Terrain. Deleting removes them; preload the area again to restore fast generation.
+- **Macrostrat geology**: Cached geologic map tiles that give rock faces their local rock.
 - **Total**: Combined size of all Tellus caches (read-only).
 - **Delete cache / Delete all cache**: Removes cached data to free disk space; data will be re-downloaded or rebuilt as needed.
 </details>
@@ -193,6 +194,14 @@ This section lets you toggle vanilla structures and world features on or off, su
 - License: CC BY-SA 4.0 for the bundled derived lookup only.
 - In-game processing: bundled as a 60-arc-second (about 1.85 km) lookup, so it needs no network access; a smooth warp bends the cell borders. Layered rock is cut into beds along real height, so a bed sits at the same real height at every world scale. Beds thinner than one block are left out, so coarse scales show one rock per slope. Sediment in deserts uses red-bed colours.
 - Newly generated chunks use the new rock. Existing chunks keep their deepslate faces, so seams can show at old chunk borders.
+
+### Macrostrat geologic maps
+- Where a local, state or national geologic map exists, rock faces use its map unit instead of the GLiM class: the Grand Canyon shows its formations in order, the Lauterbrunnen cliffs their Jurassic limestone. Coverage is best in the United States, Canada, Switzerland, Spain, Great Britain and New Zealand; elsewhere, including the Himalaya, the Andes, Norway and Japan, GLiM fills in.
+- Source: Macrostrat, which merges more than 800 published geologic maps. Peters, S.E., Husson, J.M., and Czaplewski, J. (2018), "Macrostrat: a platform for geological data integration and deep-time Earth crust research", Geochemistry, Geophysics, Geosystems, 19.
+- https://macrostrat.org/
+- License: CC BY 4.0. Each map unit comes from a source map listed by Macrostrat at https://macrostrat.org/maps.
+- In-game processing: `carto` vector tiles are fetched only when a rock face first needs them, at a zoom chosen from the world scale (zoom 14 at 1:1, zoom 12 at 1:30, zoom 7 at 1:1000), cached on disk and read into a grid of map units. Each unit's rock, colour and "Minor" words choose its strata blocks, and a unit of two rocks interbeds them. Continental and world maps, buried-basement maps, loose cover such as alluvium or till, ice and water fall back to GLiM, as do scales coarser than about 1:1200 and far LODs.
+- Set `tellus.macrostrat.enabled=false` to use GLiM only. Newly generated chunks use the map rock; chunks generated while Macrostrat was unreachable keep GLiM rock.
 
 ### Mapterhorn terrain DEM
 - Source: Mapterhorn global terrain tiles.

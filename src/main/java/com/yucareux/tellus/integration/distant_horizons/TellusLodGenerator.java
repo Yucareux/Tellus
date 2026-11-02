@@ -395,12 +395,12 @@ public final class TellusLodGenerator implements IDhApiWorldGenerator {
       EDhApiDistantGeneratorMode generatorMode,
       TellusLodGenerator.LodTimingTrace trace
    ) {
-      // Sand lookups read tiles sized to this LOD's cells: the tiles its prefetch loaded.
-      this.generator.setLodSandResolution(lodPreviewResolutionMeters(this.generator.settings(), 1 << detailLevel));
+      // Sand and rock lookups read tiles sized to this LOD's cells: for sand, the tiles its prefetch loaded.
+      this.generator.setLodMapResolution(lodPreviewResolutionMeters(this.generator.settings(), 1 << detailLevel));
       try {
          this.buildLodColumns(output, chunkPosMinX, chunkPosMinZ, detailLevel, generatorMode, trace);
       } finally {
-         this.generator.clearLodSandResolution();
+         this.generator.clearLodMapResolution();
       }
    }
 

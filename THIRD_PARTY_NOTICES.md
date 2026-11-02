@@ -68,6 +68,14 @@ The rock-class lookup (`tellus/geology/glim_lithology_60s.bin.xz`) is derived fr
 
 Licensed under Creative Commons Attribution-ShareAlike 4.0 International (https://creativecommons.org/licenses/by-sa/4.0/). Changes: the majority class of each 60-arc-second cell, land cells that no neighbour shares merged into their neighbours' class, water cells within two cells of land given the nearest land class, and run-length encoded. The derived lookup is shared under the same license; this license covers that file only, not the rest of Tellus.
 
+## Macrostrat geologic maps
+
+This product downloads and caches geologic map tiles from Macrostrat (https://macrostrat.org/) to choose the rock of cliffs and mountain faces.
+
+Peters, S.E., Husson, J.M., and Czaplewski, J. (2018), "Macrostrat: a platform for geological data integration and deep-time Earth crust research", Geochemistry, Geophysics, Geosystems, 19, 1393-1409. Map units are compiled from the published geologic maps listed at https://macrostrat.org/maps.
+
+Licensed under Creative Commons Attribution 4.0 International.
+
 ## Golden Gate Bridge landmark model
 
 The Golden Gate Bridge landmark (`tellus/landmarks/golden_gate_bridge.tlm`) is converted from the "Golden Gate Bridge" SketchUp model published on the 3D Warehouse (https://3dwarehouse.sketchup.com/; model contributors listed in the file as Google / Google 3D Warehouse), used under the 3D Warehouse General Model License Agreement. Changes: converted from SketchUp to the Tellus landmark mesh format, placed from the model's UTM georeference, see-through textures cut to their opaque parts, the ground plaza left out, the Marin side of the deck raised to the real road's height, four support towers added under the Marin approach viaduct and materials replaced by Minecraft blocks.

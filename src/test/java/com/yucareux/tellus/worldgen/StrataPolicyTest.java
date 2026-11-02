@@ -5,6 +5,8 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.yucareux.tellus.world.data.geology.Lithology;
+import com.yucareux.tellus.world.data.geology.MapUnit;
+import com.yucareux.tellus.world.data.geology.Rock;
 import java.util.HashSet;
 import java.util.Set;
 import org.junit.jupiter.api.Test;
@@ -110,12 +112,33 @@ class StrataPolicyTest {
    }
 
    @Test
+   void mapUnitsDrawTheirOwnRockAndInterbedTheSecond() {
+      StrataPolicy.Column coarse = StrataPolicy.column(MapUnit.of(Rock.RED_SANDSTONE), 0, 0, 1000.0, 1000.0, SEA_LEVEL, SEED);
+      assertEquals(StrataPolicy.RED_SANDSTONE, coarse.mainMaterial());
+
+      StrataPolicy.Column mixed = StrataPolicy.column(new MapUnit(Rock.LIMESTONE, Rock.RED_MUDSTONE, 30), 0, 0, 1.0, 1.0, SEA_LEVEL, SEED);
+      Set<Integer> materials = new HashSet<>();
+      for (int y = SEA_LEVEL; y < SEA_LEVEL + 3000; y++) {
+         materials.add(mixed.material(y));
+      }
+      Set<Integer> mudstone = Set.of(StrataPolicy.RED_TERRACOTTA, StrataPolicy.TERRACOTTA, StrataPolicy.ORANGE_TERRACOTTA);
+      assertTrue(materials.contains(StrataPolicy.CALCITE), "limestone formations " + materials);
+      assertTrue(materials.stream().anyMatch(mudstone::contains), "red mudstone formations " + materials);
+   }
+
+   @Test
    void everyMaterialIndexIsInRange() {
       for (Lithology lithology : Lithology.values()) {
          for (boolean arid : new boolean[]{false, true}) {
             for (int material : materialsUp(lithology, arid, 1.0, 800)) {
                assertTrue(material >= 0 && material < StrataPolicy.MATERIAL_COUNT, lithology + " gave " + material);
             }
+         }
+      }
+      for (Rock rock : Rock.values()) {
+         StrataPolicy.Column column = StrataPolicy.column(new MapUnit(rock, Rock.SHALE, 30), 0, 0, 1.0, 1.0, SEA_LEVEL, SEED);
+         for (int y = SEA_LEVEL; y < SEA_LEVEL + 800; y++) {
+            assertTrue(column.material(y) >= 0 && column.material(y) < StrataPolicy.MATERIAL_COUNT, rock + " gave " + column.material(y));
          }
       }
    }

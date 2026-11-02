@@ -279,7 +279,8 @@ public final class TellusCacheManager {
          Metric.TERRAIN,
          Metric.OPENWATERS,
          Metric.OISST,
-         Metric.PRELOADED_TERRAIN
+         Metric.PRELOADED_TERRAIN,
+         Metric.GEOLOGY
       );
    }
 
@@ -344,6 +345,7 @@ public final class TellusCacheManager {
          new String[]{"tellus/cache/preloaded-terrain/v1"},
          new TellusCacheDomain[]{TellusCacheDomain.PRELOADED_TERRAIN}
       ),
+      GEOLOGY("tellus.cache.section.geology", new String[]{"tellus/cache/geology"}, new TellusCacheDomain[]{TellusCacheDomain.GEOLOGY}),
       TOTAL("tellus.cache.section.total", new String[0], new TellusCacheDomain[0]);
 
       private final String labelKey;

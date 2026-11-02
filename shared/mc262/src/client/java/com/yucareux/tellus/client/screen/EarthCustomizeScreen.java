@@ -1024,6 +1024,7 @@ public class EarthCustomizeScreen extends Screen {
                cacheEntry(TellusCacheManager.Metric.OPENWATERS, true),
                cacheEntry(TellusCacheManager.Metric.OISST, true),
                cacheEntry(TellusCacheManager.Metric.PRELOADED_TERRAIN, true),
+               cacheEntry(TellusCacheManager.Metric.GEOLOGY, true),
                cacheEntry(TellusCacheManager.Metric.TOTAL, false),
                cacheActionButton(Component.translatable("tellus.cache.delete_all"), TellusCacheManager::deleteAll)
             )
@@ -1170,6 +1171,19 @@ public class EarthCustomizeScreen extends Screen {
       entries.add(infoLink("https://creativecommons.org/licenses/by/4.0/"));
       entries.add(infoLine("tellus.data_sources.openmeteo.credit"));
       entries.add(infoLink("https://doi.org/10.5281/ZENODO.7970649"));
+      entries.add(infoSpacer());
+      entries.add(infoHeader("tellus.data_sources.macrostrat.title"));
+      entries.add(infoLine("tellus.data_sources.macrostrat.source"));
+      entries.add(infoSubtle("tellus.data_sources.license_cc_by"));
+      entries.add(infoLink("https://macrostrat.org/"));
+      entries.add(infoLine("tellus.data_sources.macrostrat.processing_1"));
+      entries.add(infoLine("tellus.data_sources.macrostrat.processing_2"));
+      entries.add(infoSpacer());
+      entries.add(infoHeader("tellus.data_sources.glim.title"));
+      entries.add(infoLine("tellus.data_sources.glim.source"));
+      entries.add(infoSubtle("tellus.data_sources.license_cc_by_sa"));
+      entries.add(infoLink("https://doi.org/10.5281/zenodo.1464846"));
+      entries.add(infoLine("tellus.data_sources.glim.processing_1"));
       return entries;
    }
 

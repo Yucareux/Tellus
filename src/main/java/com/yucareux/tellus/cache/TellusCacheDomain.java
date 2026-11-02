@@ -9,5 +9,6 @@ public enum TellusCacheDomain {
    NORMALIZED_TERRAIN,
    OPENWATERS,
    OISST,
-   PRELOADED_TERRAIN
+   PRELOADED_TERRAIN,
+   GEOLOGY
 }

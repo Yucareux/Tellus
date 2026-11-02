@@ -1,15 +1,19 @@
 package com.yucareux.tellus.worldgen;
 
 import com.yucareux.tellus.world.data.geology.Lithology;
+import com.yucareux.tellus.world.data.geology.MapUnit;
+import com.yucareux.tellus.world.data.geology.Rock;
 
 /**
- * Version-neutral rock for exposed bedrock, from the column's GLiM rock class.
+ * Version-neutral rock for exposed bedrock, from the column's geologic map unit or, where there is none, its GLiM rock
+ * class.
  *
  * <p>Layered rock is cut into beds along a stratigraphic height in real metres, so a bed sits at the same real
  * height at every world scale and only its thickness in blocks changes. A family of beds whose mean thickness is
  * under one block is left out, because sampling it would only flicker block to block; coarse scales therefore show
  * one rock per slope. Massive rock such as granite has no beds: each region of a massif is one rock, with sparse
- * darker enclaves. Material indices are resolved to block states by the chunk generator.</p>
+ * darker enclaves. A map unit of two rocks gives each formation one of them by its share. Material indices are
+ * resolved to block states by the chunk generator.</p>
  */
 public final class StrataPolicy {
    public static final int STONE = 0;
@@ -46,8 +50,12 @@ public final class StrataPolicy {
    private static final long PATCH_SALT = 0x12B4D6F8A3C5E709L;
    private static final long PATCH_DETAIL_SALT = -0x6D8F1A3C5E7B9024L;
    private static final long ZONE_SALT = 0x58E3A1C7924D6FB0L;
+   private static final long ROCK_SALT = 0x1E7C5A93B2D40F68L;
+   private static final long UNIT_ZONE_SALT = -0x47B2E91D6C3A5F0EL;
    // A massive rock body keeps one colour across a whole massif; it changes over tens of kilometres.
    private static final double ZONE_METERS = 20_000.0;
+   // A map unit of two massive rocks, such as "diorite and gabbro", is one or the other over a few kilometres.
+   private static final double UNIT_ZONE_METERS = 4_000.0;
    // Value noise seldom reaches its top, so this leaves enclaves and dikes on only a few percent of a face.
    private static final double ENCLAVE_THRESHOLD = 0.72;
 
@@ -90,9 +98,48 @@ public final class StrataPolicy {
    private static final Palette UNCONSOLIDATED = layered(
       PACKED_MUD, COARSE_DIRT, 30, 30.0, 3.0, PACKED_MUD, 30, COARSE_DIRT, 20, TERRACOTTA, 15, CLAY, 15, SMOOTH_SANDSTONE, 10, COBBLESTONE, 10
    );
-   private static final Palette METAMORPHIC = new Palette(
-      Family.FOLIATED, STONE, DEEPSLATE, 20, 60.0, 6.0, weights(STONE, 35, ANDESITE, 25, DEEPSLATE, 25, DIORITE, 15)
+   private static final Palette METAMORPHIC = foliated(STONE, DEEPSLATE, 20, 60.0, 6.0, STONE, 35, ANDESITE, 25, DEEPSLATE, 25, DIORITE, 15);
+
+   // Rocks read from geologic maps, where the unit text says more than the GLiM class.
+   private static final Palette SANDSTONE_ROCK = layered(
+      SANDSTONE, SMOOTH_SANDSTONE, 20, 120.0, 4.0, SANDSTONE, 50, SMOOTH_SANDSTONE, 25, WHITE_TERRACOTTA, 10, ORANGE_TERRACOTTA, 10, TERRACOTTA, 5
    );
+   private static final Palette RED_SANDSTONE_ROCK = layered(
+      RED_SANDSTONE, WHITE_TERRACOTTA, 10, 120.0, 4.0, RED_SANDSTONE, 50, ORANGE_TERRACOTTA, 20, TERRACOTTA, 15, RED_TERRACOTTA, 10, SANDSTONE, 5
+   );
+   private static final Palette GREY_SANDSTONE_ROCK = layered(
+      STONE, TUFF, 20, 120.0, 4.0, STONE, 35, ANDESITE, 25, TUFF, 20, LIGHT_GRAY_TERRACOTTA, 10, SANDSTONE, 10
+   );
+   private static final Palette CONGLOMERATE_ROCK = layered(
+      COBBLESTONE, SANDSTONE, 20, 80.0, 4.0, COBBLESTONE, 45, STONE, 20, SANDSTONE, 15, GRANITE, 10, DIORITE, 10
+   );
+   private static final Palette SHALE_ROCK = layered(
+      LIGHT_GRAY_TERRACOTTA, TUFF, 25, 100.0, 2.0, LIGHT_GRAY_TERRACOTTA, 35, TUFF, 25, STONE, 15, PACKED_MUD, 15, DEEPSLATE, 10
+   );
+   private static final Palette RED_MUDSTONE_ROCK = layered(
+      RED_TERRACOTTA, TERRACOTTA, 25, 100.0, 2.0, RED_TERRACOTTA, 30, TERRACOTTA, 30, ORANGE_TERRACOTTA, 20, RED_SANDSTONE, 10, PACKED_MUD, 10
+   );
+   private static final Palette BLACK_SHALE_ROCK = layered(
+      DEEPSLATE, TUFF, 20, 100.0, 2.0, DEEPSLATE, 50, TUFF, 20, BLACKSTONE, 15, LIGHT_GRAY_TERRACOTTA, 15
+   );
+   private static final Palette DARK_LIMESTONE_ROCK = layered(ANDESITE, DEEPSLATE, 15, 200.0, 6.0, ANDESITE, 40, STONE, 35, DEEPSLATE, 15, CALCITE, 10);
+   private static final Palette CHALK_ROCK = layered(CALCITE, DIORITE, 10, 120.0, 3.0, CALCITE, 50, WHITE_TERRACOTTA, 30, DIORITE, 20);
+   private static final Palette DOLOMITE_ROCK = layered(
+      STONE, LIGHT_GRAY_TERRACOTTA, 20, 160.0, 6.0, DIORITE, 30, STONE, 30, LIGHT_GRAY_TERRACOTTA, 20, CALCITE, 20
+   );
+   private static final Palette MARL_ROCK = layered(
+      STONE, LIGHT_GRAY_TERRACOTTA, 30, 80.0, 3.0, STONE, 30, LIGHT_GRAY_TERRACOTTA, 30, CALCITE, 20, TUFF, 10, PACKED_MUD, 10
+   );
+   private static final Palette PINK_GRANITE_ROCK = massive(ANDESITE, 80.0, GRANITE, 85, DIORITE, 15);
+   private static final Palette GREY_GRANITE_ROCK = massive(ANDESITE, 80.0, DIORITE, 80, STONE, 20);
+   private static final Palette ULTRAMAFIC_ROCK = massive(SMOOTH_BASALT, 80.0, DEEPSLATE, 50, BLACKSTONE, 30, BASALT, 20);
+   private static final Palette SLATE_ROCK = foliated(DEEPSLATE, TUFF, 20, 60.0, 4.0, DEEPSLATE, 55, TUFF, 20, STONE, 15, ANDESITE, 10);
+   private static final Palette GNEISS_ROCK = foliated(DIORITE, DEEPSLATE, 20, 60.0, 6.0, DIORITE, 35, STONE, 30, DEEPSLATE, 20, GRANITE, 15);
+   private static final Palette QUARTZITE_ROCK = layered(
+      CALCITE, SMOOTH_SANDSTONE, 20, 120.0, 6.0, CALCITE, 30, SMOOTH_SANDSTONE, 25, WHITE_TERRACOTTA, 20, DIORITE, 15, STONE, 10
+   );
+   private static final Palette MARBLE_ROCK = layered(CALCITE, DIORITE, 20, 160.0, 6.0, CALCITE, 60, DIORITE, 25, STONE, 15);
+   private static final Palette AMPHIBOLITE_ROCK = foliated(DEEPSLATE, ANDESITE, 20, 60.0, 6.0, DEEPSLATE, 40, BASALT, 25, ANDESITE, 20, STONE, 15);
 
    private StrataPolicy() {
    }
@@ -113,9 +160,56 @@ public final class StrataPolicy {
       int seaLevelY,
       long worldSeed
    ) {
-      Palette palette = palette(lithology, arid);
+      return column(
+         palette(lithology, arid), null, 0, worldX, worldZ, horizontalMetersPerBlock, verticalMetersPerBlock, seaLevelY, worldSeed
+      );
+   }
+
+   /** The bedrock of a geologic map unit. The unit's text already gives its colour, so the climate plays no part. */
+   public static Column column(
+      MapUnit unit,
+      int worldX,
+      int worldZ,
+      double horizontalMetersPerBlock,
+      double verticalMetersPerBlock,
+      int seaLevelY,
+      long worldSeed
+   ) {
+      return column(
+         palette(unit.main()),
+         unit.second() == null ? null : palette(unit.second()),
+         unit.secondPercent(),
+         worldX,
+         worldZ,
+         horizontalMetersPerBlock,
+         verticalMetersPerBlock,
+         seaLevelY,
+         worldSeed
+      );
+   }
+
+   private static Column column(
+      Palette palette,
+      Palette second,
+      int secondPercent,
+      int worldX,
+      int worldZ,
+      double horizontalMetersPerBlock,
+      double verticalMetersPerBlock,
+      int seaLevelY,
+      long worldSeed
+   ) {
       double xMeters = worldX * horizontalMetersPerBlock;
       double zMeters = worldZ * horizontalMetersPerBlock;
+      if (second != null && palette.family() == Family.MASSIVE) {
+         // Massive rocks do not interbed: each part of the unit is one of them.
+         double zone = noise(xMeters / UNIT_ZONE_METERS, 0.0, zMeters / UNIT_ZONE_METERS, worldSeed ^ UNIT_ZONE_SALT);
+         if (stretched(zone) * 100.0 < secondPercent) {
+            palette = second;
+         }
+         second = null;
+         secondPercent = 0;
+      }
       double offset = switch (palette.family()) {
          case LAYERED -> dipOffset(xMeters, zMeters, worldSeed, 120.0, 24_000.0, 12.0, 1_600.0);
          // Foliation stands steep and folded rather than lying flat.
@@ -126,14 +220,51 @@ public final class StrataPolicy {
       boolean drawFormations = palette.family() == Family.MASSIVE
          ? palette.formationMeters() >= 2.0 * horizontalMetersPerBlock
          : palette.formationMeters() * 0.5 >= safeVertical;
-      boolean drawBeds = palette.family() != Family.MASSIVE && palette.bedMeters() * 0.5 >= safeVertical;
       int main = palette.main();
       if (palette.family() == Family.MASSIVE) {
          // Stretch the zone noise away from its middle so a massif is one rock, with short transitions.
          double zone = noise(xMeters / ZONE_METERS, 0.0, zMeters / ZONE_METERS, worldSeed ^ ZONE_SALT);
-         main = pick(palette, Math.min(Math.nextDown(1.0), Math.max(0.0, (zone - 0.5) * 2.5 + 0.5)));
+         main = pick(palette, stretched(zone));
       }
-      return new Column(palette, main, xMeters, zMeters, offset, safeVertical, seaLevelY, worldSeed, drawFormations, drawBeds);
+      return new Column(palette, second, secondPercent, main, xMeters, zMeters, offset, safeVertical, seaLevelY, worldSeed, drawFormations);
+   }
+
+   private static double stretched(double noise) {
+      return Math.min(Math.nextDown(1.0), Math.max(0.0, (noise - 0.5) * 2.5 + 0.5));
+   }
+
+   private static Palette palette(Rock rock) {
+      return switch (rock) {
+         case SANDSTONE -> SANDSTONE_ROCK;
+         case RED_SANDSTONE -> RED_SANDSTONE_ROCK;
+         case GREY_SANDSTONE -> GREY_SANDSTONE_ROCK;
+         case CONGLOMERATE -> CONGLOMERATE_ROCK;
+         case SHALE -> SHALE_ROCK;
+         case RED_MUDSTONE -> RED_MUDSTONE_ROCK;
+         case BLACK_SHALE -> BLACK_SHALE_ROCK;
+         case LIMESTONE -> CARBONATE;
+         case DARK_LIMESTONE -> DARK_LIMESTONE_ROCK;
+         case CHALK -> CHALK_ROCK;
+         case DOLOMITE -> DOLOMITE_ROCK;
+         case MARL -> MARL_ROCK;
+         case EVAPORITE -> EVAPORITE;
+         case GRANITE -> ACID_PLUTONIC;
+         case PINK_GRANITE -> PINK_GRANITE_ROCK;
+         case GREY_GRANITE -> GREY_GRANITE_ROCK;
+         case DIORITE -> INTERMEDIATE_PLUTONIC;
+         case GABBRO -> BASIC_PLUTONIC;
+         case ULTRAMAFIC -> ULTRAMAFIC_ROCK;
+         case RHYOLITE -> ACID_VOLCANIC;
+         case ANDESITE -> INTERMEDIATE_VOLCANIC;
+         case BASALT -> BASIC_VOLCANIC;
+         case TUFF -> PYROCLASTIC;
+         case SLATE -> SLATE_ROCK;
+         case SCHIST -> METAMORPHIC;
+         case GNEISS -> GNEISS_ROCK;
+         case QUARTZITE -> QUARTZITE_ROCK;
+         case MARBLE -> MARBLE_ROCK;
+         case AMPHIBOLITE -> AMPHIBOLITE_ROCK;
+      };
    }
 
    private static Palette palette(Lithology lithology, boolean arid) {
@@ -227,6 +358,10 @@ public final class StrataPolicy {
       return new Palette(Family.LAYERED, main, accent, accentPercent, formationMeters, bedMeters, weights(weighted));
    }
 
+   private static Palette foliated(int main, int accent, int accentPercent, double formationMeters, double bedMeters, int... weighted) {
+      return new Palette(Family.FOLIATED, main, accent, accentPercent, formationMeters, bedMeters, weights(weighted));
+   }
+
    /** @param zones the rocks a massif can be made of, one per region */
    private static Palette massive(int enclave, double patchMeters, int... zones) {
       return new Palette(Family.MASSIVE, zones[0], enclave, 0, patchMeters, 0.0, weights(zones));
@@ -257,6 +392,8 @@ public final class StrataPolicy {
    /** Rock of one column; {@link #material(int)} gives the material index at a block height. */
    public static final class Column {
       private final Palette palette;
+      private final Palette second;
+      private final int secondPercent;
       private final int main;
       private final double xMeters;
       private final double zMeters;
@@ -265,10 +402,11 @@ public final class StrataPolicy {
       private final int seaLevelY;
       private final long seed;
       private final boolean drawFormations;
-      private final boolean drawBeds;
 
       private Column(
          Palette palette,
+         Palette second,
+         int secondPercent,
          int main,
          double xMeters,
          double zMeters,
@@ -276,10 +414,11 @@ public final class StrataPolicy {
          double verticalMetersPerBlock,
          int seaLevelY,
          long seed,
-         boolean drawFormations,
-         boolean drawBeds
+         boolean drawFormations
       ) {
          this.palette = palette;
+         this.second = second;
+         this.secondPercent = secondPercent;
          this.main = main;
          this.xMeters = xMeters;
          this.zMeters = zMeters;
@@ -288,7 +427,6 @@ public final class StrataPolicy {
          this.seaLevelY = seaLevelY;
          this.seed = seed;
          this.drawFormations = drawFormations;
-         this.drawBeds = drawBeds;
       }
 
       public int material(int y) {
@@ -306,11 +444,15 @@ public final class StrataPolicy {
          }
 
          long formation = bedIndex(meters, this.palette.formationMeters(), this.seed ^ FORMATION_SALT);
-         int material = pick(this.palette, unit(formation, 1L, 0L, this.seed ^ PICK_SALT));
-         if (this.drawBeds && material != this.palette.accent()) {
-            long bed = bedIndex(meters, this.palette.bedMeters(), this.seed ^ BED_SALT);
-            if (unit(bed, 2L, 0L, this.seed ^ ACCENT_SALT) * 100.0 < this.palette.accentPercent()) {
-               material = this.palette.accent();
+         Palette rock = this.second != null && unit(formation, 3L, 0L, this.seed ^ ROCK_SALT) * 100.0 < this.secondPercent
+            ? this.second
+            : this.palette;
+         int material = pick(rock, unit(formation, 1L, 0L, this.seed ^ PICK_SALT));
+         boolean drawBeds = rock.family() != Family.MASSIVE && rock.bedMeters() * 0.5 >= this.verticalMetersPerBlock;
+         if (drawBeds && material != rock.accent()) {
+            long bed = bedIndex(meters, rock.bedMeters(), this.seed ^ BED_SALT);
+            if (unit(bed, 2L, 0L, this.seed ^ ACCENT_SALT) * 100.0 < rock.accentPercent()) {
+               material = rock.accent();
             }
          }
          return material;

@@ -10,6 +10,8 @@ import com.yucareux.tellus.world.data.canopy.TellusCanopyHeightSource;
 import com.yucareux.tellus.world.data.cover.LandCoverTransition;
 import com.yucareux.tellus.world.data.cover.TellusLandCoverSource;
 import com.yucareux.tellus.world.data.elevation.TellusElevationSource;
+import com.yucareux.tellus.world.data.geology.MacrostratGeologySource;
+import com.yucareux.tellus.world.data.geology.MapUnit;
 import com.yucareux.tellus.world.data.geology.TellusLithologySource;
 import com.yucareux.tellus.world.data.koppen.TellusKoppenSource;
 import com.yucareux.tellus.world.data.mask.TellusLandMaskSource;
@@ -157,6 +159,7 @@ public final class EarthChunkGenerator extends TellusChunkGeneratorBridge {
    private static final TellusCanopyHeightSource CANOPY_HEIGHT_SOURCE = TellusWorldgenSources.canopyHeight();
    private static final TellusResolveSource RESOLVE_SOURCE = TellusResolveSource.shared();
    private static final TellusLithologySource LITHOLOGY_SOURCE = TellusLithologySource.shared();
+   private static final MacrostratGeologySource GEOLOGY_SOURCE = MacrostratGeologySource.shared();
    private static final TellusLandCoverSource LAND_COVER_SOURCE = TellusWorldgenSources.landCover();
    private static final TellusKoppenSource KOPPEN_SOURCE = TellusWorldgenSources.koppen();
    private static final TellusLandMaskSource LAND_MASK_SOURCE = TellusWorldgenSources.landMask();
@@ -404,7 +407,7 @@ public final class EarthChunkGenerator extends TellusChunkGeneratorBridge {
    private final ThreadLocal<Boolean> lodShorelineOverrideSuppressed = new ThreadLocal<>();
    private final ThreadLocal<Double> lodSlopeResolutionMeters = new ThreadLocal<>();
    private final ThreadLocal<LodSnowSlope.Level> lodSnowSlopeLevel = new ThreadLocal<>();
-   private final ThreadLocal<Double> lodSandResolutionMeters = new ThreadLocal<>();
+   private final ThreadLocal<Double> lodMapResolutionMeters = new ThreadLocal<>();
    private final Map<Long, EarthChunkGenerator.PreparedChunkBuildings> preparedChunkBuildings = new ConcurrentHashMap<>();
    private final Map<Long, EarthChunkGenerator.PreparedChunkRoadLights> preparedChunkRoadLights = new ConcurrentHashMap<>();
    private final Map<Long, EarthChunkGenerator.ChunkDecorationContext> chunkDecorationContexts = new ConcurrentHashMap<>();
@@ -6240,7 +6243,7 @@ public final class EarthChunkGenerator extends TellusChunkGeneratorBridge {
    }
 
    public boolean hasOvertureSandAt(int worldX, int worldZ, OsmQueryMode queryMode) {
-      Double lodResolutionMeters = this.lodSandResolutionMeters.get();
+      Double lodResolutionMeters = this.lodMapResolutionMeters.get();
       return lodResolutionMeters != null
          ? OSM_SAND_SOURCE.containsSand(worldX, worldZ, this.settings.worldScale(), lodResolutionMeters, queryMode)
          : OSM_SAND_SOURCE.containsSand(worldX, worldZ, this.settings.worldScale(), queryMode);
@@ -6483,7 +6486,10 @@ public final class EarthChunkGenerator extends TellusChunkGeneratorBridge {
       return EarthChunkGenerator.SurfacePalette.strata(DeepslateSlopePolicy.surfaceDepthForRelief(palette.depth(), localReliefBlocks));
    }
 
-   /** The bedrock of a column, for exposed rock faces and the mountain body under them. */
+   /**
+    * The bedrock of a column, for exposed rock faces and the mountain body under them: the Macrostrat map unit where a
+    * detailed geologic map covers it, otherwise the bundled GLiM rock class.
+    */
    public StrataPolicy.Column resolveStrataColumn(int worldX, int worldZ, Holder<Biome> biome) {
       double worldScale = this.settings.worldScale();
       double verticalMetersPerBlock = worldScale / (
@@ -6492,6 +6498,11 @@ public final class EarthChunkGenerator extends TellusChunkGeneratorBridge {
                worldZ, worldScale, this.settings.experimentalIncreaseHeight(), this.settings.automaticHeightScaling()
             )
       );
+      Double lodResolutionMeters = this.lodMapResolutionMeters.get();
+      MapUnit unit = GEOLOGY_SOURCE.sampleUnit(worldX, worldZ, worldScale, lodResolutionMeters != null ? lodResolutionMeters : worldScale);
+      if (unit != null) {
+         return StrataPolicy.column(unit, worldX, worldZ, worldScale, verticalMetersPerBlock, this.seaLevel, this.worldSeed);
+      }
       return StrataPolicy.column(
          LITHOLOGY_SOURCE.sample(worldX, worldZ, worldScale),
          climateGroupForBiome(biome) == 2,
@@ -7094,13 +7105,13 @@ public final class EarthChunkGenerator extends TellusChunkGeneratorBridge {
       this.lodSnowSlopeLevel.remove();
    }
 
-   /** Overture sand lookups on this thread read tiles sized to a LOD column of this resolution until cleared. */
-   public void setLodSandResolution(double resolutionMeters) {
-      this.lodSandResolutionMeters.set(resolutionMeters);
+   /** Overture sand and Macrostrat rock lookups on this thread read tiles sized to a LOD column of this resolution until cleared. */
+   public void setLodMapResolution(double resolutionMeters) {
+      this.lodMapResolutionMeters.set(resolutionMeters);
    }
 
-   public void clearLodSandResolution() {
-      this.lodSandResolutionMeters.remove();
+   public void clearLodMapResolution() {
+      this.lodMapResolutionMeters.remove();
    }
 
    public void setLodShorelineOverrideSuppressed(boolean suppressed) {
