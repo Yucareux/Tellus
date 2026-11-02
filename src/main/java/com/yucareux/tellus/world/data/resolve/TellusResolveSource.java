@@ -1,7 +1,7 @@
 package com.yucareux.tellus.world.data.resolve;
 
 import com.yucareux.tellus.Tellus;
-import com.yucareux.tellus.world.data.source.InputStreamSafety;
+import com.yucareux.tellus.world.data.source.RunLengthGridLookup;
 import com.yucareux.tellus.worldgen.EarthProjection;
 import java.io.BufferedReader;
 import java.io.IOException;
@@ -12,7 +12,6 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import org.tukaani.xz.SingleXZInputStream;
 
 /**
  * Offline point lookup for the bundled RESOLVE Ecoregions 2017 derivative.
@@ -24,22 +23,11 @@ import org.tukaani.xz.SingleXZInputStream;
 public final class TellusResolveSource {
    static final String DEFAULT_LOOKUP_RESOURCE = "/tellus/resolve/resolve_ecoregions_2017.bin.xz";
    static final String DEFAULT_METADATA_RESOURCE = "/tellus/resolve/resolve_ecoregions_2017.csv";
-   private static final byte[] MAGIC = new byte[]{'T', 'R', 'S', 'L'};
-   private static final int FORMAT_VERSION = 2;
-   private static final int HEADER_BYTES = 24;
-   private static final int MAX_XZ_MEMORY_KIB = 32 * 1024;
    private static final int MAX_DECOMPRESSED_BYTES = 16 * 1024 * 1024;
-   private static final int MAX_WIDTH = 65_535;
-   private static final int MAX_HEIGHT = 32_768;
    private static final int MAX_RUN_COUNT = 4_000_000;
    private static final int MAX_ECOREGION_ID = 4_096;
-   private static final double WARP_BROAD_WAVELENGTH_CELLS = 4.5;
-   private static final double WARP_BROAD_AMPLITUDE_CELLS = 1.1;
-   private static final double WARP_DETAIL_WAVELENGTH_CELLS = 1.3;
-   private static final double WARP_DETAIL_AMPLITUDE_CELLS = 0.35;
    private static final long WARP_X_SEED = 0x2F6D9B41C83A5E17L;
    private static final long WARP_Z_SEED = -0x61B2C9E4A7D3F05BL;
-   private static final long WARP_DETAIL_SALT = 0x4C1E8A7B39D6F25DL;
 
    private final String lookupResource;
    private final String metadataResource;
@@ -80,8 +68,8 @@ public final class TellusResolveSource {
       Dataset loaded = this.dataset();
       if (loaded.available()) {
          double cellBlocks = blocksPerDegree * loaded.lookup().arcsecondsPerCell() / 3600.0;
-         double warpX = warp(blockX, blockZ, cellBlocks, WARP_X_SEED);
-         double warpZ = warp(blockX, blockZ, cellBlocks, WARP_Z_SEED);
+         double warpX = RunLengthGridLookup.borderWarp(blockX, blockZ, cellBlocks, WARP_X_SEED);
+         double warpZ = RunLengthGridLookup.borderWarp(blockX, blockZ, cellBlocks, WARP_Z_SEED);
          blockX += warpX;
          blockZ += warpZ;
       }
@@ -89,45 +77,6 @@ public final class TellusResolveSource {
       double longitude = blockX / blocksPerDegree;
       double latitude = EarthProjection.blockZToLat(blockZ, worldScale);
       return this.sampleAtLonLat(longitude, latitude);
-   }
-
-   private static double warp(double blockX, double blockZ, double cellBlocks, long seed) {
-      if (!(Double.isFinite(cellBlocks) && cellBlocks > 1.0)) {
-         return 0.0;
-      }
-      double broadBlocks = cellBlocks * WARP_BROAD_WAVELENGTH_CELLS;
-      double detailBlocks = cellBlocks * WARP_DETAIL_WAVELENGTH_CELLS;
-      double broad = valueNoise(blockX / broadBlocks, blockZ / broadBlocks, seed) * 2.0 - 1.0;
-      double detail = valueNoise(blockX / detailBlocks + 23.5, blockZ / detailBlocks - 7.25, seed ^ WARP_DETAIL_SALT) * 2.0 - 1.0;
-      return (broad * WARP_BROAD_AMPLITUDE_CELLS + detail * WARP_DETAIL_AMPLITUDE_CELLS) * cellBlocks;
-   }
-
-   private static double valueNoise(double x, double z, long seed) {
-      double floorX = Math.floor(x);
-      double floorZ = Math.floor(z);
-      long x0 = (long)floorX;
-      long z0 = (long)floorZ;
-      double fx = smootherStep(x - floorX);
-      double fz = smootherStep(z - floorZ);
-      double north = lerp(fx, hashToUnit(x0, z0, seed), hashToUnit(x0 + 1L, z0, seed));
-      double south = lerp(fx, hashToUnit(x0, z0 + 1L, seed), hashToUnit(x0 + 1L, z0 + 1L, seed));
-      return lerp(fz, north, south);
-   }
-
-   private static double smootherStep(double value) {
-      return value * value * value * (value * (value * 6.0 - 15.0) + 10.0);
-   }
-
-   private static double lerp(double delta, double start, double end) {
-      return start + delta * (end - start);
-   }
-
-   private static double hashToUnit(long x, long z, long seed) {
-      long hash = seed ^ x * -7046029254386353131L ^ z * -4417276706812531889L;
-      hash = (hash ^ hash >>> 33) * -49064778989728563L;
-      hash = (hash ^ hash >>> 33) * -4265267296055464877L;
-      hash ^= hash >>> 33;
-      return (hash >>> 11) * 0x1.0p-53;
    }
 
    public ResolveEcoregion sampleAtLonLat(double longitude, double latitude) {
@@ -185,8 +134,10 @@ public final class TellusResolveSource {
    private Dataset loadDataset() {
       try {
          ResolveEcoregion[] ecoregions = this.readMetadata();
-         RasterLookup lookup = this.readLookup();
-         lookup.validateEcoregionIds(ecoregions);
+         RunLengthGridLookup lookup = RunLengthGridLookup.readXzResource(
+            TellusResolveSource.class, this.lookupResource, "RESOLVE lookup", MAX_DECOMPRESSED_BYTES, MAX_RUN_COUNT
+         );
+         validateEcoregionIds(lookup, ecoregions);
          int knownCount = 0;
          for (ResolveEcoregion ecoregion : ecoregions) {
             if (ecoregion != null) {
@@ -206,17 +157,12 @@ public final class TellusResolveSource {
       }
    }
 
-   private RasterLookup readLookup() throws IOException {
-      try (InputStream raw = TellusResolveSource.class.getResourceAsStream(this.lookupResource)) {
-         if (raw == null) {
-            throw new IOException("Missing RESOLVE lookup resource " + this.lookupResource);
+   private static void validateEcoregionIds(RunLengthGridLookup lookup, ResolveEcoregion[] ecoregions) throws IOException {
+      for (int run = 0; run < lookup.runCount(); run++) {
+         int ecoId = lookup.runValue(run);
+         if (ecoId != lookup.noDataId() && (ecoId < 0 || ecoId >= ecoregions.length || ecoregions[ecoId] == null)) {
+            throw new IOException("RESOLVE lookup references missing ECO_ID " + ecoId);
          }
-
-         byte[] bytes;
-         try (SingleXZInputStream xz = new SingleXZInputStream(raw, MAX_XZ_MEMORY_KIB)) {
-            bytes = InputStreamSafety.readAllBytes(xz, MAX_DECOMPRESSED_BYTES, "RESOLVE lookup");
-         }
-         return RasterLookup.parse(bytes);
       }
    }
 
@@ -324,7 +270,7 @@ public final class TellusResolveSource {
       return fields;
    }
 
-   private record Dataset(RasterLookup lookup, ResolveEcoregion[] ecoregions, int knownEcoregionCount) {
+   private record Dataset(RunLengthGridLookup lookup, ResolveEcoregion[] ecoregions, int knownEcoregionCount) {
       private static final Dataset UNAVAILABLE = new Dataset(null, new ResolveEcoregion[0], 0);
 
       static Dataset unavailable() {
@@ -340,190 +286,6 @@ public final class TellusResolveSource {
       private static final TellusResolveSource INSTANCE = new TellusResolveSource();
 
       private SharedHolder() {
-      }
-   }
-
-   private static final class RasterLookup {
-      private final byte[] data;
-      private final int arcsecondsPerCell;
-      private final int width;
-      private final int height;
-      private final int runCount;
-      private final int noDataId;
-      private final int rowOffsetsStart;
-      private final int runsStart;
-      private final int cellsPerDegree;
-
-      private RasterLookup(
-         byte[] data,
-         int arcsecondsPerCell,
-         int width,
-         int height,
-         int runCount,
-         int noDataId,
-         int rowOffsetsStart,
-         int runsStart
-      ) {
-         this.data = data;
-         this.arcsecondsPerCell = arcsecondsPerCell;
-         this.width = width;
-         this.height = height;
-         this.runCount = runCount;
-         this.noDataId = noDataId;
-         this.rowOffsetsStart = rowOffsetsStart;
-         this.runsStart = runsStart;
-         this.cellsPerDegree = 3600 / arcsecondsPerCell;
-      }
-
-      static RasterLookup parse(byte[] data) throws IOException {
-         if (data.length < HEADER_BYTES) {
-            throw new IOException("Truncated RESOLVE lookup header");
-         }
-         for (int i = 0; i < MAGIC.length; i++) {
-            if (data[i] != MAGIC[i]) {
-               throw new IOException("Invalid RESOLVE lookup signature");
-            }
-         }
-
-         int version = readUnsignedShort(data, 4);
-         if (version != FORMAT_VERSION) {
-            throw new IOException("Unsupported RESOLVE lookup version " + version);
-         }
-
-         int arcseconds = readUnsignedShort(data, 6);
-         int width = readInt(data, 8);
-         int height = readInt(data, 12);
-         int runCount = readInt(data, 16);
-         int noDataId = readInt(data, 20);
-         if (arcseconds <= 0 || 3600 % arcseconds != 0) {
-            throw new IOException("Invalid RESOLVE cell resolution " + arcseconds);
-         }
-         int cellsPerDegree = 3600 / arcseconds;
-         if (width != 360 * cellsPerDegree
-            || height != 180 * cellsPerDegree
-            || width <= 0
-            || width > MAX_WIDTH
-            || height <= 0
-            || height > MAX_HEIGHT) {
-            throw new IOException("Invalid RESOLVE grid dimensions " + width + "x" + height);
-         }
-         if (runCount <= 0 || runCount > MAX_RUN_COUNT) {
-            throw new IOException("Invalid RESOLVE run count " + runCount);
-         }
-         if (noDataId < 0 || noDataId > 65_535) {
-            throw new IOException("Invalid RESOLVE no-data ID " + noDataId);
-         }
-
-         int rowOffsetsStart = HEADER_BYTES;
-         long runsStartLong = rowOffsetsStart + (long)(height + 1) * Integer.BYTES;
-         long expectedBytes = runsStartLong + (long)runCount * 2L * Short.BYTES;
-         if (runsStartLong > Integer.MAX_VALUE || expectedBytes != data.length) {
-            throw new IOException("Unexpected RESOLVE lookup byte length " + data.length);
-         }
-
-         RasterLookup lookup = new RasterLookup(
-            data,
-            arcseconds,
-            width,
-            height,
-            runCount,
-            noDataId,
-            rowOffsetsStart,
-            (int)runsStartLong
-         );
-         lookup.validateStructure();
-         return lookup;
-      }
-
-      int sample(double longitude, double latitude) {
-         int x = clampCell((int)Math.floor((longitude + 180.0) * this.cellsPerDegree), this.width);
-         int y = clampCell((int)Math.floor((90.0 - latitude) * this.cellsPerDegree), this.height);
-         int firstRun = this.rowOffset(y);
-         int endRun = this.rowOffset(y + 1);
-         int low = firstRun;
-         int high = endRun - 1;
-         while (low <= high) {
-            int middle = (low + high) >>> 1;
-            int startX = this.runStartX(middle);
-            if (startX <= x) {
-               low = middle + 1;
-            } else {
-               high = middle - 1;
-            }
-         }
-         return this.runEcoregionId(Math.max(firstRun, high));
-      }
-
-      int arcsecondsPerCell() {
-         return this.arcsecondsPerCell;
-      }
-
-      int noDataId() {
-         return this.noDataId;
-      }
-
-      void validateEcoregionIds(ResolveEcoregion[] ecoregions) throws IOException {
-         for (int run = 0; run < this.runCount; run++) {
-            int ecoId = this.runEcoregionId(run);
-            if (ecoId != this.noDataId && (ecoId < 0 || ecoId >= ecoregions.length || ecoregions[ecoId] == null)) {
-               throw new IOException("RESOLVE lookup references missing ECO_ID " + ecoId);
-            }
-         }
-      }
-
-      private void validateStructure() throws IOException {
-         if (this.rowOffset(0) != 0 || this.rowOffset(this.height) != this.runCount) {
-            throw new IOException("Invalid RESOLVE row-offset bounds");
-         }
-
-         int previousEnd = 0;
-         for (int row = 0; row < this.height; row++) {
-            int firstRun = this.rowOffset(row);
-            int endRun = this.rowOffset(row + 1);
-            if (firstRun != previousEnd || firstRun < 0 || endRun <= firstRun || endRun > this.runCount) {
-               throw new IOException("Invalid RESOLVE run slice at row " + row);
-            }
-            if (this.runStartX(firstRun) != 0) {
-               throw new IOException("RESOLVE row " + row + " does not begin at longitude cell 0");
-            }
-
-            int previousX = -1;
-            for (int run = firstRun; run < endRun; run++) {
-               int startX = this.runStartX(run);
-               if (startX <= previousX || startX >= this.width) {
-                  throw new IOException("Invalid RESOLVE run ordering at row " + row);
-               }
-               previousX = startX;
-            }
-            previousEnd = endRun;
-         }
-      }
-
-      private int rowOffset(int row) {
-         return readInt(this.data, this.rowOffsetsStart + row * Integer.BYTES);
-      }
-
-      private int runStartX(int run) {
-         return readUnsignedShort(this.data, this.runsStart + run * 4);
-      }
-
-      private int runEcoregionId(int run) {
-         return readUnsignedShort(this.data, this.runsStart + run * 4 + 2);
-      }
-
-      private static int clampCell(int value, int size) {
-         return Math.max(0, Math.min(size - 1, value));
-      }
-
-      private static int readUnsignedShort(byte[] data, int offset) {
-         return Byte.toUnsignedInt(data[offset]) | Byte.toUnsignedInt(data[offset + 1]) << 8;
-      }
-
-      private static int readInt(byte[] data, int offset) {
-         return Byte.toUnsignedInt(data[offset])
-            | Byte.toUnsignedInt(data[offset + 1]) << 8
-            | Byte.toUnsignedInt(data[offset + 2]) << 16
-            | Byte.toUnsignedInt(data[offset + 3]) << 24;
       }
    }
 }

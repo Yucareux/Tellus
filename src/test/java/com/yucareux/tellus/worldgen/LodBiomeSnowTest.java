@@ -291,7 +291,13 @@ class LodBiomeSnowTest {
                   );
                   Method topAccessor = palette.getClass().getDeclaredMethod("top");
                   topAccessor.setAccessible(true);
-                  BlockState fullChunkTop = (BlockState)topAccessor.invoke(palette);
+                  Method strataAccessor = palette.getClass().getDeclaredMethod("strata");
+                  strataAccessor.setAccessible(true);
+                  boolean strata = (boolean)strataAccessor.invoke(palette);
+                  // A bare-rock palette only holds a placeholder top; the chunk writes the column's rock at that height.
+                  BlockState fullChunkTop = strata
+                     ? EarthChunkGenerator.resolveStrataBlock(generator.resolveStrataColumn(x, z, biome), HIGHLAND_SURFACE_Y)
+                     : (BlockState)topAccessor.invoke(palette);
                   BlockState lodTop = generator.resolveLodSurface(
                      biome, x, z, HIGHLAND_SURFACE_Y, false, coverClass, coverClass, shape[0], shape[1], null, null, OsmQueryMode.NON_BLOCKING
                   ).top();
@@ -302,7 +308,7 @@ class LodBiomeSnowTest {
                   assertEquals(fullChunkTop, lodTop, where);
                   assertEquals(fullChunkTop, ultraFastTop, where);
                   if (coverClass == MountainSurfaceRules.ESA_GRASSLAND && shape[0] >= 3) {
-                     if (fullChunkTop.is(Blocks.STONE)) outcrops++; else steepTurf++;
+                     if (strata) outcrops++; else steepTurf++;
                   } else if (coverClass == MountainSurfaceRules.ESA_BARE && shape[0] == 2 && shape[1] == 1) {
                      assertTrue(scree.contains(fullChunkTop.getBlock()), "Scree below steeper rock is loose debris: " + where);
                      screeColumns++;
@@ -359,8 +365,8 @@ class LodBiomeSnowTest {
          assertTrue(generator.sampleDemSlopeDegrees(8, 8) > 65.0, "Fixture must exercise exposed-cliff rules");
          for (boolean ultraFast : List.of(false, true)) {
             EarthChunkGenerator.LodSurface surface = resolveSlope(generator, biome, 8, 8, ultraFast);
-            assertEquals(Blocks.DEEPSLATE.defaultBlockState(), surface.top(), "Steep mapped snow must expose rock");
-            assertEquals(Blocks.DEEPSLATE.defaultBlockState(), surface.filler());
+            assertTrue(surface.strata(), "Steep mapped snow must expose rock");
+            assertFalse(surface.top().is(Blocks.SNOW_BLOCK));
          }
       }
    }
@@ -392,8 +398,7 @@ class LodBiomeSnowTest {
                   if (snow) {
                      assertEquals(Blocks.SNOW_BLOCK.defaultBlockState(), surface.filler());
                   } else if (DeepslateSlopePolicy.shouldCover(x, z, slope)) {
-                     assertEquals(Blocks.DEEPSLATE.defaultBlockState(), surface.top());
-                     assertEquals(Blocks.DEEPSLATE.defaultBlockState(), surface.filler());
+                     assertTrue(surface.strata(), "Exposed rock at " + x + "," + z + ", ultraFast=" + ultraFast);
                   }
                }
             }

@@ -1,5 +1,9 @@
 package com.yucareux.tellus.worldgen;
 
+/**
+ * Which steep DEM slopes show bare bedrock, and how deep that rock layer goes. The rock itself comes from
+ * {@link StrataPolicy}; deepslate is only used where the local rock calls for it.
+ */
 public final class DeepslateSlopePolicy {
    private static final long COVERAGE_SALT = -4942790177534073029L;
    private static final int MAX_SURFACE_DEPTH = 65536;
@@ -18,7 +22,7 @@ public final class DeepslateSlopePolicy {
    }
 
    /**
-    * Partial coverage forms connected bands of exposed dark rock rather than a
+    * Partial coverage forms connected bands of exposed rock rather than a
     * per-block sprinkle, so near terrain and every LOD detail level agree.
     */
    public static boolean shouldCover(int worldX, int worldZ, double slopeDegrees) {

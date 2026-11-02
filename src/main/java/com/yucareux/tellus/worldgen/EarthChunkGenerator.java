@@ -10,6 +10,7 @@ import com.yucareux.tellus.world.data.canopy.TellusCanopyHeightSource;
 import com.yucareux.tellus.world.data.cover.LandCoverTransition;
 import com.yucareux.tellus.world.data.cover.TellusLandCoverSource;
 import com.yucareux.tellus.world.data.elevation.TellusElevationSource;
+import com.yucareux.tellus.world.data.geology.TellusLithologySource;
 import com.yucareux.tellus.world.data.koppen.TellusKoppenSource;
 import com.yucareux.tellus.world.data.mask.TellusLandMaskSource;
 import com.yucareux.tellus.world.data.osm.OsmPerf;
@@ -155,6 +156,7 @@ public final class EarthChunkGenerator extends TellusChunkGeneratorBridge {
    private static final TellusElevationSource ELEVATION_SOURCE = TellusWorldgenSources.elevation();
    private static final TellusCanopyHeightSource CANOPY_HEIGHT_SOURCE = TellusWorldgenSources.canopyHeight();
    private static final TellusResolveSource RESOLVE_SOURCE = TellusResolveSource.shared();
+   private static final TellusLithologySource LITHOLOGY_SOURCE = TellusLithologySource.shared();
    private static final TellusLandCoverSource LAND_COVER_SOURCE = TellusWorldgenSources.landCover();
    private static final TellusKoppenSource KOPPEN_SOURCE = TellusWorldgenSources.koppen();
    private static final TellusLandMaskSource LAND_MASK_SOURCE = TellusWorldgenSources.landMask();
@@ -296,6 +298,7 @@ public final class EarthChunkGenerator extends TellusChunkGeneratorBridge {
       TellusBlockReferences.terracottaState("LIGHT_GRAY"),
       TellusBlockReferences.terracottaState("WHITE")
    };
+   private static final BlockState[] STRATA_STATES = buildStrataStates();
    private static final int CHUNK_SIDE = 16;
    private static final int CHUNK_MASK = 15;
    private static final int CHUNK_AREA = 256;
@@ -1347,9 +1350,9 @@ public final class EarthChunkGenerator extends TellusChunkGeneratorBridge {
                boolean underwater = hasWater && waterSurface > surface;
                int slopeDiff = slopeDiffs[index];
                int convexity = convexities[index];
-               BlockState mountainMassFill = underwater
+               StrataPolicy.Column mountainStrata = underwater
                   ? null
-                  : this.resolveMountainMassFillBlock(biome, surfaceCoverClass, surface, slopeDiff, convexity, worldX, worldZ);
+                  : this.resolveMountainStrata(biome, surfaceCoverClass, surface, slopeDiff, convexity, worldX, worldZ);
                boolean surfaceSnow = !underwater && surface >= this.seaLevel
                   && this.shouldRetainSurfaceSnow(surfaceCoverClass, worldX, worldZ);
                boolean fullDepthSurfaceSnow = surfaceSnow
@@ -1378,24 +1381,29 @@ public final class EarthChunkGenerator extends TellusChunkGeneratorBridge {
                         int columnDeepslateStart = TellusCaveDepthMapper.actualDeepslateBoundaryY(
                            surface, fillStartY, this.seaLevel
                         );
-                        BlockState stoneFill = mountainMassFill != null ? mountainMassFill : STONE_STATE;
-                        if (sectionWriter != null) {
+                        if (sectionWriter != null && mountainStrata != null) {
+                           sectionWriter.fillStrataSpan(localX, localZ, fillStartY, fillTopY, columnDeepslateStart, mountainStrata);
+                        } else if (sectionWriter != null) {
                            sectionWriter.fillStoneColumnSpan(
-                              localX, localZ, fillStartY, fillTopY, columnDeepslateStart, stoneFill, DEEPSLATE_STATE
+                              localX, localZ, fillStartY, fillTopY, columnDeepslateStart, STONE_STATE, DEEPSLATE_STATE
                            );
                         } else {
                            for (int yx = fillStartY; yx <= fillTopY; yx++) {
                               cursor.set(worldX, yx, worldZ);
-                              MinecraftVersionCompat.setBlockState(chunk, cursor, yx < columnDeepslateStart ? DEEPSLATE_STATE : stoneFill);
+                              MinecraftVersionCompat.setBlockState(
+                                 chunk,
+                                 cursor,
+                                 yx < columnDeepslateStart ? DEEPSLATE_STATE : mountainStrata != null ? resolveStrataBlock(mountainStrata, yx) : STONE_STATE
+                              );
                            }
                         }
-                     } else if (mountainMassFill != null) {
+                     } else if (mountainStrata != null) {
                         if (sectionWriter != null) {
-                           sectionWriter.fillColumnConstant(localX, localZ, fillStartY, fillTopY, mountainMassFill);
+                           sectionWriter.fillStrataSpan(localX, localZ, fillStartY, fillTopY, Integer.MIN_VALUE, mountainStrata);
                         } else {
                            for (int yx = fillStartY; yx <= fillTopY; yx++) {
                               cursor.set(worldX, yx, worldZ);
-                              MinecraftVersionCompat.setBlockState(chunk, cursor, mountainMassFill);
+                              MinecraftVersionCompat.setBlockState(chunk, cursor, resolveStrataBlock(mountainStrata, yx));
                            }
                         }
                      } else if (oceanSupport && sectionWriter != null) {
@@ -1415,7 +1423,7 @@ public final class EarthChunkGenerator extends TellusChunkGeneratorBridge {
                      }
                   }
                } else {
-                  if (mountainMassFill != null) {
+                  if (mountainStrata != null) {
                      int lowerTopY = Math.min(surface, deepslateStart - 1);
                      while (y <= lowerTopY) {
                         int sectionIndex = chunk.getSectionIndex(y);
@@ -1448,11 +1456,9 @@ public final class EarthChunkGenerator extends TellusChunkGeneratorBridge {
                      int mountainStartY = Math.max(chunkMinY, deepslateStart);
                      if (mountainStartY <= surface) {
                         if (sectionWriter != null) {
-                           sectionWriter.fillColumnConstant(localX, localZ, mountainStartY, surface, mountainMassFill);
+                           sectionWriter.fillStrataSpan(localX, localZ, mountainStartY, surface, Integer.MIN_VALUE, mountainStrata);
                         } else {
-                           fillColumnConstant(
-                              sections, columnFilledSections, chunkMinY, localX, localZ, mountainStartY, surface, mountainMassFill
-                           );
+                           fillStrataColumnSpan(sections, columnFilledSections, chunkMinY, localX, localZ, mountainStartY, surface, mountainStrata);
                         }
                      }
                   } else {
@@ -4370,6 +4376,43 @@ public final class EarthChunkGenerator extends TellusChunkGeneratorBridge {
       }
    }
 
+   private static void fillStrataColumnSpan(
+      LevelChunkSection[] sections,
+      boolean[] touchedSections,
+      int chunkMinY,
+      int localX,
+      int localZ,
+      int startY,
+      int endY,
+      StrataPolicy.Column strata
+   ) {
+      int currentY = startY;
+      while (currentY <= endY) {
+         int sectionIndex = (currentY - chunkMinY) >> 4;
+         if (sectionIndex < 0 || sectionIndex >= sections.length) {
+            break;
+         }
+
+         LevelChunkSection section = Objects.requireNonNull(sections[sectionIndex], "section");
+         PalettedContainer<BlockState> states = section.getStates();
+         int sectionBottomY = chunkMinY + (sectionIndex << 4);
+         int localStartY = Math.max(0, currentY - sectionBottomY);
+         int localEndY = Math.min(15, endY - sectionBottomY);
+         section.acquire();
+
+         try {
+            for (int localY = localStartY; localY <= localEndY; localY++) {
+               states.getAndSetUnchecked(localX, localY, localZ, resolveStrataBlock(strata, sectionBottomY + localY));
+            }
+         } finally {
+            section.release();
+         }
+
+         touchedSections[sectionIndex] = true;
+         currentY = sectionBottomY + 16;
+      }
+   }
+
    private static void recalcFilledSections(LevelChunkSection[] sections, boolean[] solidSections, boolean[] touchedSections) {
       for (int i = 0; i < sections.length && i < touchedSections.length; i++) {
          if (touchedSections[i] && !solidSections[i]) {
@@ -5751,13 +5794,17 @@ public final class EarthChunkGenerator extends TellusChunkGeneratorBridge {
             biome, worldX, worldZ, surface, underwater, slopeDiff, convexity, coverClass, oceanBeachCache, profiler, useFastSurfacePalette
          );
          profiler.paletteResolveNs += elapsedFullChunkProfilingSince(paletteResolveStartNs);
-         BlockState top = this.resolveThinShellTopBlock(palette, surface, underwater);
+         StrataPolicy.Column strata = palette != null && palette.strata() && !underwater ? this.resolveStrataColumn(worldX, worldZ, biome) : null;
+         BlockState top = strata != null ? resolveStrataBlock(strata, surface) : this.resolveThinShellTopBlock(palette, surface, underwater);
          top = ThinShellSurfaceOre.resolve(top, this.settings.oreDistribution(), underwater, snowCovered, worldX, surface, worldZ);
          long blockWriteStartNs = beginFullChunkProfiling();
          if (palette != null && !underwater && biome.is(BiomeTags.IS_BADLANDS) && slopeDiff >= 3) {
             long badlandsStartNs = beginFullChunkProfiling();
             this.applyBadlandsBands(chunk, cursor, worldX, worldZ, surface, minY, palette, slopeDiff, true);
             profiler.badlandsNs += elapsedFullChunkProfilingSince(badlandsStartNs);
+         } else if (strata != null) {
+            int bottom = this.thinShellSurfaceBottomY(minY, surface, palette.depth());
+            fillStrataSurfaceColumn(chunk, cursor, worldX, worldZ, surface, bottom, top, strata);
          } else if (palette != null) {
             int depth = this.resolveSurfaceMaterialDepth(palette, top, worldX, worldZ);
             int bottom = this.thinShellSurfaceBottomY(minY, surface, depth);
@@ -5794,13 +5841,18 @@ public final class EarthChunkGenerator extends TellusChunkGeneratorBridge {
             biome, worldX, worldZ, surface, underwater, slopeDiff, convexity, coverClass, oceanBeachCache, profiler, useFastSurfacePalette
          );
          profiler.paletteResolveNs += elapsedFullChunkProfilingSince(paletteResolveStartNs);
-         BlockState top = this.resolveThinShellTopBlock(palette, surface, underwater);
+         StrataPolicy.Column strata = palette != null && palette.strata() && !underwater ? this.resolveStrataColumn(worldX, worldZ, biome) : null;
+         BlockState top = strata != null ? resolveStrataBlock(strata, surface) : this.resolveThinShellTopBlock(palette, surface, underwater);
          top = ThinShellSurfaceOre.resolve(top, this.settings.oreDistribution(), underwater, snowCovered, worldX, surface, worldZ);
          long blockWriteStartNs = beginFullChunkProfiling();
          if (palette != null && !underwater && biome.is(BiomeTags.IS_BADLANDS) && slopeDiff >= 3) {
             long badlandsStartNs = beginFullChunkProfiling();
             this.applyBadlandsBands(writer, localX, localZ, worldX, worldZ, surface, minY, palette, slopeDiff, true);
             profiler.badlandsNs += elapsedFullChunkProfilingSince(badlandsStartNs);
+         } else if (strata != null) {
+            int bottom = this.thinShellSurfaceBottomY(minY, surface, palette.depth());
+            writer.fillStrataSpan(localX, localZ, bottom, surface - 1, Integer.MIN_VALUE, strata);
+            writer.setBlock(localX, localZ, surface, top);
          } else if (palette != null) {
             int depth = this.resolveSurfaceMaterialDepth(palette, top, worldX, worldZ);
             int bottom = this.thinShellSurfaceBottomY(minY, surface, depth);
@@ -5853,6 +5905,12 @@ public final class EarthChunkGenerator extends TellusChunkGeneratorBridge {
                long badlandsStartNs = beginFullChunkProfiling();
                this.applyBadlandsBands(chunk, cursor, worldX, worldZ, surface, minY, palette, slopeDiff, false);
                profiler.badlandsNs += elapsedFullChunkProfilingSince(badlandsStartNs);
+            } else if (palette.strata() && !underwater) {
+               long blockWriteStartNs = beginFullChunkProfiling();
+               StrataPolicy.Column strata = this.resolveStrataColumn(worldX, worldZ, biome);
+               int bottom = surfaceMaterialBottomY(minY, surface, palette.depth());
+               fillStrataSurfaceColumn(chunk, cursor, worldX, worldZ, surface, bottom, resolveStrataBlock(strata, surface), strata);
+               profiler.blockWriteNs += elapsedFullChunkProfilingSince(blockWriteStartNs);
             } else {
                BlockState top = underwater ? palette.underwaterTop() : palette.top();
                BlockState filler = palette.filler();
@@ -5895,6 +5953,11 @@ public final class EarthChunkGenerator extends TellusChunkGeneratorBridge {
                long badlandsStartNs = beginFullChunkProfiling();
                this.applyBadlandsBands(writer, localX, localZ, worldX, worldZ, surface, minY, palette, slopeDiff, false);
                profiler.badlandsNs += elapsedFullChunkProfilingSince(badlandsStartNs);
+            } else if (palette.strata() && !underwater) {
+               long blockWriteStartNs = beginFullChunkProfiling();
+               StrataPolicy.Column strata = this.resolveStrataColumn(worldX, worldZ, biome);
+               writer.fillStrataSpan(localX, localZ, surfaceMaterialBottomY(minY, surface, palette.depth()), surface, Integer.MIN_VALUE, strata);
+               profiler.blockWriteNs += elapsedFullChunkProfilingSince(blockWriteStartNs);
             } else {
                BlockState top = underwater ? palette.underwaterTop() : palette.top();
                BlockState filler = palette.filler();
@@ -5948,10 +6011,10 @@ public final class EarthChunkGenerator extends TellusChunkGeneratorBridge {
             EarthChunkGenerator.SurfacePalette sandResolved = this.applyOvertureSandPaletteOverride(
                resolved, worldX, worldZ, underwater
             );
-            EarthChunkGenerator.SurfacePalette deepslateResolved = this.applyDemDeepslateSlopePaletteOverride(
+            EarthChunkGenerator.SurfacePalette rockResolved = this.applySteepSlopeRockPaletteOverride(
                sandResolved, biome, worldX, worldZ, underwater, slopeDiff
             );
-            return applyBadlandsCliffPalette(deepslateResolved, biome, worldX, worldZ, surface, underwater, slopeDiff);
+            return applyBadlandsCliffPalette(rockResolved, biome, worldX, worldZ, surface, underwater, slopeDiff);
          }
       }
    }
@@ -6043,6 +6106,15 @@ public final class EarthChunkGenerator extends TellusChunkGeneratorBridge {
          ? this.thinShellSurfaceBottomY(minY, surface, depth)
          : surfaceMaterialBottomY(minY, surface, depth);
       writer.fillBadlandsBands(localX, localZ, worldX, worldZ, surface, bottom, palette.top());
+   }
+
+   private static void fillStrataSurfaceColumn(
+      ChunkAccess chunk, MutableBlockPos cursor, int worldX, int worldZ, int surface, int bottom, BlockState top, StrataPolicy.Column strata
+   ) {
+      for (int y = surface; y >= bottom; y--) {
+         cursor.set(worldX, y, worldZ);
+         setChunkBlockStateDiscardingBlockEntity(chunk, cursor, y == surface ? top : resolveStrataBlock(strata, y));
+      }
    }
 
    private static int surfaceMaterialBottomY(int minY, int surface, int depth) {
@@ -6387,11 +6459,11 @@ public final class EarthChunkGenerator extends TellusChunkGeneratorBridge {
       );
    }
 
-   public boolean shouldPlaceDeepslateAt(int worldX, int worldZ) {
+   public boolean shouldExposeRockAt(int worldX, int worldZ) {
       return DeepslateSlopePolicy.shouldCover(worldX, worldZ, this.sampleDemSlopeDegrees(worldX, worldZ));
    }
 
-   private EarthChunkGenerator.SurfacePalette applyDemDeepslateSlopePaletteOverride(
+   private EarthChunkGenerator.SurfacePalette applySteepSlopeRockPaletteOverride(
       EarthChunkGenerator.SurfacePalette palette,
       Holder<Biome> biome,
       int worldX,
@@ -6404,13 +6476,72 @@ public final class EarthChunkGenerator extends TellusChunkGeneratorBridge {
          || biome.is(BiomeTags.IS_BADLANDS)
          || palette.top().is(Blocks.SNOW_BLOCK)
          || palette.landformSurface()
-         || !this.shouldPlaceDeepslateAt(worldX, worldZ)) {
+         || !this.shouldExposeRockAt(worldX, worldZ)) {
          return palette;
       }
 
-      return EarthChunkGenerator.SurfacePalette.deepslate(
-         DeepslateSlopePolicy.surfaceDepthForRelief(palette.depth(), localReliefBlocks)
+      return EarthChunkGenerator.SurfacePalette.strata(DeepslateSlopePolicy.surfaceDepthForRelief(palette.depth(), localReliefBlocks));
+   }
+
+   /** The bedrock of a column, for exposed rock faces and the mountain body under them. */
+   public StrataPolicy.Column resolveStrataColumn(int worldX, int worldZ, Holder<Biome> biome) {
+      double worldScale = this.settings.worldScale();
+      double verticalMetersPerBlock = worldScale / (
+         this.settings.terrestrialHeightScale()
+            * TerrainHeightTransform.heightScaleCorrection(
+               worldZ, worldScale, this.settings.experimentalIncreaseHeight(), this.settings.automaticHeightScaling()
+            )
       );
+      return StrataPolicy.column(
+         LITHOLOGY_SOURCE.sample(worldX, worldZ, worldScale),
+         climateGroupForBiome(biome) == 2,
+         worldX,
+         worldZ,
+         worldScale,
+         verticalMetersPerBlock,
+         this.seaLevel,
+         this.worldSeed
+      );
+   }
+
+   public static BlockState resolveStrataBlock(StrataPolicy.Column column, int y) {
+      return STRATA_STATES[column.material(y)];
+   }
+
+   /** Depth of the bare-rock layer on a face this steep, the same for real chunks and Distant Horizons. */
+   public int resolveStrataDepth(int localReliefBlocks) {
+      return DeepslateSlopePolicy.surfaceDepthForRelief(12, localReliefBlocks);
+   }
+
+   private static BlockState[] buildStrataStates() {
+      BlockState[] states = new BlockState[StrataPolicy.MATERIAL_COUNT];
+      for (int material = 0; material < states.length; material++) {
+         states[material] = switch (material) {
+            case StrataPolicy.ANDESITE -> Blocks.ANDESITE.defaultBlockState();
+            case StrataPolicy.DIORITE -> Blocks.DIORITE.defaultBlockState();
+            case StrataPolicy.GRANITE -> Blocks.GRANITE.defaultBlockState();
+            case StrataPolicy.CALCITE -> Blocks.CALCITE.defaultBlockState();
+            case StrataPolicy.DEEPSLATE -> Blocks.DEEPSLATE.defaultBlockState();
+            case StrataPolicy.TUFF -> Blocks.TUFF.defaultBlockState();
+            case StrataPolicy.BASALT -> Blocks.BASALT.defaultBlockState();
+            case StrataPolicy.SMOOTH_BASALT -> Blocks.SMOOTH_BASALT.defaultBlockState();
+            case StrataPolicy.BLACKSTONE -> Blocks.BLACKSTONE.defaultBlockState();
+            case StrataPolicy.SANDSTONE -> Blocks.SANDSTONE.defaultBlockState();
+            case StrataPolicy.SMOOTH_SANDSTONE -> Blocks.SMOOTH_SANDSTONE.defaultBlockState();
+            case StrataPolicy.RED_SANDSTONE -> Blocks.RED_SANDSTONE.defaultBlockState();
+            case StrataPolicy.TERRACOTTA -> Blocks.TERRACOTTA.defaultBlockState();
+            case StrataPolicy.WHITE_TERRACOTTA -> TellusBlockReferences.terracottaState("WHITE");
+            case StrataPolicy.LIGHT_GRAY_TERRACOTTA -> TellusBlockReferences.terracottaState("LIGHT_GRAY");
+            case StrataPolicy.RED_TERRACOTTA -> TellusBlockReferences.terracottaState("RED");
+            case StrataPolicy.ORANGE_TERRACOTTA -> TellusBlockReferences.terracottaState("ORANGE");
+            case StrataPolicy.PACKED_MUD -> Blocks.PACKED_MUD.defaultBlockState();
+            case StrataPolicy.COARSE_DIRT -> Blocks.COARSE_DIRT.defaultBlockState();
+            case StrataPolicy.CLAY -> Blocks.CLAY.defaultBlockState();
+            case StrataPolicy.COBBLESTONE -> Blocks.COBBLESTONE.defaultBlockState();
+            default -> Blocks.STONE.defaultBlockState();
+         };
+      }
+      return states;
    }
 
    private MountainSurfaceRules.ApproximateSurface classifyMountainSurface(
@@ -6711,12 +6842,21 @@ public final class EarthChunkGenerator extends TellusChunkGeneratorBridge {
          return new EarthChunkGenerator.LodSurface(STONE_STATE, STONE_STATE);
       } else {
          phaseStart = beginLodSurfaceProfiling(profiler);
-         BlockState top = underwater ? palette.underwaterTop() : palette.top();
-         BlockState filler = resolveLodSurfaceFiller(palette, top, underwater);
-         EarthChunkGenerator.LodSurface lodSurface = new EarthChunkGenerator.LodSurface(top, filler);
+         EarthChunkGenerator.LodSurface lodSurface = this.lodSurfaceFor(palette, biome, worldX, worldZ, surface, underwater);
          endLodSurfaceProfiling(profiler, "generator.result", phaseStart);
          return lodSurface;
       }
+   }
+
+   private EarthChunkGenerator.LodSurface lodSurfaceFor(
+      EarthChunkGenerator.SurfacePalette palette, Holder<Biome> biome, int worldX, int worldZ, int surface, boolean underwater
+   ) {
+      if (palette.strata() && !underwater) {
+         StrataPolicy.Column strata = this.resolveStrataColumn(worldX, worldZ, biome);
+         return new EarthChunkGenerator.LodSurface(resolveStrataBlock(strata, surface), resolveStrataBlock(strata, surface - 1), true);
+      }
+      BlockState top = underwater ? palette.underwaterTop() : palette.top();
+      return new EarthChunkGenerator.LodSurface(top, resolveLodSurfaceFiller(palette, top, underwater));
    }
 
    public EarthChunkGenerator.LodSurface resolveUltraFastLodSurface(
@@ -6794,10 +6934,9 @@ public final class EarthChunkGenerator extends TellusChunkGeneratorBridge {
       if (allowOsmSand) {
          palette = this.applyOvertureSandPaletteOverride(palette, worldX, worldZ, underwater, mountainOsmQueryMode);
       }
-      palette = this.applyDemDeepslateSlopePaletteOverride(palette, biome, worldX, worldZ, underwater, slopeDiff);
+      palette = this.applySteepSlopeRockPaletteOverride(palette, biome, worldX, worldZ, underwater, slopeDiff);
       palette = applyBadlandsCliffPalette(palette, biome, worldX, worldZ, surface, underwater, slopeDiff);
-      BlockState top = underwater ? palette.underwaterTop() : palette.top();
-      return new EarthChunkGenerator.LodSurface(top, resolveLodSurfaceFiller(palette, top, underwater));
+      return this.lodSurfaceFor(palette, biome, worldX, worldZ, surface, underwater);
    }
 
    private static BlockState resolveLodSurfaceFiller(EarthChunkGenerator.SurfacePalette palette, BlockState top, boolean underwater) {
@@ -7505,9 +7644,9 @@ public final class EarthChunkGenerator extends TellusChunkGeneratorBridge {
             int rewriteTop = Mth.clamp(Math.max(oldTop, newTop) + 2, chunkMinY, chunkMaxY);
             boolean refinedUnderwater = refinedWaterFlags[index] && refinedWaterSurfaces[index] > newSurface;
             boolean refinedOceanSupport = refinedUnderwater && refinement.oceanFlags()[index];
-            BlockState mountainMassFill = refinedUnderwater
+            StrataPolicy.Column mountainStrata = refinedUnderwater
                ? null
-               : this.resolveMountainMassFillBlock(
+               : this.resolveMountainStrata(
                   refinedBiomes[index],
                   refinedSurfaceCoverClasses[index],
                   newSurface,
@@ -7541,8 +7680,8 @@ public final class EarthChunkGenerator extends TellusChunkGeneratorBridge {
                   setChunkBlockStateDiscardingBlockEntity(chunk, cursor, BEDROCK_STATE);
                }
                for (int y = bedrockY + 1; y <= fillTopY; y++) {
-                  BlockState fill = mountainMassFill != null ? mountainMassFill : STONE_STATE;
-                  if (y < columnDeepslateStart && (surfaceRelativeGeology || mountainMassFill == null && !refinedOceanSupport)) {
+                  BlockState fill = mountainStrata != null ? resolveStrataBlock(mountainStrata, y) : STONE_STATE;
+                  if (y < columnDeepslateStart && (surfaceRelativeGeology || mountainStrata == null && !refinedOceanSupport)) {
                      fill = DEEPSLATE_STATE;
                   }
                   cursor.set(worldX, y, worldZ);
@@ -7552,7 +7691,9 @@ public final class EarthChunkGenerator extends TellusChunkGeneratorBridge {
                for (int y = rewriteBottom; y <= newSurface; y++) {
                   cursor.set(worldX, y, worldZ);
                   setChunkBlockStateDiscardingBlockEntity(
-                     chunk, cursor, mountainMassFill != null ? mountainMassFill : y < this.minY + 64 ? DEEPSLATE_STATE : STONE_STATE
+                     chunk,
+                     cursor,
+                     mountainStrata != null ? resolveStrataBlock(mountainStrata, y) : y < this.minY + 64 ? DEEPSLATE_STATE : STONE_STATE
                   );
                }
             }
@@ -10674,10 +10815,10 @@ public final class EarthChunkGenerator extends TellusChunkGeneratorBridge {
             resolved, worldX, worldZ, underwater, mountainOsmQueryMode
          );
          endLodSurfaceProfiling(profiler, "generator.overtureSand", phaseStart);
-         EarthChunkGenerator.SurfacePalette deepslateResolved = this.applyDemDeepslateSlopePaletteOverride(
+         EarthChunkGenerator.SurfacePalette rockResolved = this.applySteepSlopeRockPaletteOverride(
             sandResolved, biome, worldX, worldZ, underwater, slopeDiff
          );
-         return applyBadlandsCliffPalette(deepslateResolved, biome, worldX, worldZ, surface, underwater, slopeDiff);
+         return applyBadlandsCliffPalette(rockResolved, biome, worldX, worldZ, surface, underwater, slopeDiff);
       }
    }
 
@@ -10764,21 +10905,12 @@ public final class EarthChunkGenerator extends TellusChunkGeneratorBridge {
       };
    }
 
-   private BlockState resolveMountainMassFillBlock(
+   /**
+    * The rock of the mountain body under rocky or snow-covered mountain ground, so caves and cuts show the same rock
+    * as the face; null where the body stays ordinary stone.
+    */
+   private StrataPolicy.Column resolveMountainStrata(
       Holder<Biome> biome, int surfaceCoverClass, int surface, int slopeDiff, int convexity, int worldX, int worldZ
-   ) {
-      return this.resolveMountainMassFillBlock(biome, surfaceCoverClass, surface, slopeDiff, convexity, worldX, worldZ, this.resolveFullChunkOsmQueryMode());
-   }
-
-   private BlockState resolveMountainMassFillBlock(
-      Holder<Biome> biome,
-      int surfaceCoverClass,
-      int surface,
-      int slopeDiff,
-      int convexity,
-      int worldX,
-      int worldZ,
-      OsmQueryMode mountainOsmQueryMode
    ) {
       MountainSurfaceRules.ApproximateSurface approximate = this.classifyMountainSurface(
          surfaceCoverClass,
@@ -10789,14 +10921,9 @@ public final class EarthChunkGenerator extends TellusChunkGeneratorBridge {
          0.0F,
          worldX,
          worldZ,
-         mountainOsmQueryMode
+         this.resolveFullChunkOsmQueryMode()
       );
-      if (approximate.palette() == MountainSurfaceRules.ApproximatePalette.SNOW
-         || approximate.palette() == MountainSurfaceRules.ApproximatePalette.SNOW_STREAK) {
-         return STONE_STATE;
-      }
-
-      return approximate.palette() == MountainSurfaceRules.ApproximatePalette.STONE ? STONE_STATE : null;
+      return approximate.palette() == MountainSurfaceRules.ApproximatePalette.NONE ? null : this.resolveStrataColumn(worldX, worldZ, biome);
    }
 
    private EarthChunkGenerator.ShorelineContext resolveShorelineContext(
@@ -11175,7 +11302,7 @@ public final class EarthChunkGenerator extends TellusChunkGeneratorBridge {
          } else {
             // Steep turf keeps its land cover but breaks into rock outcrops as it steepens.
             return SurfacePatchNoise.covers(worldX, worldZ, EXPOSED_ROCK_SALT, MountainSurfaceRules.exposedRockPercent(slopeDiff))
-               ? EarthChunkGenerator.SurfacePalette.stonyPeaks()
+               ? EarthChunkGenerator.SurfacePalette.strata(12)
                : palette;
          }
       }
@@ -11301,7 +11428,7 @@ public final class EarthChunkGenerator extends TellusChunkGeneratorBridge {
       } else if (biome.is(Biomes.BEACH) || biome.is(Biomes.SNOWY_BEACH)) {
          return EarthChunkGenerator.SurfacePalette.beach();
       } else if (biome.is(Biomes.STONY_SHORE)) {
-         return EarthChunkGenerator.SurfacePalette.stonyPeaks();
+         return EarthChunkGenerator.SurfacePalette.strata(12);
       } else if (biome.is(BiomeTags.IS_BADLANDS)) {
          return EarthChunkGenerator.SurfacePalette.badlands(badlandsPlateauTop(worldX, worldZ));
       } else if (biome.is(Biomes.DESERT)) {
@@ -11311,7 +11438,7 @@ public final class EarthChunkGenerator extends TellusChunkGeneratorBridge {
       } else if (biome.is(Biomes.SWAMP)) {
          return EarthChunkGenerator.SurfacePalette.swamp();
       } else if (biome.is(Biomes.STONY_PEAKS)) {
-         return EarthChunkGenerator.SurfacePalette.stonyPeaks();
+         return EarthChunkGenerator.SurfacePalette.strata(12);
       } else if (biome.is(Biomes.WINDSWEPT_GRAVELLY_HILLS)) {
          return EarthChunkGenerator.SurfacePalette.gravelly();
       } else {
@@ -11367,7 +11494,7 @@ public final class EarthChunkGenerator extends TellusChunkGeneratorBridge {
             : (roll < 65 ? EarthChunkGenerator.SurfacePalette.rooted() : EarthChunkGenerator.SurfacePalette.defaultOverworld());
          case 50 -> roll < 45 ? EarthChunkGenerator.SurfacePalette.gravelly() : EarthChunkGenerator.SurfacePalette.stonyPeaks();
          case 60 -> zoneHeight >= MountainSurfaceRules.SURFACE_ALPINE_HEIGHT_ABOVE_SEA
-            ? EarthChunkGenerator.SurfacePalette.stonyPeaks()
+            ? EarthChunkGenerator.SurfacePalette.strata(12)
             : (
                climateGroup == 2
                   ? (roll < 55
@@ -11376,14 +11503,14 @@ public final class EarthChunkGenerator extends TellusChunkGeneratorBridge {
                   : (
                      climateGroup != 4 && climateGroup != 5
                         ? EarthChunkGenerator.SurfacePalette.gravelly()
-                        : (roll < 70 ? EarthChunkGenerator.SurfacePalette.gravelly() : EarthChunkGenerator.SurfacePalette.stonyPeaks())
+                        : (roll < 70 ? EarthChunkGenerator.SurfacePalette.gravelly() : EarthChunkGenerator.SurfacePalette.strata(12))
                   )
             );
          case 70 -> EarthChunkGenerator.SurfacePalette.snowy();
          case 90 -> roll < 40 ? EarthChunkGenerator.SurfacePalette.swamp() : EarthChunkGenerator.SurfacePalette.wetland();
          case 95 -> EarthChunkGenerator.SurfacePalette.mangrove();
          case 100 -> zoneHeight >= MountainSurfaceRules.SURFACE_ALPINE_HEIGHT_ABOVE_SEA && roll < 60
-            ? EarthChunkGenerator.SurfacePalette.stonyPeaks()
+            ? EarthChunkGenerator.SurfacePalette.strata(12)
             : (roll < 35 ? EarthChunkGenerator.SurfacePalette.mossy() : EarthChunkGenerator.SurfacePalette.defaultOverworld());
          default -> climateGroup != 4 && climateGroup != 5
             ? EarthChunkGenerator.SurfacePalette.defaultOverworld()
@@ -12224,7 +12351,11 @@ public final class EarthChunkGenerator extends TellusChunkGeneratorBridge {
       }
    }
 
-   public record LodSurface( BlockState top,  BlockState filler) {
+   /** @param strata bare bedrock; Distant Horizons draws its sides from {@link #resolveStrataColumn} */
+   public record LodSurface(BlockState top, BlockState filler, boolean strata) {
+      public LodSurface(BlockState top, BlockState filler) {
+         this(top, filler, false);
+      }
    }
 
    public interface LodSurfaceProfiler {
@@ -13215,6 +13346,33 @@ public final class EarthChunkGenerator extends TellusChunkGeneratorBridge {
             for (int localY = localStartY; localY <= localEndY; localY++) {
                int worldY = sectionBottomY + localY;
                states.getAndSetUnchecked(localX, localY, localZ, worldY < deepslateStart ? deepslate : stone);
+            }
+
+            this.markDirty(sectionIndex);
+            currentY = sectionBottomY + 16;
+         }
+      }
+
+      /** The column's rock from startY to endY, with deepslate below {@code deepslateStart} like the stone fill. */
+      void fillStrataSpan(int localX, int localZ, int startY, int endY, int deepslateStart, StrataPolicy.Column strata) {
+         if (endY < startY) {
+            return;
+         }
+
+         int currentY = startY;
+         while (currentY <= endY) {
+            int sectionIndex = this.sectionIndexForY(currentY);
+            if (sectionIndex < 0 || sectionIndex >= this.sections.length) {
+               break;
+            }
+
+            int sectionBottomY = this.chunkMinY + (sectionIndex << 4);
+            int localStartY = Math.max(0, currentY - sectionBottomY);
+            int localEndY = Math.min(15, endY - sectionBottomY);
+            PalettedContainer<BlockState> states = this.acquireStates(sectionIndex, null);
+            for (int localY = localStartY; localY <= localEndY; localY++) {
+               int worldY = sectionBottomY + localY;
+               states.getAndSetUnchecked(localX, localY, localZ, worldY < deepslateStart ? DEEPSLATE_STATE : resolveStrataBlock(strata, worldY));
             }
 
             this.markDirty(sectionIndex);
@@ -14896,16 +15054,32 @@ public final class EarthChunkGenerator extends TellusChunkGeneratorBridge {
    /**
     * @param landformSurface loose debris or ice placed by a landform rule, which the
     *    steep-slope exposed-rock rule leaves in place
+    * @param strata bare bedrock whose blocks come from the column's {@link StrataPolicy} rock at each height;
+    *    its top and filler are only placeholders
     */
-   private record SurfacePalette( BlockState top,  BlockState underwaterTop,  BlockState filler, int depth, boolean landformSurface) {
+   private record SurfacePalette(
+      BlockState top, BlockState underwaterTop, BlockState filler, int depth, boolean landformSurface, boolean strata
+   ) {
       private SurfacePalette(BlockState top, BlockState underwaterTop, BlockState filler, int depth) {
-         this(top, underwaterTop, filler, depth, false);
+         this(top, underwaterTop, filler, depth, false, false);
+      }
+
+      private SurfacePalette(BlockState top, BlockState underwaterTop, BlockState filler, int depth, boolean landformSurface) {
+         this(top, underwaterTop, filler, depth, landformSurface, false);
       }
 
       static EarthChunkGenerator.SurfacePalette landform(MountainSurfaceRules.MountainForm form, int worldX, int worldZ) {
+         if (!MountainSurfaceRules.isLooseDebrisForm(form)) {
+            return strata(12);
+         }
          BlockState top = mountainMaterialState(MountainSurfaceRules.formSurfaceMaterial(form, worldX, worldZ));
-         boolean looseDebris = MountainSurfaceRules.isLooseDebrisForm(form);
-         return new EarthChunkGenerator.SurfacePalette(top, top, EarthChunkGenerator.STONE_STATE, looseDebris ? 4 : 12, looseDebris);
+         return new EarthChunkGenerator.SurfacePalette(top, top, EarthChunkGenerator.STONE_STATE, 4, true);
+      }
+
+      static EarthChunkGenerator.SurfacePalette strata(int depth) {
+         return new EarthChunkGenerator.SurfacePalette(
+            EarthChunkGenerator.STONE_STATE, EarthChunkGenerator.STONE_STATE, EarthChunkGenerator.STONE_STATE, depth, false, true
+         );
       }
 
       static EarthChunkGenerator.SurfacePalette glacier(BlockState top) {
@@ -14919,15 +15093,6 @@ public final class EarthChunkGenerator extends TellusChunkGeneratorBridge {
       static EarthChunkGenerator.SurfacePalette mushroomFields() {
          return new EarthChunkGenerator.SurfacePalette(
             EarthChunkGenerator.MYCELIUM_STATE, EarthChunkGenerator.DIRT_STATE, EarthChunkGenerator.DIRT_STATE, 4
-         );
-      }
-
-      static EarthChunkGenerator.SurfacePalette deepslate(int depth) {
-         return new EarthChunkGenerator.SurfacePalette(
-            EarthChunkGenerator.DEEPSLATE_STATE,
-            EarthChunkGenerator.DEEPSLATE_STATE,
-            EarthChunkGenerator.DEEPSLATE_STATE,
-            depth
          );
       }
 

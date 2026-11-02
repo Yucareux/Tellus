@@ -36,6 +36,7 @@ Build all targets with `./gradlew build`, or only the new targets with `./gradle
 - Highly customizable terrain generation (scale, height limits, and more)
 - Built-in terrain preview screen for visualizing settings before world creation
 - Biomes placed to match real-world climate regions
+- Real-world bedrock on cliffs and mountain faces, drawn as strata that follow the world scale
 - OSM roads, buildings, and map features generated with Arnis-derived logic
 - Real-time inspired weather and time systems (optional)
 - Distant Horizons integration for long-distance terrain rendering
@@ -184,6 +185,14 @@ This section lets you toggle vanilla structures and world features on or off, su
 - Publication DOI:
 - https://doi.org/10.1038/sdata.2018.214
 - In-game processing: reprojected and resampled to match the world grid, cached for fast lookup.
+
+### GLiM rock classes
+- Steep faces, bare mountain ground and the mountain body under them use the local rock class of the Global Lithological Map (GLiM): granite, limestone, basalt, sandstone, schist and the rest of its 16 classes. Before this, steep faces turned to deepslate everywhere.
+- Source: OpenLandMap lithology class map at 250 m (Hengl, 2018), derived from the USGS global ecological land units and GLiM (Hartmann and Moosdorf, 2012).
+- https://doi.org/10.5281/zenodo.1464846
+- License: CC BY-SA 4.0 for the bundled derived lookup only.
+- In-game processing: bundled as a 60-arc-second (about 1.85 km) lookup, so it needs no network access; a smooth warp bends the cell borders. Layered rock is cut into beds along real height, so a bed sits at the same real height at every world scale. Beds thinner than one block are left out, so coarse scales show one rock per slope. Sediment in deserts uses red-bed colours.
+- Newly generated chunks use the new rock. Existing chunks keep their deepslate faces, so seams can show at old chunk borders.
 
 ### Mapterhorn terrain DEM
 - Source: Mapterhorn global terrain tiles.

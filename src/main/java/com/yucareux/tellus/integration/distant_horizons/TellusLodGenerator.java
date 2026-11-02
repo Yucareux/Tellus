@@ -37,6 +37,7 @@ import com.yucareux.tellus.worldgen.EarthChunkGenerator;
 import com.yucareux.tellus.worldgen.EarthGeneratorSettings;
 import com.yucareux.tellus.worldgen.EarthProjection;
 import com.yucareux.tellus.worldgen.MountainSurfaceRules;
+import com.yucareux.tellus.worldgen.StrataPolicy;
 import com.yucareux.tellus.worldgen.road.StreetLightPlanner;
 import com.yucareux.tellus.worldgen.ExperimentalHeightSupport;
 import com.yucareux.tellus.worldgen.TellusBlockReferences;
@@ -946,13 +947,11 @@ public final class TellusLodGenerator implements IDhApiWorldGenerator {
                   }
 
                   int slopeDiff = lodSlopeDiffs[index];
-                  boolean useBadlandsBands = !underwater
-                     && !hasRoad
-                     && !hasBuilding
-                     && !hasBridgeSupport
-                     && !snowColoredLodColumn
-                     && slopeDiff >= 3
-                     && biomeHolder.is(BiomeTags.IS_BADLANDS);
+                  boolean bareColumn = !underwater && !hasRoad && !hasBuilding && !hasBridgeSupport && !snowColoredLodColumn;
+                  boolean useBadlandsBands = bareColumn && slopeDiff >= 3 && biomeHolder.is(BiomeTags.IS_BADLANDS);
+                  StrataPolicy.Column strata = bareColumn && !useBadlandsBands && lodSurface.strata()
+                     ? this.generator.resolveStrataColumn(worldX, worldZ, biomeHolder)
+                     : null;
                   int poolLight = lampPools == null ? 0 : lampPools[index];
                   int cityLight;
                   if (hasRoad) {
@@ -1034,8 +1033,11 @@ public final class TellusLodGenerator implements IDhApiWorldGenerator {
                   int surfaceTop = toLayerTop(surfaceY, minY, absoluteTop);
                   int topLayerBase = Math.max(0, surfaceTop - 1);
                   columnPhaseStart = emitTimingEnabled ? System.nanoTime() : 0L;
-                  if (useBadlandsBands) {
-                     int bandDepth = Math.min(this.generator.resolveBadlandsBandDepth(slopeDiff), surfaceY - minY + 1);
+                  if (useBadlandsBands || strata != null) {
+                     int bandDepth = Math.min(
+                        strata != null ? this.generator.resolveStrataDepth(slopeDiff) : this.generator.resolveBadlandsBandDepth(slopeDiff),
+                        surfaceY - minY + 1
+                     );
                      int bandBottomY = Math.max(minY, surfaceY - bandDepth + 1);
                      int bandBottomLayer = toLayerTop(bandBottomY, minY, absoluteTop);
                      if (bandBottomLayer > lastLayerTop) {
@@ -1045,10 +1047,9 @@ public final class TellusLodGenerator implements IDhApiWorldGenerator {
 
                      while (lastLayerTop < topLayerBase) {
                         int bandY = minY + lastLayerTop;
-                        BlockState bandState = this.generator.resolveBadlandsBandBlock(worldX, worldZ, bandY);
+                        BlockState bandState = this.lodBandBlock(strata, worldX, worldZ, bandY);
                         int segmentTop = lastLayerTop + 1;
-                        while (segmentTop < topLayerBase
-                           && bandState.equals(this.generator.resolveBadlandsBandBlock(worldX, worldZ, minY + segmentTop))) {
+                        while (segmentTop < topLayerBase && bandState.equals(this.lodBandBlock(strata, worldX, worldZ, minY + segmentTop))) {
                            segmentTop++;
                         }
                         IDhApiBlockStateWrapper bandBlock = wrappers.getBlockState(bandState);
@@ -1896,10 +1897,14 @@ public final class TellusLodGenerator implements IDhApiWorldGenerator {
       return Mth.clamp(inclusiveTopY - minY + 1, 0, absoluteTop);
    }
 
+   private BlockState lodBandBlock(StrataPolicy.Column strata, int worldX, int worldZ, int y) {
+      return strata != null ? EarthChunkGenerator.resolveStrataBlock(strata, y) : this.generator.resolveBadlandsBandBlock(worldX, worldZ, y);
+   }
+
    /**
     * Seals the visual terrain mass below a direct LOD surface. Real chunks may use a hollow terrain shell,
     * but encoding that void in a coarse DH column exposes horizontal gaps whenever adjacent samples differ
-    * by more than the shell depth. The resolved filler is retained so slope materials such as deepslate remain
+    * by more than the shell depth. The resolved filler is retained so slope materials such as exposed rock remain
     * visible on the resulting cliff face.
     */
    static int appendSealedLodBaseColumn(
